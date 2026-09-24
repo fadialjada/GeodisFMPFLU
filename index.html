@@ -269,6 +269,21 @@
             return dbData;
         };
 
+        const getDefaultUserName = (firebaseUser) => {
+            const displayName = firebaseUser?.displayName?.trim();
+            const emailName = (firebaseUser?.email || '').split('@')[0];
+            const firstName = (displayName || emailName)
+                .replace(/[._-]+/g, ' ')
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean)[0];
+
+            if (!firstName) return 'Team Member';
+            return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+        };
+
+        const getUserNameKey = (uid) => `geodis_user_name_${uid}`;
+
         const App = () => {
             const [user, setUser] = useState(null);
             const [authReady, setAuthReady] = useState(false);
@@ -276,7 +291,7 @@
             const [loginPassword, setLoginPassword] = useState('');
             const [authError, setAuthError] = useState('');
             const [isSigningIn, setIsSigningIn] = useState(false);
-            const [userName, setUserName] = useState(() => localStorage.getItem('geodis_user_name') || '');
+            const [userName, setUserName] = useState('');
             const [isEditingName, setIsEditingName] = useState(false);
             const [isEditing, setIsEditing] = useState(false);
             const [activeTab, setActiveTab] = useState('overview');
@@ -382,6 +397,13 @@
 
             useEffect(() => {
                 const unsubscribe = onAuthStateChanged(auth, (u) => {
+                    if (u) {
+                        const savedName = localStorage.getItem(getUserNameKey(u.uid))?.trim();
+                        setUserName(savedName || getDefaultUserName(u));
+                    } else {
+                        setUserName('');
+                        setIsEditingName(false);
+                    }
                     setUser(u);
                     setAuthReady(true);
                     if (!u) setIsLoading(false);
@@ -576,6 +598,14 @@
                     unsubscribePresence(); 
                 };
             }, [user, userName]);
+
+            useEffect(() => {
+                if (!user) return;
+                const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', user.uid);
+                return () => {
+                    deleteDoc(presenceRef).catch(() => {});
+                };
+            }, [user?.uid]);
 
             const getDaysWorkedInWeek = (personName, currentDate, currentDayRoutes, allHistory) => {
                 if (!personName) return 0;
@@ -1123,8 +1153,17 @@
             };
 
             const saveUserName = (val) => {
-                setUserName(val);
-                localStorage.setItem('geodis_user_name', val);
+                if (!user) return;
+
+                const key = getUserNameKey(user.uid);
+                const customName = String(val || '').trim();
+                if (customName) {
+                    localStorage.setItem(key, customName);
+                    setUserName(customName);
+                } else {
+                    localStorage.removeItem(key);
+                    setUserName(getDefaultUserName(user));
+                }
                 setIsEditingName(false);
             };
 
