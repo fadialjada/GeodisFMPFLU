@@ -223,7 +223,11 @@
                 conflicts[dayStr] = [];
                 const ah = dataObj.afterHours?.[dayStr];
                 if (ah) {
-                    [ah.person1, ah.person2].forEach(personName => {
+                    const afterHoursPeople = [ah.person1, ah.person2].filter(Boolean);
+                    if (afterHoursPeople.length > 1 && afterHoursPeople[0] === afterHoursPeople[1]) {
+                        conflicts[dayStr].push(`${afterHoursPeople[0]} is assigned twice for After-Hours on the same day.`);
+                    }
+                    afterHoursPeople.forEach(personName => {
                         if (personName) {
                             const emp = (dataObj.employees || []).find(e => e.name === personName);
                             if (emp && emp.shifts[dayStr]?.isOff) {
@@ -258,7 +262,79 @@
                 if (!covers && shifts.length > 0) coverage[dayStr] = true;
             });
 
+            const weeklyWorkDays = {};
+            (dataObj.employees || []).forEach(emp => {
+                days.forEach(dayStr => {
+                    const shift = emp.shifts?.[dayStr];
+                    if (emp.name && shift && !shift.isOff && shift.start && shift.end) {
+                        weeklyWorkDays[emp.name] = (weeklyWorkDays[emp.name] || 0) + 1;
+                    }
+                });
+            });
+            Object.entries(weeklyWorkDays).forEach(([name, count]) => {
+                if (count > 6) {
+                    conflicts[days[0]].push(`${name} is scheduled ${count} days this week. Confirm before overriding the six-day limit.`);
+                }
+            });
+
             return { coverage, conflicts };
+        };
+
+        const normalizeAssignmentName = (name) => String(name || '').trim().replace(/\s+/g, ' ');
+
+        const calculateDriverAssignmentWarnings = (currentData, historyRecords, activeDateStr) => {
+            const weekDays = getOfficeWeekBoundaries(activeDateStr).days;
+            const sameDay = [];
+            const weeklyAssignmentDays = {};
+
+            weekDays.forEach(dayStr => {
+                const dayRecord = dayStr === activeDateStr
+                    ? currentData
+                    : (historyRecords || []).find(record => record.date === dayStr);
+                const assignmentCounts = {};
+
+                (dayRecord?.routeTable || []).forEach(route => {
+                    [
+                        { role: 'driver', name: normalizeAssignmentName(route.driver) },
+                        { role: 'helper', name: normalizeAssignmentName(route.helper) }
+                    ].forEach(({ role, name }) => {
+                        if (!name) return;
+                        const key = `${role}:${name}`;
+                        assignmentCounts[key] = (assignmentCounts[key] || 0) + 1;
+                        if (!weeklyAssignmentDays[key]) weeklyAssignmentDays[key] = new Set();
+                        weeklyAssignmentDays[key].add(dayStr);
+                    });
+                });
+
+                Object.entries(assignmentCounts).forEach(([key, count]) => {
+                    if (count > 1) {
+                        const [role, name] = key.split(':');
+                        const dayName = new Date(dayStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+                        sameDay.push(`${name} is assigned as ${role} on ${count} routes on ${dayName}.`);
+                    }
+                });
+            });
+
+            const weekly = Object.entries(weeklyAssignmentDays)
+                .filter(([, daySet]) => daySet.size > 6)
+                .map(([key, daySet]) => {
+                    const [role, name] = key.split(':');
+                    return `${name} is assigned as ${role} ${daySet.size} days this week. Confirm before overriding the six-day limit.`;
+                });
+
+            return { sameDay, weekly };
+        };
+
+        const calculatePreloadAssignmentWarnings = (allSchedules, days) => {
+            const weeklyCounts = {};
+            days.forEach(dayStr => {
+                const contractor = normalizeAssignmentName(allSchedules?.[dayStr]?.contractor);
+                if (contractor) weeklyCounts[contractor] = (weeklyCounts[contractor] || 0) + 1;
+            });
+
+            return Object.entries(weeklyCounts)
+                .filter(([, count]) => count > 6)
+                .map(([contractor, count]) => `${contractor} is assigned to preload ${count} days this week. Confirm before overriding the six-day limit.`);
         };
 
         const levenshteinDistance = (str1, str2) => {
@@ -354,11 +430,25 @@
             const [pasteFeedback, setPasteFeedback] = useState('');
             const [routePasteFeedback, setRoutePasteFeedback] = useState('');
             
+            const getChicagoDateKey = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+            const getComplianceAckKey = (alertId, dateKey = getChicagoDateKey()) => `geodis_compliance_ack_${dateKey}_${alertId}`;
+
             // Alerts State
             const [showPreloadAlert, setShowPreloadAlert] = useState(false);
-            const [preloadDismissed, setPreloadDismissed] = useState(false);
+            const [preloadDismissed, setPreloadDismissed] = useState(() => {
+                const todayKey = getChicagoDateKey();
+                return localStorage.getItem(`geodis_preload_ack_${todayKey}`) === 'true';
+            });
             const [timeAlerts, setTimeAlerts] = useState({ show12: false, show17: false, show19: false });
-            const [dismissedAlerts, setDismissedAlerts] = useState({ 12: false, 17: false, 19: false });
+            const [dismissedAlerts, setDismissedAlerts] = useState(() => {
+                const todayKey = getChicagoDateKey();
+                return {
+                    12: localStorage.getItem(getComplianceAckKey(12, todayKey)) === 'true',
+                    17: localStorage.getItem(getComplianceAckKey(17, todayKey)) === 'true',
+                    19: localStorage.getItem(getComplianceAckKey(19, todayKey)) === 'true'
+                };
+            });
+            const [acknowledgedAssignmentAlerts, setAcknowledgedAssignmentAlerts] = useState({});
 
             const [masterLists, setMasterLists] = useState(DEFAULT_MASTER_LISTS);
             const playedAlerts = useRef({ 12: false, 1230: false, 17: false, 19: false });
@@ -388,7 +478,6 @@
                         setShowPreloadAlert(true);
                     } else {
                         setShowPreloadAlert(false);
-                        setPreloadDismissed(false);
                     }
 
                     // Route Update Alerts trigger at 12 PM, 5 PM (17), and 7 PM (19)
@@ -401,6 +490,18 @@
                 const timer = setInterval(checkTime, 60000);
                 return () => clearInterval(timer);
             }, []);
+
+            const acknowledgePreloadReminder = () => {
+                const todayKey = getChicagoDateKey();
+                localStorage.setItem(`geodis_preload_ack_${todayKey}`, 'true');
+                setPreloadDismissed(true);
+            };
+
+            const acknowledgeComplianceReminder = (alertId) => {
+                const todayKey = getChicagoDateKey();
+                localStorage.setItem(getComplianceAckKey(alertId, todayKey), 'true');
+                setDismissedAlerts(prev => ({ ...prev, [alertId]: true }));
+            };
 
             useEffect(() => {
                 if (!window.html2canvas) {
@@ -1226,30 +1327,64 @@
                 } catch(e) { console.error("Failed to update preload day:", e); }
             };
 
+            const savePreloadDay = async (dateStr, updated) => {
+                setAllPreloadSchedules(prev => ({ ...prev, [dateStr]: updated }));
+
+                if (!db) return;
+                let currentUid = "local";
+                if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', dateStr);
+                    await setDoc(docRef, { ...updated, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                } catch(e) { console.error("Failed to save preload day:", e); }
+            };
+
             const copyPreviousPreloadWeek = async () => {
                 const currentDays = getOfficeWeekBoundaries(preloadActiveDate).days;
-                currentDays.forEach(async (d) => {
+                const updates = currentDays.map((d) => {
                     const prevDate = new Date(d + 'T12:00:00');
                     prevDate.setDate(prevDate.getDate() - 7);
                     const prevStr = prevDate.toISOString().split('T')[0];
                     const prevData = allPreloadSchedules[prevStr];
-                    if (prevData && prevData.contractor) {
-                        await updatePreloadDay(d, 'contractor', prevData.contractor);
-                        if (prevData.door) await updatePreloadDay(d, 'door', prevData.door);
-                        await updatePreloadDay(d, 'status', 'Pending');
-                    }
+                    if (!prevData || !prevData.contractor) return null;
+                    return {
+                        dateStr: d,
+                        data: {
+                            contractor: prevData.contractor || '',
+                            door: prevData.door || '',
+                            status: 'Pending'
+                        }
+                    };
+                }).filter(Boolean);
+
+                if (updates.length === 0) return;
+
+                setAllPreloadSchedules(prev => {
+                    const next = { ...prev };
+                    updates.forEach(({ dateStr, data }) => { next[dateStr] = data; });
+                    return next;
                 });
+
+                await Promise.all(updates.map(({ dateStr, data }) => savePreloadDay(dateStr, data)));
             };
 
             const autoRotateContractors = async () => {
                 const contractors = (masterLists.contractors || []).map(c => c.name).filter(Boolean);
                 if (contractors.length === 0) return;
                 const currentDays = getOfficeWeekBoundaries(preloadActiveDate).days;
-                currentDays.forEach(async (d, idx) => {
+                const updates = currentDays.map((d, idx) => {
                     const cIndex = idx % contractors.length;
-                    await updatePreloadDay(d, 'contractor', contractors[cIndex]);
-                    await updatePreloadDay(d, 'status', 'Pending');
+                    return {
+                        dateStr: d,
+                        data: {
+                            ...(allPreloadSchedules[d] || { contractor: '', door: '', status: 'Pending' }),
+                            contractor: contractors[cIndex],
+                            status: 'Pending'
+                        }
+                    };
                 });
+
+                await Promise.all(updates.map(({ dateStr, data }) => savePreloadDay(dateStr, data)));
             };
 
             const changeOfficeWeek = (offset) => {
@@ -1297,6 +1432,34 @@
                 if (!nd.afterHours[dayStr]) nd.afterHours[dayStr] = { person1: '', person2: '' };
                 nd.afterHours[dayStr][field] = value;
                 setOfficeData(nd);
+            };
+
+            const acknowledgeUrgentNote = async (noteId) => {
+                const nd = JSON.parse(JSON.stringify(data));
+                const nIdx = nd.shiftNotes.findIndex(n => n.id === noteId);
+                if (nIdx < 0) return;
+
+                const firstName = userName ? userName.split(' ')[0] : 'User';
+                if (!nd.shiftNotes[nIdx].replies) nd.shiftNotes[nIdx].replies = [];
+                nd.shiftNotes[nIdx].replies.push({
+                    id: Date.now(),
+                    text: `${firstName} acknowledged and removed the high priority alert.`,
+                    author: firstName,
+                    timestamp: new Date().toISOString(),
+                    system: true
+                });
+                nd.shiftNotes[nIdx].category = 'Follow-up';
+                nd.shiftNotes[nIdx].acknowledgedBy = firstName;
+                nd.shiftNotes[nIdx].acknowledgedAt = new Date().toISOString();
+                setData(nd);
+
+                if (!db) return;
+                let currentUid = "local";
+                if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
+                    await setDoc(docRef, { ...nd, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                } catch(e) { console.error("Failed to acknowledge urgent note:", e); }
             };
 
             const calculateMetricsTotals = (metricsList) => {
@@ -1369,6 +1532,10 @@
             const displayDateString = String(new Date(activeDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
             const nextDayString = String(new Date(new Date(activeDate + 'T12:00:00').getTime() + 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
             const toFixedSafe = (val, dec = 1) => { const num = Number(val); return isNaN(num) ? '0.0' : num.toFixed(dec); };
+            const driverAssignmentWarnings = calculateDriverAssignmentWarnings(data, historyData, activeDate);
+            const preloadAssignmentWarnings = calculatePreloadAssignmentWarnings(allPreloadSchedules, getOfficeWeekBoundaries(preloadActiveDate).days);
+            const driverAssignmentAlertKey = ['routes', activeDate, ...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.weekly].join('|');
+            const preloadAssignmentAlertKey = ['preload', preloadActiveDate, ...preloadAssignmentWarnings].join('|');
 
             const TrendIndicator = ({ current, previous, inverse = false, isPercent = true }) => {
                 const curr = Number(current) || 0;
@@ -1384,6 +1551,51 @@
                     {status ? <CheckCircle2 className="w-3 h-3" /> : <Info className="w-3 h-3" />} {status ? "COMPLIANT" : "PENDING"}
                 </button>
             );
+
+            const DriverAssignmentAlert = () => {
+                const warnings = [...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.weekly];
+                if (warnings.length === 0 || acknowledgedAssignmentAlerts[driverAssignmentAlertKey]) return null;
+
+                return (
+                    <div className="mb-4 bg-rose-950/40 border border-rose-500/40 text-rose-100 p-4 rounded-xl shadow-[0_0_15px_rgba(244,63,94,0.18)] animate-in slide-in-from-top-2">
+                        <div className="flex items-start gap-3">
+                            <div className="bg-rose-500/20 p-2 rounded-lg text-rose-300 animate-pulse"><AlertTriangle className="w-5 h-5" /></div>
+                            <div className="min-w-0">
+                                <h3 className="font-black tracking-widest text-xs uppercase mb-2 text-rose-300">Driver Assignment Alert</h3>
+                                <ul className="list-disc pl-5 text-xs font-semibold space-y-1.5">
+                                    {warnings.map((warning, idx) => <li key={`driver-warning-${idx}`}>{warning}</li>)}
+                                </ul>
+                                <div className="mt-3 flex flex-wrap items-center gap-3">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-rose-300/80">Override is allowed, but confirm before saving.</div>
+                                    <button onClick={() => setAcknowledgedAssignmentAlerts(prev => ({ ...prev, [driverAssignmentAlertKey]: true }))} className="px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-400/40 text-rose-100 hover:bg-rose-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer">Acknowledge</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const PreloadAssignmentAlert = () => {
+                if (preloadAssignmentWarnings.length === 0 || acknowledgedAssignmentAlerts[preloadAssignmentAlertKey]) return null;
+
+                return (
+                    <div className="mb-4 bg-rose-950/40 border border-rose-500/40 text-rose-100 p-4 rounded-xl shadow-[0_0_15px_rgba(244,63,94,0.18)] animate-in slide-in-from-top-2">
+                        <div className="flex items-start gap-3">
+                            <div className="bg-rose-500/20 p-2 rounded-lg text-rose-300 animate-pulse"><AlertTriangle className="w-5 h-5" /></div>
+                            <div className="min-w-0">
+                                <h3 className="font-black tracking-widest text-xs uppercase mb-2 text-rose-300">Preload Assignment Alert</h3>
+                                <ul className="list-disc pl-5 text-xs font-semibold space-y-1.5">
+                                    {preloadAssignmentWarnings.map((warning, idx) => <li key={`preload-warning-${idx}`}>{warning}</li>)}
+                                </ul>
+                                <div className="mt-3 flex flex-wrap items-center gap-3">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-rose-300/80">Override is allowed, but confirm before saving.</div>
+                                    <button onClick={() => setAcknowledgedAssignmentAlerts(prev => ({ ...prev, [preloadAssignmentAlertKey]: true }))} className="px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-400/40 text-rose-100 hover:bg-rose-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer">Acknowledge</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
 
             if (!authReady) {
                 return (
@@ -1510,12 +1722,12 @@
                                     
                                     return (
                                         <div key={`alert-${alert.id}`} className="mb-4 bg-sky-500/20 border border-sky-500/50 text-sky-400 p-4 rounded-xl flex items-center gap-4 shadow-[0_0_15px_rgba(14,165,233,0.2)] animate-in slide-in-from-top-2 relative">
-                                            <button onClick={() => setDismissedAlerts(prev => ({...prev, [alert.id]: true}))} className="absolute top-3 right-3 text-sky-500/50 hover:text-sky-300 transition-colors cursor-pointer" title="Dismiss Reminder"><X className="w-4 h-4" /></button>
                                             <div className="bg-sky-500/20 p-2 rounded-lg animate-pulse"><Clock className="w-6 h-6" /></div>
-                                            <div>
+                                            <div className="flex-1 min-w-0">
                                                 <h3 className="font-black tracking-widest text-xs uppercase mb-0.5">Compliance Reminder: {alert.timeStr}</h3>
                                                 <span className="font-medium text-sm">Please ensure the <strong>{alert.label}</strong> compliance check is completed.</span>
                                             </div>
+                                            <button onClick={() => acknowledgeComplianceReminder(alert.id)} className="ml-auto shrink-0 self-center px-3 py-1.5 rounded-lg bg-sky-500/20 border border-sky-400/40 text-sky-100 hover:bg-sky-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer">Acknowledge</button>
                                         </div>
                                     );
                                 })}
@@ -1523,9 +1735,8 @@
                                 {/* Preload Alert */}
                                 {showPreloadAlert && !preloadDismissed && (
                                     <div className="mb-6 bg-amber-500/20 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-4 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-in slide-in-from-top-2 relative">
-                                        <button onClick={() => setPreloadDismissed(true)} className="absolute top-3 right-3 text-amber-500/50 hover:text-amber-300 transition-colors cursor-pointer" title="Dismiss Reminder"><X className="w-4 h-4" /></button>
                                         <div className="bg-amber-500/20 p-2 rounded-lg animate-pulse"><AlertTriangle className="w-6 h-6" /></div>
-                                        <div>
+                                        <div className="min-w-0 flex-1">
                                             <h3 className="font-black tracking-widest text-xs uppercase mb-0.5">Time-Sensitive Task</h3>
                                             <span className="font-medium text-sm">Reminder: Send today’s preload message to the designated driver.</span>
                                             {(() => {
@@ -1537,6 +1748,7 @@
                                                 ) : null;
                                             })()}
                                         </div>
+                                        <button onClick={acknowledgePreloadReminder} className="px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-100 hover:bg-amber-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer" title="Acknowledge Reminder">Acknowledge</button>
                                     </div>
                                 )}
 
@@ -1556,10 +1768,11 @@
                                         {data.shiftNotes.filter(n => String(n?.category) === 'URGENT').map(note => (
                                             <div key={note.id} className="relative overflow-hidden bg-rose-950/40 border border-rose-500/50 rounded-xl p-4 shadow-[0_0_20px_rgba(225,29,72,0.15)] animate-in slide-in-from-top-2 flex gap-4 items-start">
                                                 <div className="bg-rose-500/20 p-2 rounded-lg text-rose-400 animate-pulse"><AlertTriangle className="w-6 h-6" /></div>
-                                                <div className="flex-1">
+                                                <div className="flex-1 min-w-0">
                                                     <h3 className="text-rose-400 font-black tracking-widest text-xs uppercase mb-1 flex items-center gap-2">High Priority Alert</h3>
                                                     <p className="text-rose-100 text-sm font-medium whitespace-pre-wrap">{String(note.text)}</p>
                                                 </div>
+                                                <button onClick={() => acknowledgeUrgentNote(note.id)} className="ml-auto shrink-0 self-center px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-400/40 text-rose-100 hover:bg-rose-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer">Acknowledge</button>
                                             </div>
                                         ))}
                                     </div>
@@ -1889,6 +2102,8 @@
                                         )}
                                     </div>
                                 </div>
+
+                                <DriverAssignmentAlert />
 
                                 {isEditing && (
                                     <div className="shrink-0 mb-4 bg-slate-800/80 border border-emerald-500/30 rounded-xl p-4 shadow-inner">
@@ -2940,6 +3155,8 @@
                                 </div>
                                 
                                 <div className={`overflow-y-auto flex-1 p-6 ${isPreloadFullscreen ? 'flex flex-col' : ''}`}>
+                                    <PreloadAssignmentAlert />
+
                                     <div className={`bg-slate-800 rounded-xl border border-slate-700 shadow-2xl flex flex-col ${isPreloadFullscreen ? 'flex-1 overflow-hidden' : 'overflow-hidden'}`}>
                                         <div className={`overflow-auto ${isPreloadFullscreen ? 'flex-1' : ''}`}>
                                             <table className="w-full text-left align-middle border-collapse">
@@ -3218,5 +3435,8 @@
     </script>
 </body>
 </html>
+
+
+
 
 
