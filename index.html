@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geodis FM Dashboard</title>
+    <title>Geodis Final Mile Dashboard</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,14 +13,7 @@
 
     <!-- React and Module Import Map -->
     <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.2.0",
-        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-        "lucide-react": "https://esm.sh/lucide-react@0.292.0?external=react",
-        "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
-        "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
-        "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+    {"imports": {"react":"https://esm.sh/react@18.2.0","react-dom/client":"https://esm.sh/react-dom@18.2.0/client","lucide-react":"https://esm.sh/lucide-react@0.292.0?external=react","firebase/app":"https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js","firebase/auth":"https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js","firebase/firestore":"https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
       }
     }
     </script>
@@ -30,15 +23,333 @@
 
     <style>
         /* Custom scrollbar for a cleaner dashboard look */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        html {
+            background: #101722 !important;
+        }
+        body,
+        #root {
+            background:
+                radial-gradient(circle at 10% 6%, rgba(68, 82, 105, 0.18), transparent 30%),
+                radial-gradient(circle at 86% 12%, rgba(77, 91, 116, 0.10), transparent 34%),
+                #101722 !important;
+        }
+        *::-webkit-scrollbar,
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar,
+        #root::-webkit-scrollbar {
+            width: 3px !important;
+            height: 3px !important;
+        }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2c3849; border-radius: 4px; }
+        html.show-dashboard-scrollbar ::-webkit-scrollbar-track,
+        html.show-dashboard-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        html.show-dashboard-scrollbar ::-webkit-scrollbar-thumb,
+        html.show-dashboard-scrollbar::-webkit-scrollbar-thumb { background: #2c3849; }
+        html.show-dashboard-scrollbar ::-webkit-scrollbar-thumb:hover,
+        html.show-dashboard-scrollbar::-webkit-scrollbar-thumb:hover { background: #465269; }
+        html, body, #root, .balanced-picture-theme {
+            overscroll-behavior: none;
+            scrollbar-color: #2c3849 transparent;
+            scrollbar-width: thin;
+        }
+        .balanced-picture-theme *,
+        .balanced-picture-theme {
+            scrollbar-color: #2c3849 transparent;
+            scrollbar-width: thin;
+        }
+        html.show-dashboard-scrollbar,
+        html.show-dashboard-scrollbar body,
+        html.show-dashboard-scrollbar #root,
+        html.show-dashboard-scrollbar .balanced-picture-theme,
+        html.show-dashboard-scrollbar .balanced-picture-theme * {
+            scrollbar-color: #2c3849 transparent;
+            scrollbar-width: thin;
+        }
+        .balanced-picture-theme ::-webkit-scrollbar,
+        .balanced-picture-theme::-webkit-scrollbar {
+            width: 3px !important;
+            height: 3px !important;
+        }
+        .balanced-picture-theme ::-webkit-scrollbar-track,
+        .balanced-picture-theme::-webkit-scrollbar-track {
+            background: transparent !important;
+        }
+        .balanced-picture-theme ::-webkit-scrollbar-thumb,
+        .balanced-picture-theme::-webkit-scrollbar-thumb {
+            background: #2c3849 !important;
+            border: 0 !important;
+            border-radius: 6px !important;
+        }
+        html.show-dashboard-scrollbar .balanced-picture-theme ::-webkit-scrollbar-track,
+        html.show-dashboard-scrollbar .balanced-picture-theme::-webkit-scrollbar-track {
+            background: transparent !important;
+        }
+        html.show-dashboard-scrollbar .balanced-picture-theme ::-webkit-scrollbar-thumb,
+        html.show-dashboard-scrollbar .balanced-picture-theme::-webkit-scrollbar-thumb {
+            background: #2c3849 !important;
+        }
+        .balanced-picture-theme ::-webkit-scrollbar-thumb:hover,
+        .balanced-picture-theme::-webkit-scrollbar-thumb:hover {
+            background: #465269 !important;
+        }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Balanced picture theme: full dashboard, not too dark and not too light */
+        .balanced-picture-theme {
+            background:
+                radial-gradient(circle at 10% 6%, rgba(68, 82, 105, 0.18), transparent 30%),
+                radial-gradient(circle at 86% 12%, rgba(77, 91, 116, 0.10), transparent 34%),
+                #101722 !important;
+            color: #f7f9fc !important;
+        }
+        .balanced-picture-theme .min-h-screen.bg-slate-900,
+        .balanced-picture-theme [class*="fixed inset-0"][class*="bg-slate-900"] {
+            background:
+                radial-gradient(circle at 10% 6%, rgba(68, 82, 105, 0.18), transparent 30%),
+                radial-gradient(circle at 86% 12%, rgba(77, 91, 116, 0.10), transparent 34%),
+                #101722 !important;
+        }
+        .balanced-picture-theme [class*="bg-slate-950"] { background-color: #121a26 !important; }
+        .balanced-picture-theme [class*="bg-slate-900"] { background-color: #17202c !important; }
+        .balanced-picture-theme [class*="bg-slate-800"] { background-color: #1f2937 !important; }
+        .balanced-picture-theme [class*="bg-slate-700"] { background-color: #2c3849 !important; }
+        .balanced-picture-theme [class*="bg-slate-600"] { background-color: #3a495f !important; }
+        .balanced-picture-theme [class*="hover:bg-slate-700"]:hover { background-color: #354256 !important; }
+        .balanced-picture-theme [class*="hover:bg-slate-600"]:hover { background-color: #43536b !important; }
+        .balanced-picture-theme [class*="border-slate-800"] { border-color: #2f3a4b !important; }
+        .balanced-picture-theme [class*="border-slate-700"] { border-color: #465269 !important; }
+        .balanced-picture-theme [class*="border-slate-600"] { border-color: #5a6880 !important; }
+        .balanced-picture-theme [class*="divide-slate-700"] > :not([hidden]) ~ :not([hidden]) { border-color: rgba(70, 82, 105, 0.75) !important; }
+        .balanced-picture-theme [class*="text-white"],
+        .balanced-picture-theme [class*="text-slate-100"] { color: #f7f9fc !important; }
+        .balanced-picture-theme [class*="text-slate-200"] { color: #e7edf6 !important; }
+        .balanced-picture-theme [class*="text-slate-300"] { color: #c7d0de !important; }
+        .balanced-picture-theme [class*="text-slate-400"] { color: #a4afc1 !important; }
+        .balanced-picture-theme [class*="text-slate-500"] { color: #7f8ba0 !important; }
+        .balanced-picture-theme [class*="text-slate-600"] { color: #68758b !important; }
+        .balanced-picture-theme [class*="bg-indigo-600"] { background-color: #60749e !important; }
+        .balanced-picture-theme [class*="hover:bg-indigo-500"]:hover { background-color: #7186b2 !important; }
+        .balanced-picture-theme [class*="bg-indigo-500/20"] { background-color: rgba(126, 145, 186, 0.18) !important; }
+        .balanced-picture-theme [class*="text-indigo-500"],
+        .balanced-picture-theme [class*="text-indigo-400"] { color: #9cafda !important; }
+        .balanced-picture-theme [class*="text-indigo-300"] { color: #bdc9e4 !important; }
+        .balanced-picture-theme [class*="text-indigo-200"] { color: #d6dff0 !important; }
+        .balanced-picture-theme [class*="border-indigo-500"] { border-color: rgba(156, 175, 218, 0.48) !important; }
+        .balanced-picture-theme [class*="ring-indigo-500"],
+        .balanced-picture-theme [class*="focus:ring-indigo-500"]:focus { --tw-ring-color: rgba(156, 175, 218, 0.55) !important; }
+        .balanced-picture-theme [class*="shadow-2xl"],
+        .balanced-picture-theme [class*="shadow-lg"],
+        .balanced-picture-theme [class*="shadow-md"] {
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.035) !important;
+        }
+        .balanced-picture-theme input,
+        .balanced-picture-theme textarea,
+        .balanced-picture-theme select {
+            background-color: #17202c !important;
+            border-color: #56647a !important;
+            color: #f7f9fc !important;
+        }
+        .balanced-picture-theme table {
+            background-color: #1f2937 !important;
+        }
+        .balanced-picture-theme table thead tr,
+        .balanced-picture-theme table th,
+        .balanced-picture-theme table [class*="sticky top-0"] {
+            background-color: #17202c !important;
+        }
+        .balanced-picture-theme table tbody tr,
+        .balanced-picture-theme table tr[style*="background-color"] {
+            background-color: #1f2937 !important;
+        }
+        .balanced-picture-theme table td[class*="bg-slate-900"],
+        .balanced-picture-theme table td[class*="bg-slate-800"],
+        .balanced-picture-theme table td[class*="bg-slate-700"],
+        .balanced-picture-theme table th[class*="bg-slate-900"],
+        .balanced-picture-theme table th[class*="bg-slate-800"] {
+            background-color: #1f2937 !important;
+        }
+        .balanced-picture-theme table tbody tr:hover {
+            background-color: #2a3749 !important;
+        }
+        .balanced-picture-theme header,
+        .balanced-picture-theme nav,
+        .balanced-picture-theme footer {
+            border-color: #465269 !important;
+        }
+        .balanced-picture-theme header .bg-indigo-600,
+        .balanced-picture-theme nav button.bg-indigo-600,
+        .balanced-picture-theme .bg-slate-700.rounded-lg.border.border-slate-600 {
+            background-color: #2c3849 !important;
+            border: 1px solid #56647a !important;
+            color: #f7f9fc !important;
+        }
+        .balanced-picture-theme header .text-sky-400,
+        .balanced-picture-theme header .text-indigo-400 {
+            color: #bdc9e4 !important;
+        }
+        /* Balanced picture theme: make top date schedule control one consistent color */
+        .balanced-picture-theme header .bg-slate-700.rounded-lg.border.border-slate-600,
+        .balanced-picture-theme header .bg-slate-700.rounded-lg.border.border-slate-600 input,
+        .balanced-picture-theme header .bg-slate-700.rounded-lg.border.border-slate-600 button {
+            background-color: #2c3849 !important;
+            border-color: #56647a !important;
+        }
+        .balanced-picture-theme header .bg-slate-700.rounded-lg.border.border-slate-600 input {
+            color: #f7f9fc !important;
+        }
+        /* Balanced picture theme: remove purple from online user pills */
+        .balanced-picture-theme footer [class*="bg-indigo-900"],
+        .balanced-picture-theme footer [class*="border-indigo-500"],
+        .balanced-picture-theme footer [class*="text-indigo-300"],
+        .balanced-picture-theme footer [class*="text-indigo-400"] {
+            background-color: #2c3849 !important;
+            border-color: #56647a !important;
+            color: #f7f9fc !important;
+        }
+        .balanced-picture-theme footer [class*="hover:bg-indigo-900"]:hover {
+            background-color: #354256 !important;
+        }
+        /* Balanced picture theme: remove remaining purple from Manage Master Lists */
+        .balanced-picture-theme [class*="bg-indigo-900"],
+        .balanced-picture-theme [class*="bg-indigo-600/20"],
+        .balanced-picture-theme [class*="bg-indigo-500/20"] {
+            background-color: rgba(96, 116, 158, 0.18) !important;
+        }
+        .balanced-picture-theme [class*="hover:bg-indigo-900"]:hover,
+        .balanced-picture-theme [class*="hover:bg-indigo-500"]:hover {
+            background-color: rgba(96, 116, 158, 0.28) !important;
+        }
+        .balanced-picture-theme [class*="border-indigo-500"],
+        .balanced-picture-theme [class*="border-indigo-400"],
+        .balanced-picture-theme [class*="hover:border-indigo-500"]:hover,
+        .balanced-picture-theme [class*="hover:border-indigo-400"]:hover {
+            border-color: rgba(156, 175, 218, 0.48) !important;
+        }
+        .balanced-picture-theme [class*="text-indigo-500"],
+        .balanced-picture-theme [class*="text-indigo-400"],
+        .balanced-picture-theme [class*="text-indigo-300"],
+        .balanced-picture-theme [class*="text-indigo-200"],
+        .balanced-picture-theme [class*="hover:text-indigo"]:hover {
+            color: #bdc9e4 !important;
+        }
+        .balanced-picture-theme [class*="shadow-indigo"],
+        .balanced-picture-theme [class*="rgba(99,102,241"] {
+            box-shadow: 0 12px 26px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.03) !important;
+        }
+        /* Balanced picture theme: remove purple from Manage Master Lists progress bars */
+        .balanced-picture-theme [class*="bg-indigo-500"] {
+            background-color: #7e91ba !important;
+        }
+        .balanced-picture-theme [class*="shadow-[0_0_10px_rgba(99,102,241"] {
+            box-shadow: 0 0 10px rgba(126, 145, 186, 0.42) !important;
+        }
+        .balanced-picture-theme .dashboard-scroll-area,
+        .balanced-picture-theme .master-list-scroll-area {
+            background-color: #17202c !important;
+            overscroll-behavior: contain;
+            scrollbar-color: #2c3849 transparent;
+            scrollbar-width: thin;
+        }
+        html.show-dashboard-scrollbar .balanced-picture-theme .dashboard-scroll-area,
+        html.show-dashboard-scrollbar .balanced-picture-theme .master-list-scroll-area {
+            scrollbar-color: #2c3849 transparent;
+            scrollbar-width: thin;
+        }
+        .balanced-picture-theme .dashboard-scroll-area::-webkit-scrollbar-track,
+        .balanced-picture-theme .master-list-scroll-area::-webkit-scrollbar-track {
+            background: transparent !important;
+        }
+        .balanced-picture-theme .dashboard-scroll-area::-webkit-scrollbar-thumb,
+        .balanced-picture-theme .master-list-scroll-area::-webkit-scrollbar-thumb {
+            background: #2c3849 !important;
+            border: 0 !important;
+            border-radius: 6px !important;
+        }
+        html.show-dashboard-scrollbar .balanced-picture-theme .dashboard-scroll-area::-webkit-scrollbar-track,
+        html.show-dashboard-scrollbar .balanced-picture-theme .master-list-scroll-area::-webkit-scrollbar-track {
+            background: transparent !important;
+        }
+        html.show-dashboard-scrollbar .balanced-picture-theme .dashboard-scroll-area::-webkit-scrollbar-thumb,
+        html.show-dashboard-scrollbar .balanced-picture-theme .master-list-scroll-area::-webkit-scrollbar-thumb {
+            background: #2c3849 !important;
+        }
+        .balanced-picture-theme .dashboard-scroll-area::-webkit-scrollbar-thumb:hover,
+        .balanced-picture-theme .master-list-scroll-area::-webkit-scrollbar-thumb:hover {
+            background: #465269 !important;
+        }
+        /* Balanced picture theme: improve Office schedule text hierarchy */
+        .balanced-picture-theme [class*="text-indigo-300"] span,
+        .balanced-picture-theme td .text-indigo-300 span {
+            color: #d6dff0 !important;
+        }
+        .balanced-picture-theme td .text-indigo-300 {
+            color: #9cafda !important;
+        }
+        .balanced-picture-theme td:first-child.text-white,
+        .balanced-picture-theme td:first-child .text-white,
+        .balanced-picture-theme td:first-child input {
+            color: #c7d0de !important;
+        }
+        /* Balanced picture theme: force Office schedule hours to soft text */
+        .balanced-picture-theme input[type="time"] {
+            color: #c7d0de !important;
+            -webkit-text-fill-color: #c7d0de !important;
+            color-scheme: dark !important;
+        }
+        .balanced-picture-theme input[type="time"]::-webkit-datetime-edit,
+        .balanced-picture-theme input[type="time"]::-webkit-datetime-edit-hour-field,
+        .balanced-picture-theme input[type="time"]::-webkit-datetime-edit-minute-field,
+        .balanced-picture-theme input[type="time"]::-webkit-datetime-edit-ampm-field,
+        .balanced-picture-theme input[type="time"]::-webkit-datetime-edit-text {
+            color: #c7d0de !important;
+            -webkit-text-fill-color: #c7d0de !important;
+        }
+        /* Balanced picture theme: clean header date control */
+        .balanced-picture-theme header input[type="date"] {
+            background-color: transparent !important;
+            border-color: transparent !important;
+            color: #c7d0de !important;
+            -webkit-text-fill-color: #c7d0de !important;
+            box-shadow: none !important;
+        }
+        .balanced-picture-theme header input[type="date"]::-webkit-calendar-picker-indicator {
+            opacity: 0.75;
+            filter: invert(82%) sepia(12%) saturate(420%) hue-rotate(184deg);
+        }
+        /* Balanced picture theme: hide native date icon and use left calendar button */
+        .balanced-picture-theme header input[type="date"]::-webkit-calendar-picker-indicator {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        .balanced-picture-theme header input[type="date"]::-webkit-inner-spin-button,
+        .balanced-picture-theme header input[type="date"]::-webkit-clear-button {
+            display: none !important;
+        }
     </style>
+    <script>
+        (() => {
+            let dashboardScrollTimer;
+            const showDashboardScrollbar = () => {
+                document.documentElement.classList.add('show-dashboard-scrollbar');
+                window.clearTimeout(dashboardScrollTimer);
+                dashboardScrollTimer = window.setTimeout(() => {
+                    document.documentElement.classList.remove('show-dashboard-scrollbar');
+                }, 900);
+            };
+            document.addEventListener('scroll', showDashboardScrollbar, true);
+            window.addEventListener('wheel', showDashboardScrollbar, { passive: true });
+            window.addEventListener('touchmove', showDashboardScrollbar, { passive: true });
+            window.addEventListener('keydown', (event) => {
+                if (['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key)) {
+                    showDashboardScrollbar();
+                }
+            });
+        })();
+    </script>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans antialiased overflow-x-hidden">
+<body class="balanced-picture-theme bg-slate-900 text-slate-100 font-sans antialiased overflow-x-hidden">
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
@@ -46,7 +357,7 @@
         import { createRoot } from 'react-dom/client';
         import { initializeApp } from 'firebase/app';
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-        import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
         import { 
             Truck, Package, Clock, CheckCircle2, AlertCircle, Navigation, ShieldCheck, 
             Calendar, LayoutDashboard, Info, Edit3, Save, Check, Users, UserCheck, 
@@ -57,12 +368,12 @@
         } from 'lucide-react';
 
         let firebaseConfig = {
-            apiKey: "AIzaSyCwjaKFJDF-VBt4qj2AOU_ftxxlw8W7N88",
-            authDomain: "geodisfmpflu.firebaseapp.com",
-            projectId: "geodisfmpflu",
-            storageBucket: "geodisfmpflu.firebasestorage.app",
-            messagingSenderId: "702267156117",
-            appId: "1:702267156117:web:f483b24ed92e9f567b5d9c"
+            apiKey:"AIzaSyCwjaKFJDF-VBt4qj2AOU_ftxxlw8W7N88",
+            authDomain:"geodisfmpflu.firebaseapp.com",
+            projectId:"geodisfmpflu",
+            storageBucket:"geodisfmpflu.firebasestorage.app",
+            messagingSenderId:"702267156117",
+            appId:"1:702267156117:web:f483b24ed92e9f567b5d9c"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -72,32 +383,32 @@
 
         const DEFAULT_DATA = {
             loadout: {
-                metrics: [{ label: "Total Routes", value: "0" }, { label: "Number of Same Day Routes", value: "0" }],
-                basicDeliveryCount: "0", thresholdCount: "0", whiteGloveCount: "0",
-                completedRoutesCount: "0", uniformCount: "0", offDockCount: "0", etaCount: "0",
-                podsReconciled: "0",
+                metrics: [{ label:"Total Routes", value:"0" }, { label:"Number of Same Day Routes", value:"0" }],
+                basicDeliveryCount:"0", thresholdCount:"0", whiteGloveCount:"0",
+                completedRoutesCount:"0", uniformCount:"0", offDockCount:"0", etaCount:"0",
+                podsReconciled:"0",
                 compliance: [
-                    { label: "LSF Morning Report Has Been Sent", status: false },
-                    { label: "LSF PFL 12 PM Route Update Has Been Sent", status: false },
-                    { label: "LSF PFL 5 PM Route Update Has Been Sent", status: false },
-                    { label: "LSF PFL EOD Route Update Has Been Sent", status: false }
+                    { label:"LSF Morning Report Has Been Sent", status: false },
+                    { label:"LSF PFL 12 PM Route Update Has Been Sent", status: false },
+                    { label:"LSF PFL 5 PM Route Update Has Been Sent", status: false },
+                    { label:"LSF PFL EOD Route Update Has Been Sent", status: false }
                 ],
-                customerNotHome: "0", claimsOpen: "0", transitDamage: "0", escalations: "0"
+                customerNotHome:"0", claimsOpen:"0", transitDamage:"0", escalations:"0"
             },
             midDay: {
-                metrics: [{ label: "Number of inbounds", value: "0" }, { label: "Latest Inbound", value: "N/A" }, { label: "Missed Deliveries", value: "0", alert: true }, { label: "Damages/Refusals", value: "0" }, { label: "Late Inbound Trailers", value: "0" }],
-                earlyCount: "0",
+                metrics: [{ label:"Number of inbounds", value:"0" }, { label:"Latest Inbound", value:"N/A" }, { label:"Missed Deliveries", value:"0", alert: true }, { label:"Damages/Refusals", value:"0" }, { label:"Late Inbound Trailers", value:"0" }],
+                earlyCount:"0",
                 status: [
-                    { label: "Next day routes have been assigned in DT", status: false },
-                    { label: "All Emails Reviewed", status: false },
-                    { label: "The supply cart has been fully restocked.", status: false }
+                    { label:"Next-day routes assigned in DT", status: false },
+                    { label:"All Emails Reviewed", status: false },
+                    { label:"Supply cart restocked", status: false }
                 ]
             },
             endOfDay: {
-                risk: [{ label: "Open Delivery Loads", value: "0" }, { label: "At-Risk Orders", value: "0", safe: true }, { label: "Pickup / Return / Exchange / Rescue", value: "0", breakdown: { pickup: "0", return: "0", exchange: "0", rescue: "0" } }],
-                drivers: [{ label: "Total Company Drivers", value: "0" }, { label: "Pending Hires", value: "0" }],
-                dispatcher: "Unassigned", nextRoutes: "0", confirmedRoutes: "0",
-                admin: [{ label: "All Routes Confirmed", status: false }]
+                risk: [{ label:"Open Delivery Loads", value:"0" }, { label:"At-Risk Orders", value:"0", safe: true }, { label:"Pickup / Return / Exchange / Rescue", value:"0", breakdown: { pickup:"0", return:"0", exchange:"0", rescue:"0" } }],
+                drivers: [{ label:"Total Company Drivers", value:"0" }, { label:"Pending Hires", value:"0" }],
+                dispatcher:"Unassigned", nextRoutes:"0", confirmedRoutes:"0",
+                admin: [{ label:"All Routes Confirmed", status: false }]
             },
             shiftNotes: [],
             routeTable: [], 
@@ -214,6 +525,30 @@
             return { employees: defaultEmployees, afterHours };
         };
 
+        const copyOfficeScheduleToWeek = (sourceSchedule, targetDays) => {
+            const sourceEmployees = sourceSchedule?.employees || [];
+            const sourceDays = sourceEmployees[0]?.shifts ? Object.keys(sourceEmployees[0].shifts).sort() : [];
+            const sourceAfterHoursDays = sourceSchedule?.afterHours ? Object.keys(sourceSchedule.afterHours).sort() : [];
+            const copiedEmployees = sourceEmployees.map(emp => {
+                const shifts = {};
+                targetDays.forEach((targetDay, idx) => {
+                    const sourceDay = sourceDays[idx];
+                    shifts[targetDay] = sourceDay && emp.shifts?.[sourceDay]
+                        ? { ...emp.shifts[sourceDay] }
+                        : { start: '', end: '', isOff: false };
+                });
+                return { ...emp, shifts };
+            });
+            const afterHours = {};
+            targetDays.forEach((targetDay, idx) => {
+                const sourceDay = sourceAfterHoursDays[idx];
+                afterHours[targetDay] = sourceDay && sourceSchedule?.afterHours?.[sourceDay]
+                    ? { ...sourceSchedule.afterHours[sourceDay] }
+                    : { person1: '', person2: '' };
+            });
+            return { employees: copiedEmployees, afterHours };
+        };
+
         const calculateOfficeWarnings = (dataObj, days) => {
             if (!dataObj) return { coverage: {}, conflicts: {} };
             const coverage = {};
@@ -231,7 +566,7 @@
                         if (personName) {
                             const emp = (dataObj.employees || []).find(e => e.name === personName);
                             if (emp && emp.shifts[dayStr]?.isOff) {
-                                conflicts[dayStr].push(`${personName} is assigned to After-Hours but is marked "Off".`);
+                                conflicts[dayStr].push(`${personName} is assigned to After-Hours but is marked"Off".`);
                             }
                         }
                     });
@@ -406,9 +741,13 @@
 
             const [openDates, setOpenDates] = useState([new Date().toISOString().split('T')[0]]);
             const [activeDate, setActiveDate] = useState(openDates[0]);
+            const [isHeaderCalendarOpen, setIsHeaderCalendarOpen] = useState(false);
+            const [headerCalendarMonth, setHeaderCalendarMonth] = useState(openDates[0].slice(0, 7));
             const [data, setData] = useState(DEFAULT_DATA);
             const [historyData, setHistoryData] = useState([]);
             const [activeUsers, setActiveUsers] = useState([]);
+            const [editingOnlineUserId, setEditingOnlineUserId] = useState(null);
+            const [onlineNameDraft, setOnlineNameDraft] = useState('');
             const [recordToDelete, setRecordToDelete] = useState(null);
 
             const [metricsSubTab, setMetricsSubTab] = useState('wtd');
@@ -489,7 +828,7 @@
             const [editingMasterId, setEditingMasterId] = useState(null);
             const [editMasterValues, setEditMasterValues] = useState({ name: '', phone: '', total: '', planned: '' });
 
-            const NOTE_CATEGORIES = ["URGENT", "Follow-up", "Incident", "Driver Issue", "Damage/Loss", "Facility", "Safety", "General"];
+            const NOTE_CATEGORIES = ["URGENT","Follow-up","Incident","Driver Issue","Damage/Loss","Facility","Safety","General"];
 
             useEffect(() => {
                 const checkTime = () => {
@@ -515,29 +854,79 @@
                 return () => clearInterval(timer);
             }, []);
 
-            const acknowledgePreloadReminder = () => {
+            const acknowledgePreloadReminder = async () => {
                 const todayKey = getChicagoDateKey();
                 localStorage.setItem(`geodis_preload_ack_${todayKey}`, 'true');
                 setPreloadDismissed(true);
+
+                const existing = allPreloadSchedules[activeDate] || { contractor: '', door: '', status: 'Pending' };
+                const updated = { ...existing, status: 'Completed' };
+                setAllPreloadSchedules(prev => ({ ...prev, [activeDate]: updated }));
+
+                if (!db) return;
+                let currentUid ="local";
+                if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', activeDate);
+                    await setDoc(docRef, { ...updated, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                } catch(e) { console.error("Failed to sync preload acknowledgement:", e); }
             };
 
-            const acknowledgeComplianceReminder = (alertId) => {
+            const acknowledgeComplianceReminder = async (alertId, label, timeStr) => {
                 const todayKey = getChicagoDateKey();
                 localStorage.setItem(getComplianceAckKey(alertId, todayKey), 'true');
                 setDismissedAlerts(prev => ({ ...prev, [alertId]: true }));
+
+                const nd = JSON.parse(JSON.stringify(data));
+                if (!nd.loadout) nd.loadout = {};
+                if (!nd.loadout.compliance) nd.loadout.compliance = [];
+                if (!nd.shiftNotes) nd.shiftNotes = [];
+                const acknowledgedBy = cleanFirstName(userName || getDefaultUserName(auth?.currentUser));
+                const acknowledgedAt = new Date();
+                const idx = nd.loadout.compliance.findIndex(c => c.label === label);
+                if (idx >= 0) {
+                    nd.loadout.compliance[idx].status = true;
+                } else {
+                    nd.loadout.compliance.push({ label, status: true });
+                }
+
+                const alreadyLogged = nd.shiftNotes.some(n => n.system && n.complianceAlertId === alertId && n.complianceDate === activeDate);
+                if (!alreadyLogged) {
+                    const newId = nd.shiftNotes.length > 0 ? Math.max(...nd.shiftNotes.map(n => Number(n.id) || 0)) + 1 : 1;
+                    nd.shiftNotes.push({
+                        id: newId,
+                        text: `Compliance ${timeStr} was acknowledged by ${acknowledgedBy} at ${acknowledgedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.`,
+                        category: 'General',
+                        author: acknowledgedBy,
+                        timestamp: acknowledgedAt.toISOString(),
+                        system: true,
+                        complianceAlertId: alertId,
+                        complianceDate: activeDate,
+                        replies: []
+                    });
+                }
+                setData(nd);
+
+                if (!db) return;
+                let currentUid ="local";
+                if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
+                    await setDoc(docRef, { ...nd, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                } catch(e) { console.error("Failed to sync compliance acknowledgement:", e); }
             };
 
             useEffect(() => {
                 if (!window.html2canvas) {
                     const script = document.createElement('script');
-                    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+                    script.src ="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
                     script.async = true;
                     document.body.appendChild(script);
                 }
                 
                 if (!window.Tone) {
                     const script = document.createElement('script');
-                    script.src = "https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js";
+                    script.src ="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js";
                     script.async = true;
                     document.body.appendChild(script);
                 }
@@ -557,19 +946,33 @@
                 };
             }, []);
 
+            useEffect(() => {
+                if (!isHeaderCalendarOpen) return;
+                const closeCalendar = (event) => {
+                    if (event.target.closest('[data-header-calendar="true"]')) return;
+                    setIsHeaderCalendarOpen(false);
+                };
+                window.addEventListener('mousedown', closeCalendar);
+                window.addEventListener('touchstart', closeCalendar);
+                return () => {
+                    window.removeEventListener('mousedown', closeCalendar);
+                    window.removeEventListener('touchstart', closeCalendar);
+                };
+            }, [isHeaderCalendarOpen]);
+
             // Sound Trigger: Regular Reminders
             useEffect(() => {
                 const playStandardChime = async () => {
                     if (!window.Tone || window.Tone.context.state !== 'running') return;
                     try {
                         const synth = new window.Tone.PolySynth(window.Tone.Synth, {
-                            oscillator: { type: "sine" },
+                            oscillator: { type:"sine" },
                             envelope: { attack: 0.05, decay: 0.1, sustain: 0.1, release: 1 }
                         }).toDestination();
                         synth.volume.value = -12; // Soft volume
                         const now = window.Tone.now();
-                        synth.triggerAttackRelease("C5", "8n", now);
-                        synth.triggerAttackRelease("E5", "8n", now + 0.2);
+                        synth.triggerAttackRelease("C5","8n", now);
+                        synth.triggerAttackRelease("E5","8n", now + 0.2);
                     } catch (e) {}
                 };
 
@@ -588,14 +991,14 @@
                     if (!window.Tone || window.Tone.context.state !== 'running') return;
                     try {
                         const synth = new window.Tone.PolySynth(window.Tone.Synth, {
-                            oscillator: { type: "triangle" },
+                            oscillator: { type:"triangle" },
                             envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 1.5 }
                         }).toDestination();
                         synth.volume.value = -8; // Slightly louder
                         const now = window.Tone.now();
-                        synth.triggerAttackRelease("E5", "16n", now);
-                        synth.triggerAttackRelease("C5", "16n", now + 0.15);
-                        synth.triggerAttackRelease("E5", "16n", now + 0.3);
+                        synth.triggerAttackRelease("E5","16n", now);
+                        synth.triggerAttackRelease("C5","16n", now + 0.15);
+                        synth.triggerAttackRelease("E5","16n", now + 0.3);
                     } catch (e) {}
                 };
 
@@ -685,14 +1088,10 @@
                         if (!dbData.loadout) dbData.loadout = {};
                         if (!dbData.loadout.compliance) dbData.loadout.compliance = [];
                         
-                        const requiredCompliance = [
-                            "LSF Morning Report Has Been Sent",
-                            "LSF PFL 12 PM Route Update Has Been Sent",
-                            "LSF PFL 5 PM Route Update Has Been Sent",
-                            "LSF PFL EOD Route Update Has Been Sent"
+                        const requiredCompliance = ["LSF Morning Report Has Been Sent","LSF PFL 12 PM Route Update Has Been Sent","LSF PFL 5 PM Route Update Has Been Sent","LSF PFL EOD Route Update Has Been Sent"
                         ];
                         requiredCompliance.forEach(req => {
-                            if (!dbData.loadout.compliance.some(c => c.label === req || (req === "LSF Morning Report Has Been Sent" && c.label === "System Data Sync Completed"))) {
+                            if (!dbData.loadout.compliance.some(c => c.label === req || (req ==="LSF Morning Report Has Been Sent" && c.label ==="System Data Sync Completed"))) {
                                 dbData.loadout.compliance.push({ label: req, status: false });
                             }
                         });
@@ -700,15 +1099,12 @@
                         if (!dbData.midDay) dbData.midDay = {};
                         if (!dbData.midDay.status) dbData.midDay.status = [];
                         
-                        const orderedMidDayTasks = [
-                            "Next day routes have been assigned in DT",
-                            "All Emails Reviewed",
-                            "The supply cart has been fully restocked."
+                        const orderedMidDayTasks = ["Next-day routes assigned in DT","All Emails Reviewed","Supply cart restocked"
                         ];
                         
                         const newMidDayStatus = [];
                         orderedMidDayTasks.forEach(req => {
-                            const found = dbData.midDay.status.find(s => s.label === req || (req === "The supply cart has been fully restocked." && s.label === "Driver Manifest Printed") || (req === "All Emails Reviewed" && s.label === "Dock Area Clean"));
+                            const found = dbData.midDay.status.find(s => s.label === req || (req ==="Supply cart restocked" && s.label ==="Driver Manifest Printed") || (req ==="All Emails Reviewed" && s.label ==="Dock Area Clean"));
                             newMidDayStatus.push(found || { label: req, status: false });
                         });
                         dbData.midDay.status = newMidDayStatus;
@@ -727,10 +1123,13 @@
                     const masterRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
                     const unsubscribeMaster = onSnapshot(masterRef, (docSnap) => {
                         if (docSnap.exists()) {
-                            setMasterLists(docSnap.data());
+                            const ml = docSnap.data();
+                            if (!ml.nameOverrides) ml.nameOverrides = {};
+                            setMasterLists(ml);
                         } else {
-                            setMasterLists(DEFAULT_MASTER_LISTS);
-                            setDoc(masterRef, DEFAULT_MASTER_LISTS).catch(console.error);
+                            const defaults = { ...DEFAULT_MASTER_LISTS, nameOverrides: {} };
+                            setMasterLists(defaults);
+                            setDoc(masterRef, defaults).catch(console.error);
                         }
                     });
 
@@ -750,11 +1149,26 @@
 
                     const officeBoundaries = getOfficeWeekBoundaries(officeActiveDate);
                     const officeDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', officeBoundaries.startStr);
-                    const unsubscribeOffice = onSnapshot(officeDocRef, (docSnap) => {
+                    const unsubscribeOffice = onSnapshot(officeDocRef, async (docSnap) => {
                         if (docSnap.exists()) {
                             setOfficeData(docSnap.data());
                         } else {
-                            setOfficeData(generateDefaultOfficeSchedule(officeBoundaries.days));
+                            const prevWeekDate = new Date(officeBoundaries.startStr + 'T12:00:00');
+                            prevWeekDate.setDate(prevWeekDate.getDate() - 7);
+                            const prevWeekStart = getOfficeWeekBoundaries(prevWeekDate.toISOString().split('T')[0]).startStr;
+                            const prevOfficeRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', prevWeekStart);
+                            try {
+                                const prevSnap = await getDoc(prevOfficeRef);
+                                const nextSchedule = prevSnap.exists()
+                                    ? copyOfficeScheduleToWeek(prevSnap.data(), officeBoundaries.days)
+                                    : generateDefaultOfficeSchedule(officeBoundaries.days);
+                                setOfficeData(nextSchedule);
+                                if (prevSnap.exists()) {
+                                    await setDoc(officeDocRef, { ...nextSchedule, lastUpdatedBy: userName || user?.uid || 'system', lastUpdatedAt: new Date().toISOString() });
+                                }
+                            } catch(e) {
+                                setOfficeData(generateDefaultOfficeSchedule(officeBoundaries.days));
+                            }
                         }
                     });
 
@@ -799,7 +1213,7 @@
             const handleSave = async () => {
                 setIsEditing(false);
                 if (!db) return; // local mode bypass
-                let currentUid = "local";
+                let currentUid ="local";
                 if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                 
                 try {
@@ -822,7 +1236,7 @@
                 e.preventDefault();
                 const text = e.clipboardData?.getData('text/plain') || '';
                 if (!text) return;
-                if (e.target) e.target.value = "Processing data...";
+                if (e.target) e.target.value ="Processing data...";
 
                 const rows = text.split(/\r?\n/).map(r => r.trim()).filter(r => r);
                 const parsedRoutes = [];
@@ -866,7 +1280,7 @@
                     });
                 }
 
-                if (e.target) e.target.value = "";
+                if (e.target) e.target.value ="";
                 if (parsedRoutes.length > 0) {
                     const nd = JSON.parse(JSON.stringify(data));
                     if (!nd.routeTable) nd.routeTable = [];
@@ -883,7 +1297,7 @@
                 e.preventDefault();
                 const text = e.clipboardData?.getData('text/plain') || '';
                 if (!text) return;
-                if (e.target) e.target.value = "Processing data...";
+                if (e.target) e.target.value ="Processing data...";
 
                 if (metricsSubTab === 'feedback') {
                     const fRows = text.split(/\r?\n/);
@@ -933,7 +1347,7 @@
                     }
                     if (currentFeedback) fParsedData.push(currentFeedback);
 
-                    if (e.target) e.target.value = "";
+                    if (e.target) e.target.value ="";
 
                     if (fParsedData.length > 0) {
                         const nd = JSON.parse(JSON.stringify(data));
@@ -994,7 +1408,7 @@
                     });
                 }
 
-                if (e.target) e.target.value = "";
+                if (e.target) e.target.value ="";
 
                 if (mParsedData.length > 0) {
                     const nd = JSON.parse(JSON.stringify(data));
@@ -1079,6 +1493,29 @@
                 setActiveDate(dateStr);
             };
 
+            const formatDateInputValue = (dateObj) => {
+                const y = dateObj.getFullYear();
+                const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const d = String(dateObj.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            };
+
+            const toggleHeaderCalendar = () => {
+                setHeaderCalendarMonth(activeDate.slice(0, 7));
+                setIsHeaderCalendarOpen(prev => !prev);
+            };
+
+            const changeHeaderCalendarMonth = (offset) => {
+                const base = new Date(`${headerCalendarMonth || activeDate.slice(0, 7)}-01T12:00:00`);
+                base.setMonth(base.getMonth() + offset);
+                setHeaderCalendarMonth(formatDateInputValue(base).slice(0, 7));
+            };
+
+            const selectHeaderCalendarDate = (dateStr) => {
+                setIsHeaderCalendarOpen(false);
+                setDashboardActiveDate(dateStr);
+            };
+
             const changeActiveDateByDays = (days) => {
                 const dateObj = new Date(activeDate + 'T12:00:00');
                 dateObj.setDate(dateObj.getDate() + days);
@@ -1120,7 +1557,7 @@
 
             const exportToCSV = () => {
                 if (filteredHistoryData.length === 0) return;
-                const headers = ["Data Date", "Import Date", "Number of Routes", "Number of Orders", "Uniform%", "OnTimeDispatch%", "ETAMet%", "CompletedRoutes%", "OTD%", "ExecutionScore%"];
+                const headers = ["Data Date","Import Date","Number of Routes","Number of Orders","Uniform%","OnTimeDispatch%","ETAMet%","CompletedRoutes%","OTD%","ExecutionScore%"];
                 const rows = filteredHistoryData.map(h => {
                     const kpi = calculateKPIs(h);
                     const formattedImportDate = h.lastUpdatedAt ? `"${new Date(h.lastUpdatedAt).toLocaleString()}"` : '"N/A"';
@@ -1129,7 +1566,7 @@
                         toFixedSafe(kpi.uniformPerc), toFixedSafe(kpi.offDockPerc), toFixedSafe(kpi.etaPerc), toFixedSafe(kpi.compPerc), toFixedSafe(kpi.otd), toFixedSafe(kpi.executionScore)
                     ];
                 });
-                const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+                const csvContent ="data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
@@ -1164,7 +1601,7 @@
 
                 if (!hasRoutes) return;
 
-                const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+                const csvContent ="data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
@@ -1187,7 +1624,7 @@
                 const rows = [];
                 
                 if (type === 'feedback') {
-                    headers = ["Data Date", "Feedback Date", "First Name", "Last Name", "Delivery Type", "Score", "Order Number", "Comment"];
+                    headers = ["Data Date","Feedback Date","First Name","Last Name","Delivery Type","Score","Order Number","Comment"];
                     filteredHistoryData.forEach(h => {
                         const feedbackList = h.metricsTracker?.feedback || [];
                         if (feedbackList.length > 0) hasData = true;
@@ -1199,7 +1636,7 @@
                         });
                     });
                 } else {
-                    headers = ["Data Date", "First Name", "Last Name", "Survey Count", "Survey AVG", "OnTime%", "Completion %", "Exchange % ($)"];
+                    headers = ["Data Date","First Name","Last Name","Survey Count","Survey AVG","OnTime%","Completion %","Exchange % ($)"];
                     filteredHistoryData.forEach(h => {
                         const metricsList = h.metricsTracker?.[type] || [];
                         if (metricsList.length > 0) hasData = true;
@@ -1214,7 +1651,7 @@
 
                 if (!hasData) return;
 
-                const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+                const csvContent ="data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
@@ -1242,7 +1679,7 @@
                         return `"${escapedVal}"`;
                     }).join(",");
                 });
-                const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+                const csvContent ="data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
@@ -1296,8 +1733,25 @@
                 } catch (error) {}
             };
 
+            const isAdminUser = Boolean(user && (String(user.email || '').toLowerCase().includes('fadi') || cleanFirstName(userName) === 'Fadi'));
+            const canOpenMasterLists = Boolean(user);
+            const canEditMasterItem = isAdminUser || masterActiveTab === 'contractors';
+            const getOnlineDisplayName = (onlineUser) => cleanFirstName((masterLists.nameOverrides || {})[onlineUser.uid] || onlineUser.name || 'Teammate');
+            const startEditingOnlineName = (onlineUser) => {
+                setEditingOnlineUserId(onlineUser.uid);
+                setOnlineNameDraft(getOnlineDisplayName(onlineUser));
+            };
+            const saveOnlineNameOverride = async (uid) => {
+                const cleaned = cleanFirstName(onlineNameDraft);
+                const newLists = { ...masterLists, nameOverrides: { ...(masterLists.nameOverrides || {}), [uid]: cleaned } };
+                setMasterLists(newLists);
+                setEditingOnlineUserId(null);
+                setOnlineNameDraft('');
+                await saveMasterLists(newLists);
+            };
+
             const addMasterListItem = () => {
-                if (!newMasterItem.name.trim()) return;
+                if (!isAdminUser || !newMasterItem.name.trim()) return;
                 const newLists = { ...masterLists };
                 if (!newLists[masterActiveTab]) newLists[masterActiveTab] = [];
                 newLists[masterActiveTab].push({ 
@@ -1312,6 +1766,7 @@
             };
 
             const removeMasterListItem = (id) => {
+                if (!isAdminUser) return;
                 const newLists = { ...masterLists };
                 newLists[masterActiveTab] = newLists[masterActiveTab].filter(item => item.id !== id);
                 saveMasterLists(newLists);
@@ -1323,17 +1778,26 @@
             };
 
             const saveEditMasterItem = (id) => {
-                if (!editMasterValues.name.trim()) return;
                 const newLists = { ...masterLists };
-                const listIndex = newLists[masterActiveTab].findIndex(i => i.id === id);
+                const listIndex = newLists[masterActiveTab]?.findIndex(i => i.id === id);
                 if (listIndex >= 0) {
-                    newLists[masterActiveTab][listIndex] = { 
-                        ...newLists[masterActiveTab][listIndex], 
-                        name: editMasterValues.name.trim(), 
-                        phone: editMasterValues.phone.trim(),
-                        total: parseInt(editMasterValues.total) || 0,
-                        planned: parseInt(editMasterValues.planned) || 0
-                    };
+                    if (isAdminUser) {
+                        if (!editMasterValues.name.trim()) return;
+                        newLists[masterActiveTab][listIndex] = { 
+                            ...newLists[masterActiveTab][listIndex], 
+                            name: editMasterValues.name.trim(), 
+                            phone: editMasterValues.phone.trim(),
+                            total: parseInt(editMasterValues.total) || 0,
+                            planned: parseInt(editMasterValues.planned) || 0
+                        };
+                    } else if (masterActiveTab === 'contractors') {
+                        newLists[masterActiveTab][listIndex] = {
+                            ...newLists[masterActiveTab][listIndex],
+                            planned: parseInt(editMasterValues.planned) || 0
+                        };
+                    } else {
+                        return;
+                    }
                     saveMasterLists(newLists);
                 }
                 setEditingMasterId(null);
@@ -1353,7 +1817,7 @@
                 setAllPreloadSchedules(prev => ({ ...prev, [dateStr]: updated }));
 
                 if (!db) return; // Fail safely if offline/local
-                let currentUid = "local";
+                let currentUid ="local";
                 if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                 try {
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', dateStr);
@@ -1365,7 +1829,7 @@
                 setAllPreloadSchedules(prev => ({ ...prev, [dateStr]: updated }));
 
                 if (!db) return;
-                let currentUid = "local";
+                let currentUid ="local";
                 if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                 try {
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', dateStr);
@@ -1406,13 +1870,35 @@
                 const contractors = (masterLists.contractors || []).map(c => c.name).filter(Boolean);
                 if (contractors.length === 0) return;
                 const currentDays = getOfficeWeekBoundaries(preloadActiveDate).days;
+                const fixedFridayContractor = contractors.find(name => /LTC/i.test(name));
+                const rotatingContractors = fixedFridayContractor ? contractors.filter(name => name !== fixedFridayContractor) : contractors;
+                const fridayIndex = 4;
+                const weekStart = new Date(currentDays[0] + 'T12:00:00');
+                let rotationOffset = rotatingContractors.length > 0 ? Math.floor(weekStart.getTime() / (7 * 24 * 60 * 60 * 1000)) % rotatingContractors.length : 0;
+                if (rotatingContractors.length > 1) {
+                    const previousDate = new Date(currentDays[0] + 'T12:00:00');
+                    previousDate.setDate(previousDate.getDate() - 1);
+                    const previousStr = previousDate.toISOString().split('T')[0];
+                    const previousContractor = allPreloadSchedules[previousStr]?.contractor || '';
+                    if (previousContractor && rotatingContractors[rotationOffset] === previousContractor) {
+                        rotationOffset = (rotationOffset + 1) % rotatingContractors.length;
+                    }
+                }
+                let rotatingDayIndex = 0;
                 const updates = currentDays.map((d, idx) => {
-                    const cIndex = idx % contractors.length;
+                    let contractorName;
+                    if (fixedFridayContractor && idx === fridayIndex) {
+                        contractorName = fixedFridayContractor;
+                    } else {
+                        const cIndex = rotatingContractors.length > 0 ? (rotatingDayIndex + rotationOffset) % rotatingContractors.length : idx % contractors.length;
+                        contractorName = rotatingContractors.length > 0 ? rotatingContractors[cIndex] : contractors[idx % contractors.length];
+                        rotatingDayIndex += 1;
+                    }
                     return {
                         dateStr: d,
                         data: {
                             ...(allPreloadSchedules[d] || { contractor: '', door: '', status: 'Pending' }),
-                            contractor: contractors[cIndex],
+                            contractor: contractorName,
                             status: 'Pending'
                         }
                     };
@@ -1488,7 +1974,7 @@
                 setData(nd);
 
                 if (!db) return;
-                let currentUid = "local";
+                let currentUid ="local";
                 if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                 try {
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
@@ -1516,10 +2002,10 @@
                 
                 return { 
                     surveyCnt: totalCnt, 
-                    surveyAvg: totalCnt > 0 ? (sumAvgWeight / totalCnt).toFixed(2) : "0.00", 
-                    onTime: validOnTime > 0 ? (sumOnTime / validOnTime).toFixed(2) : "0.00", 
-                    completion: validComp > 0 ? (sumCompletion / validComp).toFixed(2) : "0.00", 
-                    exchange: validExch > 0 ? (sumExchange / validExch).toFixed(2) : "0.00" 
+                    surveyAvg: totalCnt > 0 ? (sumAvgWeight / totalCnt).toFixed(2) :"0.00", 
+                    onTime: validOnTime > 0 ? (sumOnTime / validOnTime).toFixed(2) :"0.00", 
+                    completion: validComp > 0 ? (sumCompletion / validComp).toFixed(2) :"0.00", 
+                    exchange: validExch > 0 ? (sumExchange / validExch).toFixed(2) :"0.00" 
                 };
             };
 
@@ -1581,8 +2067,8 @@
             };
 
             const StatusBadge = ({ status, onClick, isEditing }) => (
-                <button disabled={!isEditing} onClick={onClick} className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 transition-all ${status ? "bg-emerald-900/40 text-emerald-400 border border-emerald-500/30" : "bg-amber-900/40 text-amber-400 border border-amber-500/30"} ${isEditing ? "hover:scale-105 cursor-pointer ring-2 ring-transparent hover:ring-indigo-500/50" : ""}`}>
-                    {status ? <CheckCircle2 className="w-3 h-3" /> : <Info className="w-3 h-3" />} {status ? "COMPLIANT" : "PENDING"}
+                <button disabled={!isEditing} onClick={onClick} className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 transition-all ${status ?"bg-emerald-900/40 text-emerald-400 border border-emerald-500/30" :"bg-amber-900/40 text-amber-400 border border-amber-500/30"} ${isEditing ?"hover:scale-105 cursor-pointer ring-2 ring-transparent hover:ring-indigo-500/50" :""}`}>
+                    {status ? <CheckCircle2 className="w-3 h-3" /> : <Info className="w-3 h-3" />} {status ?"COMPLIANT" :"PENDING"}
                 </button>
             );
 
@@ -1645,11 +2131,9 @@
                     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
                         <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-8">
                             <div className="flex items-center gap-3 mb-8">
-                                <div className="bg-indigo-600 p-3 rounded-xl shadow-lg">
-                                    <LayoutDashboard className="w-7 h-7 text-white" />
-                                </div>
+                                <LayoutDashboard className="w-10 h-10 text-slate-100 drop-shadow-lg" />
                                 <div>
-                                    <h1 className="text-xl font-black text-white">Geodis FM</h1>
+                                    <h1 className="text-xl font-black text-white">Geodis Final Mile</h1>
                                     <p className="text-xs text-slate-400 mt-1">Authorized team access</p>
                                 </div>
                             </div>
@@ -1710,8 +2194,8 @@
                     <header data-html2canvas-ignore="true" className={`bg-slate-800 border-b border-slate-700 relative z-30 shadow-lg ${isCapturing ? 'hidden' : 'sticky top-0'}`}>
                         <div className="max-w-7xl mx-auto px-4 h-12 flex justify-between items-center">
                             <div className="flex items-center gap-4">
-                                <div className="bg-indigo-600 p-1.5 rounded-lg shadow-lg"><LayoutDashboard className="w-5 h-5 text-white" /></div>
-                                <h1 className="text-lg font-bold text-white tracking-tight">Geodis FM</h1>
+                                <LayoutDashboard className="w-7 h-7 text-slate-100 drop-shadow-lg" />
+                                <h1 className="text-lg font-bold text-white tracking-tight">Geodis Final Mile</h1>
                                 <nav className="ml-5 flex items-center bg-slate-900/50 p-1 rounded-xl border border-slate-700">
                                     <button onClick={() => setActiveTab('overview')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'overview' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}>OVERVIEW</button>
                                     <button onClick={() => setActiveTab('routes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'routes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Route className="w-3 h-3" /> ROUTES</button>
@@ -1723,19 +2207,62 @@
                                 </nav>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button onClick={handleDownloadScreenshot} className="p-2 rounded-lg bg-slate-700 border border-slate-600 text-sky-400 hover:bg-sky-400 hover:text-slate-900 transition-all active:scale-95 cursor-pointer" title="Download Screenshot">
+                                <button onClick={handleDownloadScreenshot} className="p-1 bg-transparent border-0 text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer" title="Download Screenshot">
                                     <Camera className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => isEditing ? handleSave() : setIsEditing(true)} className={`p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer ${isEditing ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/40" : "bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 hover:text-white"}`} title={isEditing ? "Save Changes" : "Edit Dashboard"}>
+                                <button onClick={() => isEditing ? handleSave() : setIsEditing(true)} className={`p-1 bg-transparent border-0 transition-all flex items-center justify-center cursor-pointer ${isEditing ?"text-emerald-300" :"text-slate-300 hover:text-white"}`} title={isEditing ?"Save Changes" :"Edit Dashboard"}>
                                     {isEditing ? <Save className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
                                 </button>
-                                <div className="bg-slate-700 rounded-lg border border-slate-600 flex items-center text-indigo-400 font-bold text-xs overflow-hidden">
-                                    <button onClick={() => changeActiveDateByDays(-1)} className="px-1.5 py-1 hover:bg-slate-600 hover:text-white transition-colors cursor-pointer leading-none" title="Previous Day">‹</button>
+                                <div data-header-calendar="true" className="relative flex items-center px-2 text-slate-300 font-bold text-xs bg-[radial-gradient(ellipse_at_center,rgba(15,23,42,0.50)_0%,rgba(15,23,42,0.34)_30%,rgba(15,23,42,0)_58%)]">
+                                    <button onClick={() => changeActiveDateByDays(-1)} className="px-1 py-1 bg-transparent border-0 hover:text-white transition-colors cursor-pointer leading-none" title="Previous Day">‹</button>
                                     <div className="px-1 py-1 flex items-center gap-0.5">
-                                        <Calendar className="w-3 h-3" />
-                                        <input type="date" value={activeDate} onChange={(e) => setDashboardActiveDate(e.target.value)} className="bg-transparent outline-none w-24 cursor-pointer text-[10px]" />
+                                        <button type="button" onClick={toggleHeaderCalendar} className="bg-transparent border-0 p-0 text-slate-300 hover:text-white cursor-pointer" title="Open calendar">
+                                            <Calendar className="w-3 h-3" />
+                                        </button>
+                                        <button type="button" onClick={toggleHeaderCalendar} className="bg-transparent border-0 p-0 text-[10px] text-slate-300 hover:text-white cursor-pointer leading-none">{activeDate}</button>
                                     </div>
-                                    <button onClick={() => changeActiveDateByDays(1)} className="px-1.5 py-1 hover:bg-slate-600 hover:text-white transition-colors cursor-pointer leading-none" title="Next Day">›</button>
+                                    <button onClick={() => changeActiveDateByDays(1)} className="px-1 py-1 bg-transparent border-0 hover:text-white transition-colors cursor-pointer leading-none" title="Next Day">›</button>
+                                    {isHeaderCalendarOpen && (() => {
+                                        const monthBase = new Date(`${headerCalendarMonth || activeDate.slice(0, 7)}-01T12:00:00`);
+                                        const year = monthBase.getFullYear();
+                                        const month = monthBase.getMonth();
+                                        const monthLabel = monthBase.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                                        const firstDayOffset = new Date(year, month, 1).getDay();
+                                        const daysInMonth = new Date(year, month + 1, 0).getDate();
+                                        const cells = [];
+                                        for (let i = 0; i < firstDayOffset; i++) cells.push(null);
+                                        for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+                                        while (cells.length % 7 !== 0) cells.push(null);
+                                        return (
+                                            <div className="absolute right-0 top-8 z-[90] w-64 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl p-3 text-slate-200">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <button type="button" onClick={() => changeHeaderCalendarMonth(-1)} className="px-2 py-1 text-slate-400 hover:text-white transition-colors cursor-pointer">‹</button>
+                                                    <div className="text-xs font-black uppercase tracking-widest text-slate-200">{monthLabel}</div>
+                                                    <button type="button" onClick={() => changeHeaderCalendarMonth(1)} className="px-2 py-1 text-slate-400 hover:text-white transition-colors cursor-pointer">›</button>
+                                                </div>
+                                                <div className="grid grid-cols-7 gap-1 text-center text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">
+                                                    {['S','M','T','W','T','F','S'].map((day, idx) => <div key={`${day}-${idx}`} className="py-1">{day}</div>)}
+                                                </div>
+                                                <div className="grid grid-cols-7 gap-1">
+                                                    {cells.map((day, idx) => {
+                                                        if (!day) return <div key={`empty-${idx}`} className="h-7" />;
+                                                        const cellDate = formatDateInputValue(new Date(year, month, day));
+                                                        const isActive = cellDate === activeDate;
+                                                        return (
+                                                            <button
+                                                                key={cellDate}
+                                                                type="button"
+                                                                onClick={() => selectHeaderCalendarDate(cellDate)}
+                                                                className={`h-7 text-[10px] font-bold rounded-md transition-colors cursor-pointer ${isActive ? 'bg-slate-700 text-white border border-slate-500' : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent'}`}
+                                                            >
+                                                                {day}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>
@@ -1747,9 +2274,9 @@
                             <div className="animate-in fade-in duration-500">
                                 {/* Time Alerts */}
                                 {[
-                                    { id: 12, timeStr: "12:00 PM", label: "LSF PFL 12 PM Route Update Has Been Sent", show: timeAlerts.show12 },
-                                    { id: 17, timeStr: "5:00 PM", label: "LSF PFL 5 PM Route Update Has Been Sent", show: timeAlerts.show17 },
-                                    { id: 19, timeStr: "7:00 PM", label: "LSF PFL EOD Route Update Has Been Sent", show: timeAlerts.show19 }
+                                    { id: 12, timeStr:"12:00 PM", label:"LSF PFL 12 PM Route Update Has Been Sent", show: timeAlerts.show12 },
+                                    { id: 17, timeStr:"5:00 PM", label:"LSF PFL 5 PM Route Update Has Been Sent", show: timeAlerts.show17 },
+                                    { id: 19, timeStr:"7:00 PM", label:"LSF PFL EOD Route Update Has Been Sent", show: timeAlerts.show19 }
                                 ].map(alert => {
                                     const isCompliant = data.loadout?.compliance?.find(c => c.label === alert.label)?.status === true;
                                     if (!alert.show || dismissedAlerts[alert.id] || isCompliant) return null;
@@ -1761,13 +2288,13 @@
                                                 <h3 className="font-black tracking-widest text-xs uppercase mb-0.5">Compliance Reminder: {alert.timeStr}</h3>
                                                 <span className="font-medium text-sm">Please ensure the <strong>{alert.label}</strong> compliance check is completed.</span>
                                             </div>
-                                            <button onClick={() => acknowledgeComplianceReminder(alert.id)} className="ml-auto shrink-0 self-center px-3 py-1.5 rounded-lg bg-sky-500/20 border border-sky-400/40 text-sky-100 hover:bg-sky-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer">Acknowledge</button>
+                                            <button onClick={() => acknowledgeComplianceReminder(alert.id, alert.label, alert.timeStr)} className="ml-auto shrink-0 self-center px-3 py-1.5 rounded-lg bg-sky-500/20 border border-sky-400/40 text-sky-100 hover:bg-sky-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer">Acknowledge</button>
                                         </div>
                                     );
                                 })}
 
                                 {/* Preload Alert */}
-                                {showPreloadAlert && !preloadDismissed && (
+                                {showPreloadAlert && !preloadDismissed && allPreloadSchedules[activeDate]?.status !== 'Completed' && (
                                     <div className="mb-6 bg-amber-500/20 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-4 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-in slide-in-from-top-2 relative">
                                         <div className="bg-amber-500/20 p-2 rounded-lg animate-pulse"><AlertTriangle className="w-6 h-6" /></div>
                                         <div className="min-w-0 flex-1">
@@ -1845,9 +2372,9 @@
 
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                         {[
-                                            { label: "Teams in Uniform", count: String(data.loadout?.uniformCount || "0"), total: currentKPI.routes, perc: currentKPI.uniformPerc, key: 'uniformCount', section: 'loadout', target: '100%', prev: trends.yesterday.uniformPerc },
-                                            { label: "Routes Dispatched by 7 AM", count: String(data.loadout?.offDockCount || "0"), total: currentKPI.routes, perc: currentKPI.offDockPerc, key: 'offDockCount', section: 'loadout', target: '100%', prev: trends.yesterday.offDockPerc },
-                                            { label: "Early Delivery Violation", count: String(data.midDay?.earlyCount || "0"), total: currentKPI.orders, perc: currentKPI.earlyViolations, key: 'earlyCount', section: 'midDay', isException: true, target: '0', prev: trends.yesterday.earlyViolations, inverse: true }
+                                            { label:"Teams in Uniform", count: String(data.loadout?.uniformCount ||"0"), total: currentKPI.routes, perc: currentKPI.uniformPerc, key: 'uniformCount', section: 'loadout', target: '100%', prev: trends.yesterday.uniformPerc },
+                                            { label:"Routes Dispatched by 7 AM", count: String(data.loadout?.offDockCount ||"0"), total: currentKPI.routes, perc: currentKPI.offDockPerc, key: 'offDockCount', section: 'loadout', target: '100%', prev: trends.yesterday.offDockPerc },
+                                            { label:"Early Delivery Violation", count: String(data.midDay?.earlyCount ||"0"), total: currentKPI.orders, perc: currentKPI.earlyViolations, key: 'earlyCount', section: 'midDay', isException: true, target: '0', prev: trends.yesterday.earlyViolations, inverse: true }
                                         ].map((item, idx) => {
                                             let textColor = 'text-slate-400', barColor = 'bg-slate-500', displayValue = '0';
                                             if (item.isException) {
@@ -1871,7 +2398,7 @@
                                                         </div>
                                                     </div>
                                                     <div className="flex justify-between items-center mb-2">
-                                                        <div className="text-[13px] text-slate-400 font-medium">{String(item.count)} of {String(item.total)} {item.section === 'loadout' ? 'routes' : 'same day routes'}</div>
+                                                        {!item.isException && <div className="text-[13px] text-slate-400 font-medium">{String(item.count)} of {String(item.total)}{item.section === 'loadout' ? ' routes' : ''}</div>}
                                                         <TrendIndicator current={item.perc} previous={item.prev} inverse={item.inverse} isPercent={!item.isException} />
                                                     </div>
                                                     {isEditing ? (
@@ -1914,11 +2441,11 @@
                                         };
 
                                         const ringCards = [
-                                            { title: "Survey Count", type: 'cnt', value: mtdTotals.surveyCnt, displayValue: String(mtdTotals.surveyCnt), targetDisplay: `Target: ${mtdTargetCnt}/Month`, pct: mtdTargetCnt > 0 ? (Number(mtdTotals.surveyCnt) / mtdTargetCnt) * 100 : 0, icon: Users, yestValue: String(yesterdayMtdTotals.surveyCnt), wtdValue: String(wtdTotals.surveyCnt) },
-                                            { title: "Survey Average", type: 'avg', value: mtdTotals.surveyAvg, displayValue: String(Number(mtdTotals.surveyAvg).toFixed(2)), targetDisplay: "Target: 9.65", pct: (Number(mtdTotals.surveyAvg) / 10) * 100, icon: Target, yestValue: String(Number(yesterdayMtdTotals.surveyAvg).toFixed(2)), wtdValue: String(Number(wtdTotals.surveyAvg).toFixed(2)) },
-                                            { title: "On-Time Delivery", type: 'ot', value: mtdTotals.onTime, displayValue: `${Number(mtdTotals.onTime).toFixed(2)}%`, targetDisplay: "Target: 97.50%", pct: Number(mtdTotals.onTime), icon: Clock, yestValue: `${Number(yesterdayMtdTotals.onTime).toFixed(2)}%`, wtdValue: `${Number(wtdTotals.onTime).toFixed(2)}%` },
-                                            { title: "Completion", type: 'comp', value: mtdTotals.completion, displayValue: `${Number(mtdTotals.completion).toFixed(2)}%`, targetDisplay: "Target: 98.05%", pct: Number(mtdTotals.completion), icon: CheckCircle2, yestValue: `${Number(yesterdayMtdTotals.completion).toFixed(2)}%`, wtdValue: `${Number(wtdTotals.completion).toFixed(2)}%` },
-                                            { title: "Exchange", type: 'exch', value: mtdTotals.exchange, displayValue: `${Number(mtdTotals.exchange).toFixed(2)}%`, targetDisplay: "Target: 1.70%", pct: 100 - Number(mtdTotals.exchange), icon: ActivitySquare, yestValue: `${Number(yesterdayMtdTotals.exchange || 0).toFixed(2)}%`, wtdValue: `${Number(wtdTotals.exchange || 0).toFixed(2)}%` }
+                                            { title:"Survey Count", type: 'cnt', value: mtdTotals.surveyCnt, displayValue: String(mtdTotals.surveyCnt), targetDisplay: `Target: ${mtdTargetCnt}/Month`, pct: mtdTargetCnt > 0 ? (Number(mtdTotals.surveyCnt) / mtdTargetCnt) * 100 : 0, icon: Users, yestValue: String(yesterdayMtdTotals.surveyCnt), wtdValue: String(wtdTotals.surveyCnt) },
+                                            { title:"Survey Average", type: 'avg', value: mtdTotals.surveyAvg, displayValue: String(Number(mtdTotals.surveyAvg).toFixed(2)), targetDisplay:"Target: 9.65", pct: (Number(mtdTotals.surveyAvg) / 10) * 100, icon: Target, yestValue: String(Number(yesterdayMtdTotals.surveyAvg).toFixed(2)), wtdValue: String(Number(wtdTotals.surveyAvg).toFixed(2)) },
+                                            { title:"On-Time Delivery", type: 'ot', value: mtdTotals.onTime, displayValue: `${Number(mtdTotals.onTime).toFixed(2)}%`, targetDisplay:"Target: 97.50%", pct: Number(mtdTotals.onTime), icon: Clock, yestValue: `${Number(yesterdayMtdTotals.onTime).toFixed(2)}%`, wtdValue: `${Number(wtdTotals.onTime).toFixed(2)}%` },
+                                            { title:"Completion", type: 'comp', value: mtdTotals.completion, displayValue: `${Number(mtdTotals.completion).toFixed(2)}%`, targetDisplay:"Target: 98.05%", pct: Number(mtdTotals.completion), icon: CheckCircle2, yestValue: `${Number(yesterdayMtdTotals.completion).toFixed(2)}%`, wtdValue: `${Number(wtdTotals.completion).toFixed(2)}%` },
+                                            { title:"Exchange", type: 'exch', value: mtdTotals.exchange, displayValue: `${Number(mtdTotals.exchange).toFixed(2)}%`, targetDisplay:"Target: 1.70%", pct: 100 - Number(mtdTotals.exchange), icon: ActivitySquare, yestValue: `${Number(yesterdayMtdTotals.exchange || 0).toFixed(2)}%`, wtdValue: `${Number(wtdTotals.exchange || 0).toFixed(2)}%` }
                                         ];
 
                                         return (
@@ -1955,11 +2482,11 @@
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {(data.loadout?.compliance || []).map((item, idx) => {
                                                     let displayLabel = String(item.label);
-                                                    if (displayLabel === "All POD's Reconciled") return null;
-                                                    if (displayLabel === "System Data Sync Completed") displayLabel = "LSF Morning Report Has Been Sent";
+                                                    if (displayLabel ==="All POD's Reconciled") return null;
+                                                    if (displayLabel ==="System Data Sync Completed") displayLabel ="LSF Morning Report Has Been Sent";
                                                     return (
-                                                        <div key={idx} className="flex items-center justify-between h-full bg-slate-900/30 px-4 py-3 rounded-lg border border-slate-700">
-                                                            <span className="text-slate-300 font-medium text-xs uppercase">{displayLabel}</span>
+                                                        <div key={idx} className="flex items-center justify-between h-full bg-slate-900/30 px-4 py-3 rounded-lg border border-slate-700 gap-4">
+                                                            <span className="text-slate-300 font-medium text-xs uppercase block">{displayLabel}</span>
                                                             <StatusBadge status={item.status} isEditing={isEditing} onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.loadout.compliance[idx].status = !nd.loadout.compliance[idx].status; setData(nd); }} />
                                                         </div>
                                                     );
@@ -1975,7 +2502,7 @@
                                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Route className="w-3.5 h-3.5 text-emerald-400" /> Completed routes</span>
                                                 {isEditing ? (
                                                     <div className="flex items-center gap-2 mt-1">
-                                                        <input className="w-16 bg-slate-900 text-lg font-bold p-1 rounded focus:ring-1 focus:ring-indigo-500 outline-none border border-slate-600 text-white text-center" value={String(data.loadout?.completedRoutesCount || "0")} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.loadout.completedRoutesCount = String(e.target.value); setData(nd); }} />
+                                                        <input className="w-16 bg-slate-900 text-lg font-bold p-1 rounded focus:ring-1 focus:ring-indigo-500 outline-none border border-slate-600 text-white text-center" value={String(data.loadout?.completedRoutesCount ||"0")} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.loadout.completedRoutesCount = String(e.target.value); setData(nd); }} />
                                                         <span className="text-[10px] text-slate-500 font-bold uppercase">of {currentKPI.routes}</span>
                                                     </div>
                                                 ) : (
@@ -2033,8 +2560,8 @@
                                                 let displayLabel = String(item.label);
                                                 let isAutoCompliant = item.status;
                                                 let isAutoDisabled = false;
-                                                if (displayLabel === "Action Center Clear") return null;
-                                                if (item.label === "All Routes Confirmed") {
+                                                if (displayLabel ==="Action Center Clear") return null;
+                                                if (item.label ==="All Routes Confirmed") {
                                                     const plannedRoutes = parseInt(data.endOfDay?.nextRoutes) || 0;
                                                     const confirmed = parseInt(data.endOfDay?.confirmedRoutes) || 0;
                                                     displayLabel = `All ${plannedRoutes} Confirmed`;
@@ -2065,7 +2592,7 @@
 
                                     <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col">
                                         <div className="px-4 py-3 bg-slate-900/50 border-b border-slate-700 text-xs font-bold uppercase text-indigo-300 tracking-widest flex items-center gap-2">
-                                            <Truck className="w-4 h-4 text-indigo-400" /> Driver Preload Schedule
+                                            <Truck className="w-5 h-5 text-slate-100" /> Driver Preload Schedule
                                         </div>
                                         <div className="p-4 space-y-4 flex-1">
                                             {(() => {
@@ -2110,14 +2637,14 @@
                             <div className={`animate-in fade-in duration-500 ${isRoutesFullscreen ? 'fixed inset-0 z-[60] bg-slate-900 p-4 md:p-6 flex flex-col overflow-hidden' : 'relative'}`}>
                                 <div className="shrink-0 flex justify-between items-center mb-4 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
                                     <div className="flex items-center gap-3 shrink-0 mr-4">
-                                        <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400"><Route className="w-5 h-5" /></div>
+                                        <Route className="w-7 h-7 text-slate-100" />
                                         <div>
                                             <h2 className="text-lg font-black text-white">Pflugerville Route</h2>
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Date: <span className="text-indigo-400">{displayDateString}</span></div>
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-end gap-3">
-                                        <button onClick={() => setIsRoutesFullscreen(!isRoutesFullscreen)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title={isRoutesFullscreen ? "Restore Size" : "Maximize"}>
+                                        <button onClick={() => setIsRoutesFullscreen(!isRoutesFullscreen)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title={isRoutesFullscreen ?"Restore Size" :"Maximize"}>
                                             {isRoutesFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
                                         <button onClick={exportCurrentRoutesToCSV} disabled={(!data.routeTable || data.routeTable.length === 0)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-900/40 cursor-pointer">
@@ -2126,9 +2653,9 @@
                                         <button onClick={() => setIsPreloadModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-900/40 cursor-pointer">
                                             <Truck className="w-4 h-4" /> Driver Preload Schedule
                                         </button>
-                                        <button onClick={() => setIsMasterModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition-all border border-slate-600 cursor-pointer">
-                                            <Settings className="w-4 h-4" /> Manage Master Lists
-                                        </button>
+                                        {canOpenMasterLists && <button onClick={() => { setMasterActiveTab('contractors'); setIsMasterModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition-all border border-slate-600 cursor-pointer">
+                                            <Settings className="w-4 h-4" /> {isAdminUser ? 'Manage Master Lists' : 'Contractor Plan'}
+                                        </button>}
                                         {isEditing && (
                                             <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newRow = { id: Date.now().toString() }; ROUTE_COLUMNS.forEach(col => { newRow[col.key] = col.type === 'checkbox' ? false : ''; }); nd.routeTable.push(newRow); setData(nd); }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-900/40 cursor-pointer">
                                                 <PlusCircle className="w-4 h-4" /> Add Route Row
@@ -2240,8 +2767,8 @@
                             
                             <div className="animate-in fade-in duration-500 relative">
                                 <div className="flex justify-between items-center mb-4 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-                                    <div className="flex items-center gap-2">
-                                        <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400"><Activity className="w-5 h-5" /></div>
+                                    <div className="flex items-center gap-3">
+                                        <Activity className="w-7 h-7 text-slate-100" />
                                         <div>
                                             <h2 className="text-lg font-black text-white">Metrics Tracker</h2>
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Performance Snapshot: <span className="text-indigo-400">{displayDateString}</span></div>
@@ -2273,8 +2800,8 @@
                                         <div className="text-[10px] text-slate-500 mt-2 font-medium italic flex items-start justify-between">
                                             <div>
                                                 {metricsSubTab === 'feedback' 
-                                                    ? "* Highlight the feedback rows in Excel (Date, Name, Type, Score, Order, Comment) and paste here. Missing/blank driver names will auto-fill from the row above. Positive/negative reviews highlight automatically." 
-                                                    : "* Simply highlight the rows in Excel (from 'First Name' or 'DriverKey' down) and paste. The data will be extracted automatically."}
+                                                    ?"* Highlight the feedback rows in Excel (Date, Name, Type, Score, Order, Comment) and paste here. Missing/blank driver names will auto-fill from the row above. Positive/negative reviews highlight automatically." 
+                                                    :"* Simply highlight the rows in Excel (from 'First Name' or 'DriverKey' down) and paste. The data will be extracted automatically."}
                                             </div>
                                             {pasteFeedback && <span className={`font-bold text-right ml-2 ${pasteFeedback.includes('✅') ? 'text-emerald-400' : 'text-rose-400'}`}>{pasteFeedback}</span>}
                                         </div>
@@ -2527,9 +3054,9 @@
                                                                     <td className={`px-6 py-4 font-black ${kpi.otd >= 98 ? 'text-emerald-400' : 'text-amber-400'}`}>{toFixedSafe(kpi.otd)}%</td>
                                                                     <td className={`px-6 py-4 font-black ${kpi.executionScore >= 97 ? 'text-emerald-400' : 'text-amber-400'}`}>{toFixedSafe(kpi.executionScore)}%</td>
                                                                     <td className="px-6 py-4 text-right">
-                                                                        <button onClick={() => setRecordToDelete(h.date)} className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Delete Record">
+                                                                        {isAdminUser && <button onClick={() => setRecordToDelete(h.date)} className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Delete Record">
                                                                             <Trash2 className="w-4 h-4" />
-                                                                        </button>
+                                                                        </button>}
                                                                     </td>
                                                                 </tr>
                                                             );
@@ -2552,8 +3079,8 @@
                             <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <div className="bg-slate-800 rounded-3xl border border-slate-700 overflow-hidden shadow-2xl">
                                     <div className="px-8 py-6 bg-slate-900/50 border-b border-slate-700 flex justify-between items-center">
-                                        <div className="flex items-center gap-4"><div className="bg-indigo-500/20 p-3 rounded-2xl text-indigo-400"><MessageSquare className="w-6 h-6" /></div><h2 className="text-xl font-black text-white italic">Shift Notes</h2></div>
-                                        {isEditing && <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newId = nd.shiftNotes.length > 0 ? Math.max(...nd.shiftNotes.map(n => n.id)) + 1 : 1; const firstName = userName ? userName.split(' ')[0] : 'User'; nd.shiftNotes.push({ id: newId, text: "", category: "Follow-up", author: firstName, timestamp: new Date().toISOString(), replies: [] }); setData(nd); }} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/40 cursor-pointer"><PlusCircle className="w-4 h-4" /> NEW ENTRY</button>}
+                                        <div className="flex items-center gap-3"><MessageSquare className="w-8 h-8 text-slate-100" /><h2 className="text-xl font-black text-white italic">Shift Notes</h2></div>
+                                        {isEditing && <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newId = nd.shiftNotes.length > 0 ? Math.max(...nd.shiftNotes.map(n => n.id)) + 1 : 1; const firstName = userName ? userName.split(' ')[0] : 'User'; nd.shiftNotes.push({ id: newId, text:"", category:"Follow-up", author: firstName, timestamp: new Date().toISOString(), replies: [] }); setData(nd); }} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/40 cursor-pointer"><PlusCircle className="w-4 h-4" /> NEW ENTRY</button>}
                                     </div>
                                     <div className="p-8 space-y-4">
                                         {(data.shiftNotes || []).length === 0 ? <div className="text-center py-20 text-slate-600 font-black uppercase tracking-[0.2em] italic">No shift entries found.</div> : (data.shiftNotes || []).map((note) => (
@@ -2586,7 +3113,7 @@
                                                             </div>
                                                         )}
                                                     </div>
-                                                    {isEditing && <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.filter(n => n.id !== note.id); setData(nd); }} className="text-slate-600 hover:text-rose-400 p-1 transition-colors cursor-pointer"><X className="w-5 h-5" /></button>}
+                                                    {isEditing && isAdminUser && <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.filter(n => n.id !== note.id); setData(nd); }} className="text-slate-600 hover:text-rose-400 p-1 transition-colors cursor-pointer"><X className="w-5 h-5" /></button>}
                                                 </div>
                                                 {isEditing ? (
                                                     <textarea className={`w-full bg-slate-950 border rounded-xl p-4 text-slate-200 text-sm focus:ring-2 outline-none resize-none ${note.category === 'URGENT' ? 'border-rose-500/50 focus:ring-rose-500' : 'border-slate-700 focus:ring-indigo-500'}`} rows="3" value={String(note.text)} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.map(n => n.id === note.id ? { ...n, text: String(e.target.value) } : n); setData(nd); }} />
@@ -2639,7 +3166,7 @@
                                                                 if(nIdx > -1) {
                                                                     if(!nd.shiftNotes[nIdx].replies) nd.shiftNotes[nIdx].replies = [];
                                                                     const firstName = userName ? userName.split(' ')[0] : 'User';
-                                                                    nd.shiftNotes[nIdx].replies.push({ id: Date.now(), text: "", author: firstName, timestamp: new Date().toISOString() });
+                                                                    nd.shiftNotes[nIdx].replies.push({ id: Date.now(), text:"", author: firstName, timestamp: new Date().toISOString() });
                                                                     setData(nd);
                                                                 }
                                                             }} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-2 rounded-lg transition-colors cursor-pointer w-max">
@@ -2659,8 +3186,8 @@
 
                             <div className={`animate-in fade-in duration-500 ${isBonusFullscreen ? 'fixed inset-0 z-[60] bg-slate-900 p-4 md:p-6 flex flex-col overflow-hidden' : 'relative'}`}>
                                 <div className="shrink-0 flex justify-between items-center mb-6 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-                                    <div className="flex items-center gap-2">
-                                        <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400"><Award className="w-5 h-5" /></div>
+                                    <div className="flex items-center gap-3">
+                                        <Award className="w-7 h-7 text-slate-100" />
                                         <div>
                                             <h2 className="text-lg font-black text-white">Weekly Bonus Evaluation</h2>
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
@@ -2669,10 +3196,10 @@
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <button onClick={() => setIsBonusFullscreen(!isBonusFullscreen)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title={isBonusFullscreen ? "Restore Size" : "Maximize"}>
+                                        <button onClick={() => setIsBonusFullscreen(!isBonusFullscreen)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title={isBonusFullscreen ?"Restore Size" :"Maximize"}>
                                             {isBonusFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
-                                        {isEditing && (bonusData.hiddenDrivers || []).length > 0 && (
+                                        {isEditing && isAdminUser && (bonusData.hiddenDrivers || []).length > 0 && (
                                             <button onClick={() => { const nd = JSON.parse(JSON.stringify(bonusData)); nd.hiddenDrivers = []; setBonusData(nd); }} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition-all border border-slate-600 cursor-pointer">
                                                 <User className="w-4 h-4" /> Restore {bonusData.hiddenDrivers.length} Hidden
                                             </button>
@@ -2699,12 +3226,12 @@
                                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">OnTime% ($)</th>
                                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Completion % ($)</th>
                                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-emerald-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Total</th>
-                                                        {isEditing && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Action</th>}
+                                                        {isEditing && isAdminUser && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Action</th>}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-700/50">
                                                     {(!data.metricsTracker || !data.metricsTracker.wtd || data.metricsTracker.wtd.length === 0) ? (
-                                                        <tr><td colSpan={isEditing ? "11" : "10"} className="py-12 text-center text-slate-500 text-sm font-bold uppercase tracking-widest italic">No WTD Bonus data available.</td></tr>
+                                                        <tr><td colSpan={isEditing && isAdminUser ?"11" :"10"} className="py-12 text-center text-slate-500 text-sm font-bold uppercase tracking-widest italic">No WTD Bonus data available.</td></tr>
                                                     ) : (
                                                         data.metricsTracker.wtd.map((row, idx) => {
                                                             const cnt = row.surveyCnt || 0;
@@ -2719,7 +3246,7 @@
                                                                     if (comp >= 98.05) { compRate = 10; dailyRate += 10; }
                                                                 }
                                                             }
-                                                            const isRowEditing = editingWtdIdx === idx && isEditing;
+                                                            const isRowEditing = editingWtdIdx === idx && isEditing && isAdminUser;
                                                             return (
                                                                 <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
                                                                     {isRowEditing ? (
@@ -2745,7 +3272,7 @@
                                                                     <td className="px-4 py-2 text-xs font-black text-center text-slate-300 bg-slate-900/30">${onTimeRate}</td>
                                                                     <td className="px-4 py-2 text-xs font-black text-center text-slate-300 bg-slate-900/30">${compRate}</td>
                                                                     <td className="px-4 py-2 text-xs font-black text-center text-emerald-400 bg-slate-900/50 border-l border-slate-700">${dailyRate}</td>
-                                                                    {isEditing && (
+                                                                    {isEditing && isAdminUser && (
                                                                         <td className="px-4 py-2 text-center border-l border-slate-700">
                                                                             <div className="flex items-center justify-center gap-1.5">
                                                                                 {isRowEditing ? (
@@ -2769,7 +3296,7 @@
                                     <div className={`bg-slate-800 rounded-xl border border-slate-700 flex flex-col shadow-2xl relative ${isBonusFullscreen ? 'flex-[0.6] overflow-hidden' : 'overflow-hidden'}`}>
                                         <div className="px-4 py-3 bg-slate-900/80 border-b border-slate-700 text-xs font-black uppercase text-indigo-300 tracking-widest flex items-center justify-between shrink-0">
                                             <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /> Daily Bonus Payout Tracker</div>
-                                            {isEditing && <span className="text-[10px] text-slate-400 italic font-medium lowercase">type amount, "off", or violation ("socks", "belt")</span>}
+                                            {isEditing && isAdminUser && <span className="text-[10px] text-slate-400 italic font-medium lowercase">type amount,"off", or violation ("socks","belt")</span>}
                                         </div>
                                         <div className={`overflow-x-auto ${isBonusFullscreen ? 'flex-1 overflow-y-auto' : ''}`}>
                                             <table className="w-full text-left border-collapse whitespace-nowrap min-w-[1200px]">
@@ -2784,7 +3311,7 @@
                                                             </th>
                                                         ))}
                                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-emerald-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Total</th>
-                                                        {isEditing && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Edit / Delete</th>}
+                                                        {isEditing && isAdminUser && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Edit / Delete</th>}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-700/50">
@@ -2838,7 +3365,7 @@
                                                                 return !(bonusData.hiddenDrivers || []).includes(key);
                                                             });
 
-                                                        if (finalDriverList.length === 0) return <tr><td colSpan={isEditing ? "12" : "11"} className="py-12 text-center text-slate-500 text-sm font-bold uppercase tracking-widest italic">Awaiting Metrics and Route Data</td></tr>;
+                                                        if (finalDriverList.length === 0) return <tr><td colSpan={isEditing && isAdminUser ?"12" :"11"} className="py-12 text-center text-slate-500 text-sm font-bold uppercase tracking-widest italic">Awaiting Metrics and Route Data</td></tr>;
 
                                                         return finalDriverList.map((driver, idx) => {
                                                             const rawDriverKey = `${driver.firstName || ''} ${driver.lastName || ''}`.trim();
@@ -2855,22 +3382,22 @@
 
                                                             let rowTotal = surveyBonus;
                                                             const driverDays = bonusData.drivers?.[driverKey] || {};
-                                                            const isEditingThisDriver = editingBonusDriver === driverKey && isEditing;
+                                                            const isEditingThisDriver = editingBonusDriver === driverKey && isEditing && isAdminUser;
                                                             
                                                             const evaluatedDays = [0, 1, 2, 3, 4, 5, 6].map(dayIdx => {
                                                                 const routes = weekRoutesByDay[dayIdx];
                                                                 const driverRoutes = routes.filter(r => isFuzzyMatch(r.driver, driverKey) || isFuzzyMatch(r.helper, driverKey));
-                                                                let autoStatus = "Eligible";
-                                                                if (routes.length === 0) autoStatus = "Pending";
-                                                                else if (driverRoutes.length === 0) autoStatus = "Off";
-                                                                else if (driverRoutes.some(r => r.uniform === false)) autoStatus = "Uniform Violation";
+                                                                let autoStatus ="Eligible";
+                                                                if (routes.length === 0) autoStatus ="Pending";
+                                                                else if (driverRoutes.length === 0) autoStatus ="Off";
+                                                                else if (driverRoutes.some(r => r.uniform === false)) autoStatus ="Uniform Violation";
 
                                                                 const manualVal = driverDays[dayIdx];
                                                                 let defaultStr = '-';
-                                                                if (autoStatus === "Off") defaultStr = "Off";
-                                                                else if (autoStatus === "Uniform Violation") defaultStr = "Uniform Violation";
-                                                                else if (autoStatus === "Eligible" && dailyRate > 0) defaultStr = `$${dailyRate}`;
-                                                                else if (autoStatus === "Eligible" && dailyRate === 0) defaultStr = "$0"; 
+                                                                if (autoStatus ==="Off") defaultStr ="Off";
+                                                                else if (autoStatus ==="Uniform Violation") defaultStr ="Uniform Violation";
+                                                                else if (autoStatus ==="Eligible" && dailyRate > 0) defaultStr = `$${dailyRate}`;
+                                                                else if (autoStatus ==="Eligible" && dailyRate === 0) defaultStr ="$0"; 
 
                                                                 const valToDisplay = (manualVal !== undefined && manualVal !== '') ? manualVal : defaultStr;
                                                                 const val = String(valToDisplay);
@@ -2881,16 +3408,16 @@
 
                                                                 if (isNum) rowTotal += parseFloat(val.replace('$', ''));
 
-                                                                let bgClass = "bg-transparent";
-                                                                let textClass = "text-slate-300";
-                                                                if (isOff) { bgClass = "bg-slate-700/50"; textClass = "text-slate-400"; }
-                                                                else if (isViolation) { bgClass = "bg-rose-900/10"; textClass = "text-rose-400 font-bold text-[9px]"; }
-                                                                else if (isNum) { textClass = "text-emerald-400 font-bold"; }
-                                                                else if (isPending) { textClass = "text-slate-500"; }
+                                                                let bgClass ="bg-transparent";
+                                                                let textClass ="text-slate-300";
+                                                                if (isOff) { bgClass ="bg-slate-700/50"; textClass ="text-slate-400"; }
+                                                                else if (isViolation) { bgClass ="bg-rose-900/10"; textClass ="text-rose-400 font-bold text-[9px]"; }
+                                                                else if (isNum) { textClass ="text-emerald-400 font-bold"; }
+                                                                else if (isPending) { textClass ="text-slate-500"; }
 
                                                                 return (
                                                                     <td key={dayIdx} className="px-2 py-1.5 border-r border-slate-700/50">
-                                                                        {isEditing ? (
+                                                                        {isEditing && isAdminUser ? (
                                                                             <input type="text" className={`w-full min-w-[70px] text-center text-xs px-2 py-1.5 outline-none focus:ring-1 focus:ring-indigo-500 border border-slate-700 rounded transition-colors placeholder-slate-600 ${bgClass} ${textClass}`} value={manualVal || ''} onChange={(e) => { const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.drivers) nd.drivers = {}; if (!nd.drivers[driverKey]) nd.drivers[driverKey] = {}; nd.drivers[driverKey][dayIdx] = e.target.value; setBonusData(nd); }} placeholder={defaultStr} />
                                                                         ) : (
                                                                             <div className={`w-full min-w-[70px] text-center text-xs px-2 py-1.5 border border-slate-700/50 rounded ${bgClass} ${textClass} whitespace-nowrap overflow-hidden text-ellipsis`} title={val}>{isNum && !val.includes('$') ? `$${val}` : (val || '-')}</div>
@@ -2915,7 +3442,7 @@
                                                                     <td className="px-4 py-2 text-xs font-black text-center text-slate-300 bg-slate-900/30 border-r border-slate-700 shadow-inner">${surveyBonus}</td>
                                                                     {evaluatedDays}
                                                                     <td className="px-4 py-2 text-sm font-black text-center text-emerald-400 bg-slate-900/50 border-l border-slate-700 shadow-inner">${rowTotal}</td>
-                                                                    {isEditing && (
+                                                                    {isEditing && isAdminUser && (
                                                                     <td className="px-4 py-2 text-center border-l border-slate-700">
                                                                         <div className="flex items-center justify-center gap-1.5">
                                                                             {isEditingThisDriver ? (
@@ -2946,7 +3473,7 @@
                                                             );
                                                         });
                                                     })()}
-                                                    {isEditing && (
+                                                    {isEditing && isAdminUser && (
                                                         <tr className="bg-slate-900/30">
                                                             <td className="px-2 py-1.5 border-r border-slate-700"><input type="text" placeholder="First Name" className="w-full bg-slate-950 border border-emerald-500/50 rounded px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-emerald-500" value={newBonusDriver.firstName} onChange={(e) => setNewBonusDriver({...newBonusDriver, firstName: e.target.value})} /></td>
                                                             <td className="px-2 py-1.5 border-r border-slate-700"><input type="text" placeholder="Last Name" className="w-full bg-slate-950 border border-emerald-500/50 rounded px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-emerald-500" value={newBonusDriver.lastName} onChange={(e) => setNewBonusDriver({...newBonusDriver, lastName: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && (() => { if (!newBonusDriver.firstName.trim()) return; const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.manualDrivers) nd.manualDrivers = []; nd.manualDrivers.push({ firstName: newBonusDriver.firstName.trim(), lastName: newBonusDriver.lastName.trim() }); setBonusData(nd); setNewBonusDriver({ firstName: '', lastName: '' }); })()} /></td>
@@ -2966,8 +3493,8 @@
 
                             <div className="animate-in fade-in duration-500 relative">
                                 <div className="flex justify-between items-center mb-6 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-                                    <div className="flex items-center gap-2">
-                                        <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400"><Users className="w-5 h-5" /></div>
+                                    <div className="flex items-center gap-3">
+                                        <Users className="w-7 h-7 text-slate-100" />
                                         <div>
                                             <h2 className="text-lg font-black text-white">Office Schedule</h2>
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Coverage Requirement: <span className="text-emerald-400">5:00 AM - 7:30 PM</span></div>
@@ -3030,8 +3557,8 @@
                                                 ) : (
                                                     officeData.employees.map((emp) => (
                                                         <tr key={emp.id} className="hover:bg-slate-700/30 transition-colors group">
-                                                            <td className="px-3 py-2 text-xs font-black text-slate-200 border-r border-slate-700/50 sticky left-0 bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.1)] transition-colors group-hover:bg-slate-700/80">
-                                                                {isEditing ? <input type="text" className="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1 text-white outline-none focus:ring-1 focus:ring-indigo-500 font-bold" value={emp.name} onChange={(e) => updateOfficeEmployeeName(emp.id, e.target.value)} placeholder="Name" /> : emp.name}
+                                                            <td className="px-3 py-2 text-xs font-black text-slate-400 border-r border-slate-700/50 sticky left-0 bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.1)] transition-colors group-hover:bg-slate-700/80">
+                                                                {isEditing && isAdminUser ? <input type="text" className="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1 text-slate-300 outline-none focus:ring-1 focus:ring-indigo-500 font-bold" value={emp.name} onChange={(e) => updateOfficeEmployeeName(emp.id, e.target.value)} placeholder="Name" /> : emp.name}
                                                             </td>
                                                             {getOfficeWeekBoundaries(officeActiveDate).days.map(dayStr => {
                                                                 const shift = emp.shifts[dayStr] || { start: '', end: '', isOff: false };
@@ -3044,14 +3571,14 @@
                                                                                 </label>
                                                                                 {!shift.isOff && (
                                                                                     <div className="flex flex-col gap-1 w-full max-w-[110px]">
-                                                                                        <div className="flex items-center gap-1"><span className="text-[9px] font-bold text-slate-500 w-4">IN</span><input type="time" className="flex-1 bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] font-bold text-white outline-none focus:border-indigo-500 [color-scheme:dark]" value={shift.start} onChange={(e) => updateOfficeShift(emp.id, dayStr, 'start', e.target.value)} /></div>
-                                                                                        <div className="flex items-center gap-1"><span className="text-[9px] font-bold text-slate-500 w-4">OUT</span><input type="time" className="flex-1 bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] font-bold text-white outline-none focus:border-indigo-500 [color-scheme:dark]" value={shift.end} onChange={(e) => updateOfficeShift(emp.id, dayStr, 'end', e.target.value)} /></div>
+                                                                                        <div className="flex items-center gap-1"><span className="text-[9px] font-bold text-slate-500 w-4">IN</span><input type="time" className="flex-1 bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] font-bold text-slate-300 outline-none focus:border-indigo-500 [color-scheme:dark]" value={shift.start} onChange={(e) => updateOfficeShift(emp.id, dayStr, 'start', e.target.value)} /></div>
+                                                                                        <div className="flex items-center gap-1"><span className="text-[9px] font-bold text-slate-500 w-4">OUT</span><input type="time" className="flex-1 bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] font-bold text-slate-300 outline-none focus:border-indigo-500 [color-scheme:dark]" value={shift.end} onChange={(e) => updateOfficeShift(emp.id, dayStr, 'end', e.target.value)} /></div>
                                                                                     </div>
                                                                                 )}
                                                                             </div>
                                                                         ) : (
                                                                             <div className="flex flex-col items-center justify-center">
-                                                                                {shift.isOff ? <span className="font-black uppercase tracking-widest text-[10px] text-slate-500 bg-slate-900 px-2 py-1 rounded">Off</span> : (shift.start && shift.end ? <div className="flex flex-col items-center text-xs font-black text-indigo-300"><span>{formatTime(shift.start)}</span><span className="text-[9px] text-slate-500 my-0.5 uppercase tracking-widest">to</span><span>{formatTime(shift.end)}</span></div> : <span className="text-slate-600 font-bold">-</span>)}
+                                                                                {shift.isOff ? <span className="font-black uppercase tracking-widest text-[10px] text-slate-500 bg-slate-900 px-2 py-1 rounded">Off</span> : (shift.start && shift.end ? <div className="flex flex-col items-center text-xs font-black text-slate-300"><span>{formatTime(shift.start)}</span><span className="text-[9px] text-slate-500 my-0.5 uppercase tracking-widest">to</span><span>{formatTime(shift.end)}</span></div> : <span className="text-slate-600 font-bold">-</span>)}
                                                                             </div>
                                                                         )}
                                                                     </td>
@@ -3059,7 +3586,7 @@
                                                             })}
                                                             {isEditing && (
                                                                 <td className="px-2 py-2 text-center">
-                                                                    <button onClick={() => removeOfficeEmployee(emp.id)} className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                                                                    {isAdminUser && <button onClick={() => removeOfficeEmployee(emp.id)} className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>}
                                                                 </td>
                                                             )}
                                                         </tr>
@@ -3078,23 +3605,23 @@
                                 </div>
 
                                 <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-md">
-                                    <div className="px-4 py-3 bg-slate-900/80 border-b border-slate-700 text-xs font-black uppercase text-indigo-300 tracking-widest flex items-center gap-2">
+                                    <div className="px-4 py-3 bg-slate-900/80 border-b border-slate-700 text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
                                         <UserCheck className="w-4 h-4" /> After-Hours Assignment
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-center align-middle border-collapse min-w-[800px]">
                                             <thead>
                                                 <tr className="bg-slate-900/50 border-b border-slate-700">
-                                                    <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider w-32 border-r border-slate-700/50">Assignment</th>
+                                                    <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-500 tracking-wider w-32 border-r border-slate-700/50">Assignment</th>
                                                     {getOfficeWeekBoundaries(officeActiveDate).days.map((dayStr, idx) => (
-                                                        <th key={dayStr} className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider border-r border-slate-700/50 last:border-0">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][idx]}</th>
+                                                        <th key={dayStr} className="px-3 py-3 text-[10px] font-black uppercase text-slate-500 tracking-wider border-r border-slate-700/50 last:border-0">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][idx]}</th>
                                                     ))}
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-700/50">
                                                 {[1, 2].map(slot => (
                                                     <tr key={slot} className="hover:bg-slate-700/30 transition-colors">
-                                                        <td className="px-3 py-2 text-[10px] font-black uppercase text-slate-400 border-r border-slate-700/50">Person {slot}</td>
+                                                        <td className="px-3 py-2 text-[10px] font-black uppercase text-slate-500 border-r border-slate-700/50">Person {slot}</td>
                                                         {getOfficeWeekBoundaries(officeActiveDate).days.map(dayStr => {
                                                             const ah = officeData?.afterHours?.[dayStr] || {};
                                                             const field = `person${slot}`;
@@ -3102,11 +3629,11 @@
                                                             return (
                                                                 <td key={dayStr} className="px-2 py-2 border-r border-slate-700/50 last:border-0">
                                                                     {isEditing ? (
-                                                                        <select className="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-[10px] font-bold text-white outline-none focus:border-indigo-500 cursor-pointer" value={val} onChange={(e) => updateAfterHours(dayStr, field, e.target.value)}>
+                                                                        <select className="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-[10px] font-bold text-slate-300 outline-none focus:border-indigo-500 cursor-pointer" value={val} onChange={(e) => updateAfterHours(dayStr, field, e.target.value)}>
                                                                             <option value="">- Unassigned -</option>
                                                                             {(officeData?.employees || []).filter(e => e.name).map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
                                                                         </select>
-                                                                    ) : <span className={`text-xs font-black ${val ? 'text-indigo-300' : 'text-slate-600'}`}>{val || '-'}</span>}
+                                                                    ) : <span className={`text-xs font-black ${val ? 'text-slate-300' : 'text-slate-600'}`}>{val || '-'}</span>}
                                                                 </td>
                                                             )
                                                         })}
@@ -3122,35 +3649,47 @@
                     </main>
 
                     {}
-                    <footer data-html2canvas-ignore="true" className={`fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-6 py-4 z-50 flex flex-col md:flex-row justify-between items-center gap-4 ${isCapturing ? 'hidden' : ''}`}>
-                        <div className="flex items-center gap-3 overflow-x-auto max-w-full no-scrollbar">
-                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.4)] flex-shrink-0" />
+                    <footer data-html2canvas-ignore="true" className={`fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-5 py-2 z-50 flex flex-col md:flex-row justify-between items-center gap-2 ${isCapturing ? 'hidden' : ''}`}>
+                        <div className="flex items-center gap-2 overflow-x-auto max-w-full no-scrollbar">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.4)] flex-shrink-0" />
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex-shrink-0">Online Users:</span>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                                 <div className="relative shrink-0">
                                     {isEditingName ? (
-                                        <div className="flex items-center gap-2 animate-in slide-in-from-left-2 duration-200">
-                                            <input autoFocus className="bg-slate-800 px-3 py-1 rounded border border-indigo-500/50 text-xs font-bold text-white outline-none focus:ring-1 focus:ring-indigo-500" value={String(userName)} onChange={(e) => setUserName(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') { setUserName(e.target.value); localStorage.setItem(getUserNameKey(user.uid), e.target.value); setIsEditingName(false); } }} onBlur={() => { localStorage.setItem(getUserNameKey(user.uid), userName); setIsEditingName(false); }} />
+                                        <div className="flex items-center gap-1.5 animate-in slide-in-from-left-2 duration-200">
+                                            <input autoFocus className="bg-slate-800 px-2 py-0.5 rounded border border-indigo-500/50 text-[10px] font-bold text-white outline-none focus:ring-1 focus:ring-indigo-500" value={String(userName)} onChange={(e) => setUserName(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') { setUserName(e.target.value); localStorage.setItem(getUserNameKey(user.uid), e.target.value); setIsEditingName(false); } }} onBlur={() => { localStorage.setItem(getUserNameKey(user.uid), userName); setIsEditingName(false); }} />
                                             <button onClick={() => { localStorage.setItem(getUserNameKey(user.uid), userName); setIsEditingName(false); }} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-500 transition-colors cursor-pointer"><Check className="w-3 h-3" /></button>
                                         </div>
                                     ) : (
-                                        <button onClick={() => setIsEditingName(true)} className="flex items-center gap-2 bg-indigo-900/40 px-3 py-1 rounded-full border border-indigo-500/40 text-[10px] font-black text-indigo-200 hover:border-indigo-400 transition-all cursor-pointer">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> YOU: {cleanFirstName(userName)} <Edit3 className="w-2.5 h-2.5 opacity-50" />
+                                        <button onClick={() => setIsEditingName(true)} className="flex items-center gap-1.5 bg-indigo-900/40 px-2.5 py-0.5 rounded-full border border-indigo-500/40 text-[9px] font-black text-indigo-200 hover:border-indigo-400 transition-all cursor-pointer">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> YOU: {cleanFirstName((masterLists.nameOverrides || {})[user?.uid] || userName)} <Edit3 className="w-2.5 h-2.5 opacity-50" />
                                         </button>
                                     )}
                                 </div>
                                 {activeUsers.filter(u => u.uid !== user?.uid).map(u => (
-                                    <div key={u.uid} className="flex items-center gap-1.5 bg-slate-800/60 px-3 py-1 rounded-full border border-slate-700 text-[10px] font-bold text-slate-400">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" /> {cleanFirstName(u.name || 'Teammate')}
+                                    <div key={u.uid} className="flex items-center gap-1.5 bg-slate-800/60 px-2.5 py-0.5 rounded-full border border-slate-700 text-[9px] font-bold text-slate-400">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
+                                        {isAdminUser && editingOnlineUserId === u.uid ? (
+                                            <div className="flex items-center gap-1">
+                                                <input autoFocus className="bg-slate-950 border border-indigo-500/50 rounded px-2 py-0.5 text-[10px] text-white outline-none w-20" value={onlineNameDraft} onChange={(e) => setOnlineNameDraft(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') saveOnlineNameOverride(u.uid); }} />
+                                                <button onClick={() => saveOnlineNameOverride(u.uid)} className="text-emerald-400 hover:text-emerald-300 cursor-pointer" title="Save Name"><Check className="w-3 h-3" /></button>
+                                                <button onClick={() => { setEditingOnlineUserId(null); setOnlineNameDraft(''); }} className="text-slate-500 hover:text-white cursor-pointer" title="Cancel"><X className="w-3 h-3" /></button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {getOnlineDisplayName(u)}
+                                                {isAdminUser && <button onClick={() => startEditingOnlineName(u)} className="text-slate-500 hover:text-indigo-300 cursor-pointer ml-1" title="Admin rename"><Edit3 className="w-2.5 h-2.5" /></button>}
+                                            </>
+                                        )}
                                     </div>
                                 ))}
                             </div>
                         </div>
-                        <div className="flex items-center gap-4 flex-wrap justify-center md:justify-end">
+                        <div className="flex items-center gap-3 flex-wrap justify-center md:justify-end">
                             <div className="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-400">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Signed in
                             </div>
-                            <button onClick={handleLogout} className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-[10px] font-black text-slate-300 hover:bg-slate-700 hover:text-white transition-all cursor-pointer uppercase tracking-widest" title="Sign out">
+                            <button onClick={handleLogout} className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[9px] font-black text-slate-300 hover:bg-slate-700 hover:text-white transition-all cursor-pointer uppercase tracking-widest" title="Sign out">
                                 Sign out
                             </button>
                             <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] border-l border-slate-700 pl-4">Status: <span className="text-emerald-500 tracking-widest">KPI v2.6 Active</span></div>
@@ -3162,15 +3701,15 @@
                         <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm transition-all ${isPreloadFullscreen ? 'p-0' : 'p-4'}`}>
                             <div className={`bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ${isPreloadFullscreen ? 'w-full h-full rounded-none' : 'rounded-2xl w-full max-w-5xl max-h-[90vh]'}`}>
                                 <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
-                                    <div className="flex items-center gap-2">
-                                        <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400"><Truck className="w-5 h-5" /></div>
+                                        <div className="flex items-center gap-2">
+                                        <Truck className="w-7 h-7 text-slate-100" />
                                         <div>
                                             <h2 className="text-lg font-black text-white">Driver Preload Schedule</h2>
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Weekly Contractor Assignment</div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <button onClick={() => setIsPreloadFullscreen(!isPreloadFullscreen)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title={isPreloadFullscreen ? "Restore Size" : "Maximize"}>
+                                        <button onClick={() => setIsPreloadFullscreen(!isPreloadFullscreen)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title={isPreloadFullscreen ?"Restore Size" :"Maximize"}>
                                             {isPreloadFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
                                         <button onClick={() => setIsPreloadModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer p-2"><X className="w-5 h-5" /></button>
@@ -3186,72 +3725,87 @@
                                         })()}
                                         <button onClick={() => changePreloadWeek(1)} className="px-3 py-1.5 text-xs font-bold hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors cursor-pointer">Next Week &gt;</button>
                                     </div>
-                                    <div className="flex gap-3">
-                                        <button onClick={copyPreviousPreloadWeek} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg border border-slate-600 transition-colors cursor-pointer flex items-center gap-2 shadow-sm">
-                                            <ClipboardPaste className="w-4 h-4" /> Copy Prev Week
-                                        </button>
-                                        <button onClick={autoRotateContractors} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-indigo-900/20 transition-colors cursor-pointer flex items-center gap-2">
-                                            <Route className="w-4 h-4" /> Auto-Rotate
-                                        </button>
-                                    </div>
+                                    {isAdminUser && (
+                                        <div className="flex gap-3">
+                                            <button onClick={copyPreviousPreloadWeek} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg border border-slate-600 transition-colors cursor-pointer flex items-center gap-2 shadow-sm">
+                                                <ClipboardPaste className="w-4 h-4" /> Copy Prev Week
+                                            </button>
+                                            <button onClick={autoRotateContractors} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-indigo-900/20 transition-colors cursor-pointer flex items-center gap-2">
+                                                <Route className="w-4 h-4" /> Auto-Rotate
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 
-                                <div className={`overflow-y-auto flex-1 p-6 ${isPreloadFullscreen ? 'flex flex-col' : ''}`}>
+                                <div className={`dashboard-scroll-area overflow-y-auto flex-1 p-6 ${isPreloadFullscreen ? 'flex flex-col' : ''}`}>
                                     <PreloadAssignmentAlert />
 
-                                    <div className={`bg-slate-800 rounded-xl border border-slate-700 shadow-2xl flex flex-col ${isPreloadFullscreen ? 'flex-1 overflow-hidden' : 'overflow-hidden'}`}>
-                                        <div className={`overflow-auto ${isPreloadFullscreen ? 'flex-1' : ''}`}>
-                                            <table className="w-full text-left align-middle border-collapse">
+                                    <div className={`bg-slate-800 rounded-xl border border-slate-700 shadow-2xl relative ${isPreloadFullscreen ? 'flex-1 overflow-hidden flex flex-col' : 'overflow-hidden'}`}>
+                                        <div className="px-5 py-3 bg-slate-900/50 border-b border-slate-700 flex items-center justify-between gap-3">
+                                            <div>
+                                                <div className="text-xs font-black uppercase tracking-widest text-slate-200">Weekly preload assignments</div>
+                                                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1">All seven days stay visible for screenshots</div>
+                                            </div>
+                                        </div>
+                                        <div className={`dashboard-scroll-area overflow-auto ${isPreloadFullscreen ? 'flex-1' : ''}`}>
+                                            <table className="w-full text-left align-middle border-collapse min-w-[850px]">
                                                 <thead>
                                                     <tr className="bg-slate-900/80 border-b border-slate-700">
-                                                    <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Day</th>
-                                                    <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Contractor</th>
-                                                    <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Preload Door #</th>
-                                                    <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-700/50">
-                                                {getOfficeWeekBoundaries(preloadActiveDate).days.map((dayStr) => {
-                                                    const dayData = allPreloadSchedules[dayStr] || { contractor: '', door: '', status: 'Pending' };
-                                                    const dateObj = new Date(dayStr + 'T12:00:00');
-                                                    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
-                                                    const dateFormatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                                                    return (
-                                                        <tr key={dayStr} className="hover:bg-slate-700/30 transition-colors">
-                                                            <td className="px-4 py-3 text-xs font-bold text-slate-200">{dateFormatted}</td>
-                                                            <td className="px-4 py-3 text-xs font-bold text-indigo-300">{dayName}</td>
-                                                            <td className="px-4 py-3">
-                                                                <select 
-                                                                    className="w-full max-w-[300px] bg-slate-950 border border-slate-600 rounded px-3 py-2 text-xs font-bold text-white outline-none focus:border-indigo-500 cursor-pointer shadow-inner"
-                                                                    value={dayData.contractor}
-                                                                    onChange={(e) => updatePreloadDay(dayStr, 'contractor', e.target.value)}
-                                                                >
-                                                                    <option value="">- Unassigned -</option>
-                                                                    {(masterLists.contractors || []).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                                                </select>
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                <input 
-                                                                    type="text" 
-                                                                    placeholder="Door #" 
-                                                                    className="w-24 bg-slate-950 border border-slate-600 rounded px-3 py-2 text-xs font-bold text-white outline-none focus:border-indigo-500 shadow-inner"
-                                                                    value={dayData.door}
-                                                                    onChange={(e) => updatePreloadDay(dayStr, 'door', e.target.value)}
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <button 
-                                                                    onClick={() => updatePreloadDay(dayStr, 'status', dayData.status === 'Completed' ? 'Pending' : 'Completed')}
-                                                                    className={`px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all border cursor-pointer ${dayData.status === 'Completed' ? 'bg-emerald-900/40 text-emerald-400 border-emerald-500/30 hover:bg-emerald-900/60' : 'bg-amber-900/40 text-amber-400 border-amber-500/30 hover:bg-amber-900/60'}`}
-                                                                >
-                                                                    {dayData.status || 'Pending'}
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Day</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Contractor</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 w-40">Preload Door #</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center w-36">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-700/50">
+                                                    {getOfficeWeekBoundaries(preloadActiveDate).days.map((dayStr) => {
+                                                        const dayData = allPreloadSchedules[dayStr] || { contractor: '', door: '', status: 'Pending' };
+                                                        const dateObj = new Date(dayStr + 'T12:00:00');
+                                                        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                                                        const dateFormatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                                                        const isCompleted = dayData.status === 'Completed';
+                                                        return (
+                                                            <tr key={dayStr} className="hover:bg-slate-700/30 transition-colors">
+                                                                <td className="px-4 py-3">
+                                                                    <div className="text-xs font-black text-slate-200">{dayName}</div>
+                                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-0.5">{dateFormatted}</div>
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {isAdminUser ? (
+                                                                        <select 
+                                                                            className="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-slate-400 cursor-pointer shadow-inner"
+                                                                            value={dayData.contractor}
+                                                                            onChange={(e) => updatePreloadDay(dayStr, 'contractor', e.target.value)}
+                                                                        >
+                                                                            <option value="">- Unassigned -</option>
+                                                                            {(masterLists.contractors || []).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                                        </select>
+                                                                    ) : (
+                                                                        <div className="min-h-[34px] flex items-center rounded-lg bg-slate-950/40 border border-slate-700 px-3 py-2 text-xs font-bold text-slate-300">{dayData.contractor || '-'}</div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="Door #" 
+                                                                        className="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-slate-400 shadow-inner"
+                                                                        value={dayData.door}
+                                                                        onChange={(e) => updatePreloadDay(dayStr, 'door', e.target.value)}
+                                                                    />
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <button 
+                                                                        onClick={() => updatePreloadDay(dayStr, 'status', isCompleted ? 'Pending' : 'Completed')}
+                                                                        className={`w-full px-3 py-2 rounded-lg text-[10px] font-black tracking-wider uppercase transition-all border cursor-pointer ${isCompleted ? 'bg-emerald-900/40 text-emerald-400 border-emerald-500/30 hover:bg-emerald-900/60' : 'bg-amber-900/40 text-amber-400 border-amber-500/30 hover:bg-amber-900/60'}`}
+                                                                    >
+                                                                        {dayData.status || 'Pending'}
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
                                 </div>
@@ -3260,28 +3814,28 @@
                     )}
 
                     {}
-                    {isMasterModalOpen && (
+                    {canOpenMasterLists && isMasterModalOpen && (
                         <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm transition-all ${isMasterFullscreen ? 'p-0' : 'p-4'}`}>
                             <div className={`bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ${isMasterFullscreen ? 'w-full h-full rounded-none' : 'rounded-2xl w-full max-w-[98%] md:max-w-6xl max-h-[90vh]'}`}>
                                 <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
-                                    <h2 className="text-lg font-black text-white flex items-center gap-2"><Settings className="w-5 h-5 text-indigo-400" /> Manage Master Lists</h2>
+                                    <h2 className="text-lg font-black text-white flex items-center gap-2"><Settings className="w-5 h-5 text-indigo-400" /> {isAdminUser ? 'Manage Master Lists' : 'Contractor Plan'}</h2>
                                     <div className="flex items-center gap-2">
-                                        <button onClick={() => setIsMasterFullscreen(!isMasterFullscreen)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title={isMasterFullscreen ? "Restore Size" : "Maximize"}>
+                                        <button onClick={() => setIsMasterFullscreen(!isMasterFullscreen)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title={isMasterFullscreen ?"Restore Size" :"Maximize"}>
                                             {isMasterFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
-                                        <button onClick={() => setIsMasterEditing(!isMasterEditing)} className={`p-2 rounded-lg transition-colors cursor-pointer ${isMasterEditing ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`} title="Edit List"><Edit3 className="w-4 h-4" /></button>
+                                        <button onClick={() => setIsMasterEditing(!isMasterEditing)} className={`p-2 rounded-lg transition-colors cursor-pointer ${isMasterEditing ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`} title={isAdminUser ? "Edit List" : "Edit Planned"}><Edit3 className="w-4 h-4" /></button>
                                         <button onClick={() => setIsMasterModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer p-2"><X className="w-5 h-5" /></button>
                                     </div>
                                 </div>
                                 
                                 <div className="flex border-b border-slate-700 bg-slate-800/50 px-2">
-                                    {[{ id: 'contractors', label: 'Contractors' }, { id: 'drivers', label: 'Drivers' }, { id: 'helpers', label: 'Helpers' }].map(tab => (
+                                    {(isAdminUser ? [{ id: 'contractors', label: 'Contractors' }, { id: 'drivers', label: 'Drivers' }, { id: 'helpers', label: 'Helpers' }] : [{ id: 'contractors', label: 'Contractors' }]).map(tab => (
                                         <button key={tab.id} onClick={() => setMasterActiveTab(tab.id)} className={`px-4 py-3 text-xs font-bold tracking-widest uppercase transition-colors border-b-2 cursor-pointer ${masterActiveTab === tab.id ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>{tab.label}</button>
                                     ))}
                                 </div>
 
-                                <div className="p-6 overflow-y-auto flex-1">
-                                    {isMasterEditing && (
+                                <div className="master-list-scroll-area p-6 overflow-y-auto flex-1">
+                                    {isMasterEditing && isAdminUser && (
                                         <div className="flex flex-wrap items-end gap-3 mb-6 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                                             <div className="flex-1 min-w-[200px]">
                                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Name</label>
@@ -3308,19 +3862,23 @@
                                         </div>
                                     )}
 
-                                    <div className={masterActiveTab === 'contractors' ? "grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4" : "space-y-2"}>
+                                    <div className={masterActiveTab === 'contractors' ?"grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4" :"space-y-2"}>
                                         {(masterLists[masterActiveTab] || []).length === 0 ? (
                                             <div className="col-span-full text-center py-8 text-slate-500 text-xs font-bold uppercase tracking-widest italic">List is empty.</div>
                                         ) : (
                                             (masterLists[masterActiveTab] || []).map(item => (
-                                                <div key={item.id} className={masterActiveTab === 'contractors' ? "bg-slate-800/80 p-5 rounded-2xl border border-slate-700/60 hover:bg-slate-800 hover:border-indigo-500/50 hover:shadow-xl hover:shadow-indigo-900/20 transition-all duration-300 flex flex-col gap-4 relative overflow-hidden group" : "bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-md flex justify-between items-center"}>
+                                                <div key={item.id} className={masterActiveTab === 'contractors' ?"bg-slate-800/80 p-5 rounded-2xl border border-slate-700/60 hover:bg-slate-800 hover:border-indigo-500/50 hover:shadow-xl hover:shadow-indigo-900/20 transition-all duration-300 flex flex-col gap-4 relative overflow-hidden group" :"bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-md flex justify-between items-center"}>
                                                     {editingMasterId === item.id ? (
                                                         <div className="flex flex-col gap-2 w-full animate-in fade-in duration-200">
-                                                            <input autoFocus type="text" className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none font-bold" value={editMasterValues.name} onChange={(e) => setEditMasterValues({ ...editMasterValues, name: e.target.value })} />
+                                                            {isAdminUser ? (
+                                                                <input autoFocus type="text" className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none font-bold" value={editMasterValues.name} onChange={(e) => setEditMasterValues({ ...editMasterValues, name: e.target.value })} />
+                                                            ) : (
+                                                                <div className="w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 font-bold">{editMasterValues.name}</div>
+                                                            )}
                                                             {masterActiveTab === 'contractors' ? (
                                                                 <div className="flex gap-2">
-                                                                    <div className="flex-1"><span className="text-[9px] text-slate-400 uppercase font-bold pl-1 block mb-0.5">Total</span><input type="number" className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={editMasterValues.total} onChange={(e) => setEditMasterValues({ ...editMasterValues, total: e.target.value })} /></div>
-                                                                    <div className="flex-1"><span className="text-[9px] text-slate-400 uppercase font-bold pl-1 block mb-0.5">Planned</span><input type="number" className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={editMasterValues.planned} onChange={(e) => setEditMasterValues({ ...editMasterValues, planned: e.target.value })} /></div>
+                                                                    <div className="flex-1"><span className="text-[9px] text-slate-400 uppercase font-bold pl-1 block mb-0.5">Total</span><input type="number" disabled={!isAdminUser} className={`w-full rounded px-3 py-1.5 text-sm outline-none ${isAdminUser ? 'bg-slate-950 border border-indigo-500/50 text-white focus:ring-1 focus:ring-indigo-500' : 'bg-slate-950/40 border border-slate-700 text-slate-500 cursor-not-allowed'}`} value={editMasterValues.total} onChange={(e) => isAdminUser && setEditMasterValues({ ...editMasterValues, total: e.target.value })} /></div>
+                                                                    <div className="flex-1"><span className="text-[9px] text-slate-400 uppercase font-bold pl-1 block mb-0.5">Planned</span><input type="number" autoFocus={!isAdminUser} className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={editMasterValues.planned} onChange={(e) => setEditMasterValues({ ...editMasterValues, planned: e.target.value })} /></div>
                                                                 </div>
                                                             ) : (
                                                                 <input type="text" className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" placeholder="Phone" value={editMasterValues.phone} onChange={(e) => setEditMasterValues({ ...editMasterValues, phone: e.target.value })} />
@@ -3337,16 +3895,16 @@
                                                                     <div className="flex flex-col w-full h-full relative z-10">
                                                                         <div className="flex justify-between items-start mb-6">
                                                                             <div className="flex items-center gap-3 overflow-hidden pr-2">
-                                                                                <div className="bg-indigo-600/20 p-3 rounded-xl shrink-0 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)]"><Truck className="w-6 h-6 text-indigo-400" /></div>
+                                                                                <div className="shrink-0 flex items-center justify-center"><Truck className="w-8 h-8 text-slate-200" /></div>
                                                                                 <div className="flex flex-col">
                                                                                     <span className="font-black text-slate-100 text-sm tracking-wide truncate" title={item.name}>{item.name}</span>
                                                                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Fleet Partner</span>
                                                                                 </div>
                                                                             </div>
-                                                                            {isMasterEditing && (
+                                                                            {isMasterEditing && canEditMasterItem && (
                                                                                 <div className="flex items-center gap-1 shrink-0 bg-slate-900/50 p-1 rounded-lg border border-slate-700/50">
                                                                                     <button onClick={() => startEditingMasterItem(item)} className="text-slate-400 hover:text-indigo-400 hover:bg-indigo-900/50 p-1.5 rounded transition-colors cursor-pointer" title="Edit"><Edit3 className="w-3 h-3" /></button>
-                                                                                    <button onClick={() => removeMasterListItem(item.id)} className="text-slate-500 hover:text-rose-400 hover:bg-rose-900/50 p-1.5 rounded transition-colors cursor-pointer" title="Delete"><Trash2 className="w-3 h-3" /></button>
+                                                                                    {isAdminUser && <button onClick={() => removeMasterListItem(item.id)} className="text-slate-500 hover:text-rose-400 hover:bg-rose-900/50 p-1.5 rounded transition-colors cursor-pointer" title="Delete"><Trash2 className="w-3 h-3" /></button>}
                                                                                 </div>
                                                                             )}
                                                                         </div>
@@ -3410,11 +3968,11 @@
 
                                     {masterActiveTab === 'contractors' && (
                                         <div className="mt-8 relative overflow-hidden bg-slate-900 border border-slate-700/60 rounded-2xl p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 shadow-2xl">
-                                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50"></div>
+                                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-slate-500 to-transparent opacity-40"></div>
                                             
                                             <div className="flex items-center gap-4 z-10">
-                                                <div className="bg-indigo-600/20 p-3.5 rounded-xl border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)]">
-                                                    <Truck className="w-8 h-8 text-indigo-400" />
+                                                <div className="flex items-center justify-center">
+                                                    <Truck className="w-10 h-10 text-slate-200" />
                                                 </div>
                                                 <div>
                                                     <h3 className="text-xl font-black text-white tracking-tight">Network Fleet Status</h3>
@@ -3435,9 +3993,9 @@
                                                                 <span className="text-2xl font-black text-white leading-none">{totalFleet}</span>
                                                             </div>
                                                             <div className="hidden lg:block w-px bg-slate-800 my-2"></div>
-                                                            <div className="flex-1 lg:flex-none px-6 py-3 rounded-lg flex flex-col items-center justify-center bg-indigo-900/10 border border-indigo-500/10">
-                                                                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-1">Assigned</span>
-                                                                <span className="text-2xl font-black text-indigo-300 leading-none">{plannedFleet}</span>
+                                                            <div className="flex-1 lg:flex-none px-6 py-3 rounded-lg flex flex-col items-center justify-center bg-slate-800/60 border border-slate-600/40">
+                                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Assigned</span>
+                                                                <span className="text-2xl font-black text-slate-200 leading-none">{plannedFleet}</span>
                                                             </div>
                                                             <div className="hidden lg:block w-px bg-slate-800 my-2"></div>
                                                             <div className={`flex-1 lg:flex-none px-6 py-3 rounded-lg flex flex-col items-center justify-center border ${availFleet > 0 ? 'bg-emerald-900/10 border-emerald-500/10' : 'bg-rose-900/10 border-rose-500/10'}`}>
@@ -3456,7 +4014,7 @@
                     )}
 
                     {}
-                    {recordToDelete && (
+                    {isAdminUser && recordToDelete && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
                             <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
                                 <div className="flex items-center gap-3 text-rose-400 mb-4"><AlertTriangle className="w-6 h-6" /><h3 className="text-lg font-black">Confirm Deletion</h3></div>
@@ -3477,6 +4035,31 @@
     </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
