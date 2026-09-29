@@ -114,6 +114,29 @@
         .balanced-picture-theme [class*="bg-slate-900"] { background-color: #17202c !important; }
         .balanced-picture-theme [class*="bg-slate-800"] { background-color: #1f2937 !important; }
         .balanced-picture-theme [class*="bg-slate-700"] { background-color: #2c3849 !important; }
+        .bonus-darker-headers thead tr,
+        .bonus-darker-headers thead th {
+            background: #17202c !important;
+            background-color: #17202c !important;
+            backdrop-filter: none !important;
+            box-shadow: inset 0 -1px 0 rgba(52, 65, 84, 0.95) !important;
+        }
+        .bonus-darker-headers .bonus-panel-title {
+            background: #17202c !important;
+            background-color: #17202c !important;
+            border-bottom-color: #344154 !important;
+        }
+        .bonus-darker-headers .bonus-qualification-table tbody td:nth-child(1),
+        .bonus-darker-headers .bonus-qualification-table tbody td:nth-child(2),
+        .bonus-darker-headers .bonus-payout-table tbody td:nth-child(1),
+        .bonus-darker-headers .bonus-payout-table tbody td:nth-child(2) {
+            background: #1b2532 !important;
+            background-color: #1b2532 !important;
+        }
+        .bonus-darker-headers .bonus-payout-table tbody td:nth-child(n+4):nth-child(-n+10) {
+            background: #1b2532 !important;
+            background-color: #1b2532 !important;
+        }
         .balanced-picture-theme [class*="bg-slate-600"] { background-color: #3a495f !important; }
         .balanced-picture-theme [class*="hover:bg-slate-700"]:hover { background-color: #354256 !important; }
         .balanced-picture-theme [class*="hover:bg-slate-600"]:hover { background-color: #43536b !important; }
@@ -346,6 +369,125 @@
         .balanced-picture-theme header input[type="date"]::-webkit-clear-button {
             display: none !important;
         }
+        @keyframes metricValueHeartbeat {
+            0%, 70%, 100% {
+                transform: scale(1);
+                opacity: 0.58;
+                filter: brightness(0.9);
+                text-shadow: none;
+            }
+            76% {
+                transform: scale(1.08);
+                opacity: 0.96;
+                filter: brightness(1.08);
+                text-shadow: 0 0 18px rgba(148, 163, 184, 0.35);
+            }
+            82% {
+                transform: scale(0.98);
+                opacity: 0.7;
+                filter: brightness(0.95);
+            }
+            88% {
+                transform: scale(1.05);
+                opacity: 0.9;
+                filter: brightness(1.04);
+                text-shadow: 0 0 14px rgba(148, 163, 184, 0.28);
+            }
+            94% {
+                transform: scale(1);
+                opacity: 0.58;
+                filter: brightness(0.9);
+                text-shadow: none;
+            }
+        }
+        @keyframes metricValueSwell {
+            0% {
+                transform: scale(1);
+                opacity: 0.58;
+                filter: brightness(0.9);
+                text-shadow: none;
+            }
+            48% {
+                transform: scale(1.28);
+                opacity: 0.92;
+                filter: brightness(1.08);
+                text-shadow: 0 0 18px rgba(148, 163, 184, 0.3);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 0.58;
+                filter: brightness(0.9);
+                text-shadow: none;
+            }
+        }
+        @keyframes metricRingHeartbeat {
+            0%, 42%, 100% {
+                opacity: 0.38;
+                filter: brightness(0.86);
+            }
+            50% {
+                opacity: 0.88;
+                filter: brightness(1.12);
+            }
+            58% {
+                opacity: 0.42;
+                filter: brightness(0.88);
+            }
+            66% {
+                opacity: 0.84;
+                filter: brightness(1.1);
+            }
+            74% {
+                opacity: 0.42;
+                filter: brightness(0.88);
+            }
+            82% {
+                opacity: 0.8;
+                filter: brightness(1.08);
+            }
+            90% {
+                opacity: 0.38;
+                filter: brightness(0.86);
+            }
+        }
+        @keyframes metricRingExpandDisappear {
+            0% {
+                opacity: 0.82;
+                filter: brightness(0.9);
+                transform: scale(1);
+            }
+            100% {
+                opacity: 0;
+                filter: brightness(1.04);
+                transform: scale(1.82);
+            }
+        }
+        .metric-ring-value {
+            display: inline-block;
+            opacity: 0.58;
+            filter: brightness(0.9);
+            transition: transform 160ms ease, text-shadow 160ms ease;
+        }
+        .metric-ring-track,
+        .metric-ring-stroke {
+            transform-box: fill-box;
+            transform-origin: center;
+        }
+        .metric-ring-card svg {
+            overflow: visible;
+        }
+        .metric-ring-stroke {
+            opacity: 0.38;
+            filter: brightness(0.86);
+            animation: metricRingHeartbeat 15s ease-in-out infinite;
+        }
+        .metric-ring-card:hover .metric-ring-value {
+            animation: metricValueSwell 1.85s ease-in-out infinite;
+        }
+        .metric-ring-card:hover .metric-ring-track,
+        .metric-ring-card:hover .metric-ring-stroke {
+            animation: metricRingExpandDisappear 1.35s ease-out forwards;
+        }
     </style>
     <script>
         (() => {
@@ -544,6 +686,47 @@
             return { employees: defaultEmployees, afterHours };
         };
 
+        const OFFICE_COPY_BASE_WEEK_START = '2026-09-21';
+
+        const generateBaseOfficeSchedule = (days) => {
+            const shift = (start, end) => ({ start, end, isOff: false });
+            const off = () => ({ start: '', end: '', isOff: true });
+            const baseEmployees = [
+                {
+                    id: 'e1',
+                    name: 'Fadi',
+                    week: [shift('05:00', '13:30'), shift('05:00', '13:30'), shift('05:00', '13:30'), shift('05:00', '13:30'), shift('05:00', '13:30'), off(), off()]
+                },
+                {
+                    id: 'e2',
+                    name: 'Emily',
+                    week: [off(), shift('11:00', '19:30'), shift('11:00', '19:30'), shift('11:00', '19:30'), shift('11:00', '19:30'), shift('05:00', '13:30'), off()]
+                },
+                {
+                    id: 'e3',
+                    name: 'Andrea',
+                    week: [shift('11:00', '19:30'), off(), off(), shift('11:00', '19:30'), shift('11:00', '19:30'), shift('11:00', '19:30'), shift('11:00', '19:30')]
+                },
+                {
+                    id: 'e4',
+                    name: 'Ari',
+                    week: [shift('11:00', '19:30'), shift('11:00', '19:30'), shift('11:00', '19:30'), off(), off(), shift('11:00', '19:30'), shift('05:00', '13:30')]
+                }
+            ];
+            const employees = baseEmployees.map(({ week, ...emp }) => {
+                const shifts = {};
+                days.forEach((dayStr, idx) => {
+                    shifts[dayStr] = { ...(week[idx] || { start: '', end: '', isOff: false }) };
+                });
+                return { ...emp, shifts };
+            });
+            const afterHours = {};
+            days.forEach(dayStr => {
+                afterHours[dayStr] = { person1: '', person2: '' };
+            });
+            return { employees, afterHours };
+        };
+
         const copyOfficeScheduleToWeek = (sourceSchedule, targetDays) => {
             const sourceEmployees = sourceSchedule?.employees || [];
             const sourceDays = sourceEmployees[0]?.shifts ? Object.keys(sourceEmployees[0].shifts).sort() : [];
@@ -566,6 +749,13 @@
                     : { person1: '', person2: '' };
             });
             return { employees: copiedEmployees, afterHours };
+        };
+        const officeScheduleHasAssignments = (schedule) => {
+            const hasEmployeeShift = (schedule?.employees || []).some(emp =>
+                Object.values(emp.shifts || {}).some(shift => Boolean(shift?.start || shift?.end || shift?.isOff))
+            );
+            const hasAfterHoursAssignment = Object.values(schedule?.afterHours || {}).some(day => Boolean(day?.person1 || day?.person2));
+            return hasEmployeeShift || hasAfterHoursAssignment;
         };
 
         const calculateOfficeWarnings = (dataObj, days) => {
@@ -757,8 +947,9 @@
             const [isCapturing, setIsCapturing] = useState(false);
             const [isLoading, setIsLoading] = useState(true);
             const dashboardRef = useRef(null);
+            const lastUserActivityRef = useRef(Date.now());
 
-            const [openDates, setOpenDates] = useState([new Date().toISOString().split('T')[0]]);
+            const [openDates, setOpenDates] = useState([new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })]);
             const [activeDate, setActiveDate] = useState(openDates[0]);
             const [isHeaderCalendarOpen, setIsHeaderCalendarOpen] = useState(false);
             const [headerCalendarMonth, setHeaderCalendarMonth] = useState(openDates[0].slice(0, 7));
@@ -788,11 +979,25 @@
 
             const [officeActiveDate, setOfficeActiveDate] = useState(openDates[0]);
             const [officeData, setOfficeData] = useState(generateDefaultOfficeSchedule(getOfficeWeekBoundaries(openDates[0]).days));
+            const [isOfficeOneTimeChange, setIsOfficeOneTimeChange] = useState(false);
 
             const [pasteFeedback, setPasteFeedback] = useState('');
             const [routePasteFeedback, setRoutePasteFeedback] = useState('');
             
             const getChicagoDateKey = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+            const getChicagoTimeParts = () => {
+                const parts = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'America/Chicago',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                }).formatToParts(new Date());
+                const hourValue = Number(parts.find(part => part.type === 'hour')?.value || 0);
+                return {
+                    hours: hourValue === 24 ? 0 : hourValue,
+                    mins: Number(parts.find(part => part.type === 'minute')?.value || 0)
+                };
+            };
             const getComplianceAckKey = (alertId, dateKey = getChicagoDateKey()) => `geodis_compliance_ack_${dateKey}_${alertId}`;
             const getAssignmentAckStorageKey = (alertKey) => `geodis_assignment_ack_${alertKey}`;
 
@@ -851,9 +1056,8 @@
 
             useEffect(() => {
                 const checkTime = () => {
-                    const now = new Date();
-                    const hours = now.getHours();
-                    const mins = now.getMinutes();
+                    const { hours, mins } = getChicagoTimeParts();
+                    const todayKey = getChicagoDateKey();
                     
                     // Preload Alert appears starting at 12:30 PM
                     if ((hours === 12 && mins >= 30) || hours >= 13) {
@@ -865,8 +1069,12 @@
                     // Route Update Alerts trigger at 12 PM, 5 PM (17), and 7 PM (19)
                     setTimeAlerts({ show12: hours >= 12, show17: hours >= 17, show19: hours >= 19 });
                     
-                    // Reset daily compliance alerts at midnight
-                    if (hours < 12) setDismissedAlerts({ 12: false, 17: false, 19: false });
+                    setPreloadDismissed(localStorage.getItem(`geodis_preload_ack_${todayKey}`) === 'true');
+                    setDismissedAlerts({
+                        12: localStorage.getItem(getComplianceAckKey(12, todayKey)) === 'true',
+                        17: localStorage.getItem(getComplianceAckKey(17, todayKey)) === 'true',
+                        19: localStorage.getItem(getComplianceAckKey(19, todayKey)) === 'true'
+                    });
                 };
                 checkTime();
                 const timer = setInterval(checkTime, 60000);
@@ -878,21 +1086,22 @@
                 localStorage.setItem(`geodis_preload_ack_${todayKey}`, 'true');
                 setPreloadDismissed(true);
 
-                const existing = allPreloadSchedules[activeDate] || { contractor: '', door: '', status: 'Pending' };
+                const existing = allPreloadSchedules[todayKey] || { contractor: '', door: '', status: 'Pending' };
                 const updated = { ...existing, status: 'Completed' };
-                setAllPreloadSchedules(prev => ({ ...prev, [activeDate]: updated }));
+                setAllPreloadSchedules(prev => ({ ...prev, [todayKey]: updated }));
 
                 if (!db) return;
                 let currentUid ="local";
                 if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                 try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', activeDate);
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', todayKey);
                     await setDoc(docRef, { ...updated, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
                 } catch(e) { console.error("Failed to sync preload acknowledgement:", e); }
             };
 
             const acknowledgeComplianceReminder = async (alertId, label, timeStr) => {
                 const todayKey = getChicagoDateKey();
+                if (activeDate !== todayKey) return;
                 localStorage.setItem(getComplianceAckKey(alertId, todayKey), 'true');
                 setDismissedAlerts(prev => ({ ...prev, [alertId]: true }));
 
@@ -909,7 +1118,7 @@
                     nd.loadout.compliance.push({ label, status: true });
                 }
 
-                const alreadyLogged = nd.shiftNotes.some(n => n.system && n.complianceAlertId === alertId && n.complianceDate === activeDate);
+                const alreadyLogged = nd.shiftNotes.some(n => n.system && n.complianceAlertId === alertId && n.complianceDate === todayKey);
                 if (!alreadyLogged) {
                     const newId = nd.shiftNotes.length > 0 ? Math.max(...nd.shiftNotes.map(n => Number(n.id) || 0)) + 1 : 1;
                     nd.shiftNotes.push({
@@ -920,7 +1129,7 @@
                         timestamp: acknowledgedAt.toISOString(),
                         system: true,
                         complianceAlertId: alertId,
-                        complianceDate: activeDate,
+                        complianceDate: todayKey,
                         replies: []
                     });
                 }
@@ -930,7 +1139,7 @@
                 let currentUid ="local";
                 if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                 try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', todayKey);
                     await setDoc(docRef, { ...nd, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
                 } catch(e) { console.error("Failed to sync compliance acknowledgement:", e); }
             };
@@ -995,14 +1204,15 @@
                     } catch (e) {}
                 };
 
-                if (timeAlerts.show12 && !playedAlerts.current[12]) { playStandardChime(); playedAlerts.current[12] = true; }
-                if (timeAlerts.show17 && !playedAlerts.current[17]) { playStandardChime(); playedAlerts.current[17] = true; }
-                if (timeAlerts.show19 && !playedAlerts.current[19]) { playStandardChime(); playedAlerts.current[19] = true; }
-                if (showPreloadAlert && !playedAlerts.current[1230]) { playStandardChime(); playedAlerts.current[1230] = true; }
+                const isViewingToday = activeDate === getChicagoDateKey();
+                if (isViewingToday && timeAlerts.show12 && !playedAlerts.current[12]) { playStandardChime(); playedAlerts.current[12] = true; }
+                if (isViewingToday && timeAlerts.show17 && !playedAlerts.current[17]) { playStandardChime(); playedAlerts.current[17] = true; }
+                if (isViewingToday && timeAlerts.show19 && !playedAlerts.current[19]) { playStandardChime(); playedAlerts.current[19] = true; }
+                if (isViewingToday && showPreloadAlert && !playedAlerts.current[1230]) { playStandardChime(); playedAlerts.current[1230] = true; }
 
-                const h = new Date().getHours();
+                const h = getChicagoTimeParts().hours;
                 if (h < 12) { playedAlerts.current = { 12: false, 1230: false, 17: false, 19: false }; }
-            }, [timeAlerts, showPreloadAlert]);
+            }, [timeAlerts, showPreloadAlert, activeDate]);
 
             // Sound Trigger: Urgent Notes
             useEffect(() => {
@@ -1169,25 +1379,59 @@
                     const officeBoundaries = getOfficeWeekBoundaries(officeActiveDate);
                     const officeDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', officeBoundaries.startStr);
                     const unsubscribeOffice = onSnapshot(officeDocRef, async (docSnap) => {
-                        if (docSnap.exists()) {
-                            setOfficeData(docSnap.data());
-                        } else {
-                            const prevWeekDate = new Date(officeBoundaries.startStr + 'T12:00:00');
-                            prevWeekDate.setDate(prevWeekDate.getDate() - 7);
-                            const prevWeekStart = getOfficeWeekBoundaries(prevWeekDate.toISOString().split('T')[0]).startStr;
-                            const prevOfficeRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', prevWeekStart);
-                            try {
-                                const prevSnap = await getDoc(prevOfficeRef);
-                                const nextSchedule = prevSnap.exists()
-                                    ? copyOfficeScheduleToWeek(prevSnap.data(), officeBoundaries.days)
-                                    : generateDefaultOfficeSchedule(officeBoundaries.days);
-                                setOfficeData(nextSchedule);
-                                if (prevSnap.exists()) {
-                                    await setDoc(officeDocRef, { ...nextSchedule, lastUpdatedBy: userName || user?.uid || 'system', lastUpdatedAt: new Date().toISOString() });
-                                }
-                            } catch(e) {
-                                setOfficeData(generateDefaultOfficeSchedule(officeBoundaries.days));
+                        const copyFromPreviousWeek = async (fallbackSchedule = null) => {
+                            const currentWeekStart = officeBoundaries.startStr;
+                            if (currentWeekStart < OFFICE_COPY_BASE_WEEK_START) {
+                                return fallbackSchedule || generateDefaultOfficeSchedule(officeBoundaries.days);
                             }
+
+                            let weekToCheck = new Date(currentWeekStart + 'T12:00:00');
+                            weekToCheck.setDate(weekToCheck.getDate() - 7);
+
+                            while (true) {
+                                const weekStart = getOfficeWeekBoundaries(weekToCheck.toISOString().split('T')[0]).startStr;
+                                if (weekStart < OFFICE_COPY_BASE_WEEK_START) break;
+
+                                const prevOfficeRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', weekStart);
+                                const prevSnap = await getDoc(prevOfficeRef);
+                                const prevOfficeData = prevSnap.exists() ? prevSnap.data() : null;
+                                if (prevOfficeData && officeScheduleHasAssignments(prevOfficeData) && prevOfficeData.officeOneTimeOverride !== true) {
+                                    return copyOfficeScheduleToWeek(prevOfficeData, officeBoundaries.days);
+                                }
+
+                                weekToCheck.setDate(weekToCheck.getDate() - 7);
+                            }
+
+                            const baseOfficeRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', OFFICE_COPY_BASE_WEEK_START);
+                            const baseSnap = await getDoc(baseOfficeRef);
+                            if (baseSnap.exists() && officeScheduleHasAssignments(baseSnap.data())) {
+                                return copyOfficeScheduleToWeek(baseSnap.data(), officeBoundaries.days);
+                            }
+
+                            return generateBaseOfficeSchedule(officeBoundaries.days);
+                        };
+
+                        try {
+                            if (docSnap.exists()) {
+                                const savedSchedule = docSnap.data();
+                                if (officeScheduleHasAssignments(savedSchedule)) {
+                                    setOfficeData(savedSchedule);
+                                } else {
+                                    const copiedSchedule = await copyFromPreviousWeek(savedSchedule);
+                                    setOfficeData(copiedSchedule);
+                                    if (officeScheduleHasAssignments(copiedSchedule)) {
+                                        await setDoc(officeDocRef, { ...copiedSchedule, officeAutoCopied: true, officeManualOverride: false, officeOneTimeOverride: false, lastUpdatedBy: userName || user?.uid || 'system', lastUpdatedAt: new Date().toISOString() });
+                                    }
+                                }
+                            } else {
+                                const nextSchedule = await copyFromPreviousWeek();
+                                setOfficeData(nextSchedule);
+                                if (officeScheduleHasAssignments(nextSchedule)) {
+                                    await setDoc(officeDocRef, { ...nextSchedule, officeAutoCopied: true, officeManualOverride: false, officeOneTimeOverride: false, lastUpdatedBy: userName || user?.uid || 'system', lastUpdatedAt: new Date().toISOString() });
+                                }
+                            }
+                        } catch(e) {
+                            setOfficeData(docSnap.exists() ? docSnap.data() : generateDefaultOfficeSchedule(officeBoundaries.days));
                         }
                     });
 
@@ -1208,25 +1452,66 @@
                 if (!auth || !db) return;
                 let currentUser = auth.currentUser;
                 if (!currentUser) return;
+                const idleAfterMs = 2 * 60 * 1000;
+                const offlineAfterMs = 15 * 60 * 1000;
+                let lastPresenceWrite = 0;
 
                 const updatePresence = async () => {
                     try {
+                        const now = Date.now();
+                        const lastInteraction = lastUserActivityRef.current || now;
+                        const isIdle = document.hidden || (now - lastInteraction >= idleAfterMs);
                         const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', currentUser.uid);
-                        await setDoc(presenceRef, { uid: currentUser.uid, name: cleanFirstName(userName || getDefaultUserName(currentUser)), lastActive: Date.now() });
+                        lastPresenceWrite = now;
+                        await setDoc(presenceRef, {
+                            uid: currentUser.uid,
+                            name: cleanFirstName(userName || getDefaultUserName(currentUser)),
+                            lastActive: lastInteraction,
+                            lastInteraction,
+                            lastSeen: now,
+                            status: isIdle ? 'idle' : 'active'
+                        });
                     } catch (e) {}
                 };
+                const markUserActivity = () => {
+                    const now = Date.now();
+                    const wasIdle = now - (lastUserActivityRef.current || now) >= idleAfterMs;
+                    lastUserActivityRef.current = now;
+                    if (wasIdle || now - lastPresenceWrite > 15000) updatePresence();
+                };
+                const handleVisibilityChange = () => {
+                    if (document.hidden) updatePresence();
+                    else markUserActivity();
+                };
+                const activityEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'pointerdown'];
+                activityEvents.forEach(eventName => window.addEventListener(eventName, markUserActivity, true));
+                document.addEventListener('visibilitychange', handleVisibilityChange);
                 updatePresence();
                 const intervalId = setInterval(updatePresence, 20000);
                 const presenceCol = collection(db, 'artifacts', appId, 'public', 'data', 'presence');
                 const unsubscribePresence = onSnapshot(presenceCol, (snapshot) => {
                     const active = [];
-                    const threshold = Date.now() - (5 * 60 * 1000); 
+                    const now = Date.now();
+                    const threshold = now - offlineAfterMs; 
                     snapshot.forEach(doc => { 
-                        if (doc.data().lastActive > threshold) active.push(doc.data()); 
+                        const presence = doc.data();
+                        const lastSeen = Number(presence.lastSeen || presence.lastActive || 0);
+                        const lastInteraction = Number(presence.lastInteraction || presence.lastActive || 0);
+                        if (lastSeen > threshold) {
+                            active.push({
+                                ...presence,
+                                status: presence.status || (now - lastInteraction >= idleAfterMs ? 'idle' : 'active')
+                            });
+                        }
                     });
                     setActiveUsers(active);
                 }, (err) => console.error(err));
-                return () => { clearInterval(intervalId); unsubscribePresence(); };
+                return () => {
+                    clearInterval(intervalId);
+                    unsubscribePresence();
+                    activityEvents.forEach(eventName => window.removeEventListener(eventName, markUserActivity, true));
+                    document.removeEventListener('visibilitychange', handleVisibilityChange);
+                };
             }, [user, userName]);
 
             const handleSave = async () => {
@@ -1245,7 +1530,109 @@
 
                     const officeBoundaries = getOfficeWeekBoundaries(officeActiveDate);
                     const officeDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', officeBoundaries.startStr);
-                    await setDoc(officeDocRef, { ...(officeData || generateDefaultOfficeSchedule(officeBoundaries.days)), lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                    const isOfficeSave = activeTab === 'office';
+                    const savedOfficeSchedule = {
+                        ...(officeData || generateDefaultOfficeSchedule(officeBoundaries.days)),
+                        officeAutoCopied: isOfficeSave ? false : Boolean(officeData?.officeAutoCopied),
+                        officeManualOverride: isOfficeSave ? !isOfficeOneTimeChange : Boolean(officeData?.officeManualOverride),
+                        officeOneTimeOverride: isOfficeSave ? isOfficeOneTimeChange : Boolean(officeData?.officeOneTimeOverride),
+                        lastUpdatedBy: userName || currentUid,
+                        lastUpdatedAt: new Date().toISOString()
+                    };
+                    await setDoc(officeDocRef, savedOfficeSchedule);
+
+                    if (isOfficeSave && isOfficeOneTimeChange && officeScheduleHasAssignments(savedOfficeSchedule)) {
+                        let normalSourceSchedule = null;
+                        let normalSourceWeekStart = OFFICE_COPY_BASE_WEEK_START;
+                        let searchWeekDate = new Date(officeBoundaries.startStr + 'T12:00:00');
+                        searchWeekDate.setDate(searchWeekDate.getDate() - 7);
+
+                        while (true) {
+                            const searchWeekStart = getOfficeWeekBoundaries(searchWeekDate.toISOString().split('T')[0]).startStr;
+                            if (searchWeekStart < OFFICE_COPY_BASE_WEEK_START) break;
+
+                            const searchOfficeRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', searchWeekStart);
+                            const searchOfficeSnap = await getDoc(searchOfficeRef);
+                            const searchOfficeData = searchOfficeSnap.exists() ? searchOfficeSnap.data() : null;
+
+                            if (searchOfficeData && officeScheduleHasAssignments(searchOfficeData) && searchOfficeData.officeOneTimeOverride !== true) {
+                                normalSourceSchedule = searchOfficeData;
+                                normalSourceWeekStart = searchWeekStart;
+                                break;
+                            }
+
+                            searchWeekDate.setDate(searchWeekDate.getDate() - 7);
+                        }
+
+                        if (!normalSourceSchedule) {
+                            normalSourceSchedule = generateBaseOfficeSchedule(getOfficeWeekBoundaries(OFFICE_COPY_BASE_WEEK_START).days);
+                        }
+
+                        let targetWeekStart = officeBoundaries.startStr;
+                        for (let i = 0; i < 8; i++) {
+                            const nextWeekDate = new Date(targetWeekStart + 'T12:00:00');
+                            nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+                            const nextOfficeBoundaries = getOfficeWeekBoundaries(nextWeekDate.toISOString().split('T')[0]);
+                            const nextOfficeRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', nextOfficeBoundaries.startStr);
+                            const nextOfficeSnap = await getDoc(nextOfficeRef);
+                            const nextOfficeData = nextOfficeSnap.exists() ? nextOfficeSnap.data() : null;
+
+                            if (nextOfficeData?.officeManualOverride === true) break;
+                            if (nextOfficeData?.officeOneTimeOverride === true) {
+                                targetWeekStart = nextOfficeBoundaries.startStr;
+                                continue;
+                            }
+
+                            await setDoc(nextOfficeRef, {
+                                ...copyOfficeScheduleToWeek(normalSourceSchedule, nextOfficeBoundaries.days),
+                                officeAutoCopied: true,
+                                officeManualOverride: false,
+                                officeOneTimeOverride: false,
+                                officeCopiedFromWeekStart: normalSourceWeekStart,
+                                lastUpdatedBy: userName || currentUid,
+                                lastUpdatedAt: new Date().toISOString()
+                            });
+
+                            targetWeekStart = nextOfficeBoundaries.startStr;
+                        }
+                    }
+
+                    if (isOfficeSave && !isOfficeOneTimeChange && officeScheduleHasAssignments(savedOfficeSchedule)) {
+                        let sourceSchedule = savedOfficeSchedule;
+                        let sourceWeekStart = officeBoundaries.startStr;
+                        let targetWeekStart = officeBoundaries.startStr;
+
+                        for (let i = 0; i < 8; i++) {
+                            const nextWeekDate = new Date(targetWeekStart + 'T12:00:00');
+                            nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+                            const nextOfficeBoundaries = getOfficeWeekBoundaries(nextWeekDate.toISOString().split('T')[0]);
+                            const nextOfficeRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', nextOfficeBoundaries.startStr);
+                            const nextOfficeSnap = await getDoc(nextOfficeRef);
+                            const nextOfficeData = nextOfficeSnap.exists() ? nextOfficeSnap.data() : null;
+
+                            if (nextOfficeData?.officeManualOverride === true) break;
+                            if (nextOfficeData?.officeOneTimeOverride === true) {
+                                targetWeekStart = nextOfficeBoundaries.startStr;
+                                continue;
+                            }
+
+                            const copiedOfficeSchedule = {
+                                ...copyOfficeScheduleToWeek(sourceSchedule, nextOfficeBoundaries.days),
+                                officeAutoCopied: true,
+                                officeManualOverride: false,
+                                officeOneTimeOverride: false,
+                                officeCopiedFromWeekStart: sourceWeekStart,
+                                lastUpdatedBy: userName || currentUid,
+                                lastUpdatedAt: new Date().toISOString()
+                            };
+
+                            await setDoc(nextOfficeRef, copiedOfficeSchedule);
+                            sourceSchedule = copiedOfficeSchedule;
+                            sourceWeekStart = nextOfficeBoundaries.startStr;
+                            targetWeekStart = nextOfficeBoundaries.startStr;
+                        }
+                    }
+                    if (isOfficeSave) setIsOfficeOneTimeChange(false);
                 } catch (e) {
                     console.error("Save failed:", e);
                 }
@@ -1756,6 +2143,14 @@
             const canOpenMasterLists = Boolean(user);
             const canEditMasterItem = isAdminUser || masterActiveTab === 'contractors';
             const getOnlineDisplayName = (onlineUser) => cleanFirstName((masterLists.nameOverrides || {})[onlineUser.uid] || onlineUser.name || 'Teammate');
+            const getPresenceStatus = (onlineUser) => {
+                if (!onlineUser) return 'active';
+                const lastInteraction = Number(onlineUser.lastInteraction || onlineUser.lastActive || Date.now());
+                return onlineUser.status || (Date.now() - lastInteraction >= 2 * 60 * 1000 ? 'idle' : 'active');
+            };
+            const isPresenceIdle = (onlineUser) => getPresenceStatus(onlineUser) === 'idle';
+            const currentPresence = activeUsers.find(onlineUser => onlineUser.uid === user?.uid);
+            const currentUserIsIdle = isPresenceIdle(currentPresence);
             const startEditingOnlineName = (onlineUser) => {
                 setEditingOnlineUserId(onlineUser.uid);
                 setOnlineNameDraft(getOnlineDisplayName(onlineUser));
@@ -1930,6 +2325,7 @@
                 const d = new Date(officeActiveDate + 'T12:00:00');
                 d.setDate(d.getDate() + (offset * 7));
                 setOfficeActiveDate(d.toISOString().split('T')[0]);
+                setIsOfficeOneTimeChange(false);
             };
 
             const updateOfficeEmployeeName = (empId, newName) => {
@@ -1978,7 +2374,7 @@
                 const nIdx = nd.shiftNotes.findIndex(n => n.id === noteId);
                 if (nIdx < 0) return;
 
-                const firstName = userName ? userName.split(' ')[0] : 'User';
+                const firstName = cleanFirstName(userName || getDefaultUserName(auth?.currentUser));
                 if (!nd.shiftNotes[nIdx].replies) nd.shiftNotes[nIdx].replies = [];
                 nd.shiftNotes[nIdx].replies.push({
                     id: Date.now(),
@@ -2298,7 +2694,7 @@
                                     { id: 19, timeStr:"7:00 PM", label:"LSF PFL EOD Route Update Has Been Sent", show: timeAlerts.show19 }
                                 ].map(alert => {
                                     const isCompliant = data.loadout?.compliance?.find(c => c.label === alert.label)?.status === true;
-                                    if (!alert.show || dismissedAlerts[alert.id] || isCompliant) return null;
+                                    if (activeDate !== getChicagoDateKey() || !alert.show || dismissedAlerts[alert.id] || isCompliant) return null;
                                     
                                     return (
                                         <div key={`alert-${alert.id}`} className="mb-4 bg-sky-500/20 border border-sky-500/50 text-sky-400 p-4 rounded-xl flex items-center gap-4 shadow-[0_0_15px_rgba(14,165,233,0.2)] animate-in slide-in-from-top-2 relative">
@@ -2313,14 +2709,14 @@
                                 })}
 
                                 {/* Preload Alert */}
-                                {showPreloadAlert && !preloadDismissed && allPreloadSchedules[activeDate]?.status !== 'Completed' && (
+                                {activeDate === getChicagoDateKey() && showPreloadAlert && !preloadDismissed && allPreloadSchedules[getChicagoDateKey()]?.status !== 'Completed' && (
                                     <div className="mb-6 bg-amber-500/20 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-4 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-in slide-in-from-top-2 relative">
                                         <div className="bg-amber-500/20 p-2 rounded-lg animate-pulse"><AlertTriangle className="w-6 h-6" /></div>
                                         <div className="min-w-0 flex-1">
                                             <h3 className="font-black tracking-widest text-xs uppercase mb-0.5">Time-Sensitive Task</h3>
                                             <span className="font-medium text-sm">Reminder: Send today’s preload message to the designated driver.</span>
                                             {(() => {
-                                                const todayPreload = allPreloadSchedules[activeDate] || { contractor: '', status: 'Pending', door: '' };
+                                                const todayPreload = allPreloadSchedules[getChicagoDateKey()] || { contractor: '', status: 'Pending', door: '' };
                                                 return todayPreload.contractor ? (
                                                     <div className="mt-1.5 font-black text-indigo-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
                                                         <Truck className="w-3 h-3" /> Today's Assignment: {todayPreload.contractor} {todayPreload.door ? `(Door ${todayPreload.door})` : ''}
@@ -2474,14 +2870,14 @@
                                                     const pctSafeguard = Math.max(0, Math.min(100, isNaN(card.pct) ? 0 : card.pct));
                                                     const Icon = card.icon;
                                                     return (
-                                                        <div key={idx} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
+                                                        <div key={idx} className="metric-ring-card bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
                                                             <div className="absolute top-4 right-4 opacity-[0.03]"><Icon className="w-16 h-16 text-white" /></div>
                                                             <div className="relative w-32 h-32 mb-4 z-10 mt-2 flex items-center justify-center">
                                                                 <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                                                                    <circle cx="50" cy="50" r="40" className={`stroke-current ${colors.text} opacity-20`} strokeWidth="9" fill="transparent" />
-                                                                    <circle cx="50" cy="50" r="40" className={`stroke-current ${colors.ring} transition-all duration-1000 ease-out`} strokeWidth="9" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * pctSafeguard) / 100} strokeLinecap="round" />
+                                                                    <circle cx="50" cy="50" r="40" className={`metric-ring-track stroke-current ${colors.text} opacity-20`} strokeWidth="6" fill="transparent" />
+                                                                    <circle cx="50" cy="50" r="40" className={`metric-ring-stroke stroke-current ${colors.ring} transition-all duration-1000 ease-out`} strokeWidth="6" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * pctSafeguard) / 100} strokeLinecap="round" />
                                                                 </svg>
-                                                                <span className={`text-xl md:text-2xl font-black tracking-tight z-10 ${colors.text}`}>{card.displayValue}</span>
+                                                                <span className={`metric-ring-value text-lg md:text-xl font-bold tracking-tight z-10 ${colors.text}`}>{card.displayValue}</span>
                                                             </div>
                                                             <span className={`text-[10px] md:text-[11px] font-black uppercase tracking-widest z-10 text-center mb-1 ${colors.text}`}>{card.title}</span>
                                                             <span className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center z-10 mb-4">{card.targetDisplay}</span>
@@ -3044,7 +3440,7 @@
                                                 </tbody>
                                             </table>
                                         ) : (
-                                            <table className="w-full text-left border-collapse min-w-[1000px]">
+                                            <table className="bonus-qualification-table w-full text-left border-collapse min-w-[1000px]">
                                                 <thead>
                                                     <tr className="bg-slate-900/50 border-b border-slate-700">
                                                         <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Event Date</th>
@@ -3203,7 +3599,7 @@
 
                         ) : activeTab === 'bonus' ? (
 
-                            <div className={`animate-in fade-in duration-500 ${isBonusFullscreen ? 'fixed inset-0 z-[60] bg-slate-900 p-4 md:p-6 flex flex-col overflow-hidden' : 'relative'}`}>
+                            <div className={`bonus-darker-headers animate-in fade-in duration-500 ${isBonusFullscreen ? 'fixed inset-0 z-[60] bg-slate-900 p-4 md:p-6 flex flex-col overflow-hidden' : 'relative'}`}>
                                 <div className="shrink-0 flex justify-between items-center mb-6 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
                                     <div className="flex items-center gap-3">
                                         <Award className="w-7 h-7 text-slate-100" />
@@ -3228,24 +3624,24 @@
 
                                 <div className={isBonusFullscreen ? 'flex-1 flex flex-col gap-4 overflow-hidden' : ''}>
                                     <div className={`bg-slate-800 rounded-xl border border-slate-700 flex flex-col shadow-2xl relative ${isBonusFullscreen ? 'flex-[0.4] overflow-hidden' : 'mb-8 shrink-0 overflow-hidden'}`}>
-                                        <div className="px-4 py-3 bg-slate-900/80 border-b border-slate-700 text-xs font-black uppercase text-indigo-300 tracking-widest flex items-center gap-2 shrink-0">
+                                        <div className="bonus-panel-title px-4 py-3 bg-slate-950 border-b border-slate-700 text-xs font-black uppercase text-indigo-300 tracking-widest flex items-center gap-2 shrink-0">
                                             <DollarSign className="w-4 h-4" /> Bonus Metrics Qualification
                                         </div>
                                         <div className={`overflow-x-auto ${isBonusFullscreen ? 'flex-1 overflow-y-auto' : ''}`}>
-                                            <table className="w-full text-left border-collapse min-w-[1000px]">
+                                            <table className="bonus-qualification-table w-full text-left border-collapse min-w-[1000px]">
                                                 <thead>
-                                                    <tr className="bg-slate-900/80 border-b border-slate-700">
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">First Name</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Last Name</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Survey Count</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Survey AVG</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">OnTime%</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Completion %</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Survey AVG ($)</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">OnTime% ($)</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Completion % ($)</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-emerald-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Total</th>
-                                                        {isEditing && isAdminUser && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Action</th>}
+                                                    <tr className="bg-slate-950/90 border-b border-slate-700">
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">First Name</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Last Name</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Survey Count</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Survey AVG</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">OnTime%</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Completion %</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Survey AVG ($)</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">OnTime% ($)</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Completion % ($)</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-emerald-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Total</th>
+                                                        {isEditing && isAdminUser && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Action</th>}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-700/50">
@@ -3313,24 +3709,24 @@
                                     </div>
 
                                     <div className={`bg-slate-800 rounded-xl border border-slate-700 flex flex-col shadow-2xl relative ${isBonusFullscreen ? 'flex-[0.6] overflow-hidden' : 'overflow-hidden'}`}>
-                                        <div className="px-4 py-3 bg-slate-900/80 border-b border-slate-700 text-xs font-black uppercase text-indigo-300 tracking-widest flex items-center justify-between shrink-0">
+                                        <div className="bonus-panel-title px-4 py-3 bg-slate-950 border-b border-slate-700 text-xs font-black uppercase text-indigo-300 tracking-widest flex items-center justify-between shrink-0">
                                             <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /> Daily Bonus Payout Tracker</div>
                                             {isEditing && isAdminUser && <span className="text-[10px] text-slate-400 italic font-medium lowercase">type amount,"off", or violation ("socks","belt")</span>}
                                         </div>
                                         <div className={`overflow-x-auto ${isBonusFullscreen ? 'flex-1 overflow-y-auto' : ''}`}>
-                                            <table className="w-full text-left border-collapse whitespace-nowrap min-w-[1200px]">
+                                            <table className="bonus-payout-table w-full text-left border-collapse whitespace-nowrap min-w-[1200px]">
                                                 <thead>
-                                                    <tr className="bg-slate-900/50 border-b border-slate-700">
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">First Name</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Last Name</th>
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">10 Survey Count</th>
+                                                    <tr className="bg-slate-950/80 border-b border-slate-700">
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">First Name</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">Last Name</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">10 Survey Count</th>
                                                         {getBonusWeekBoundaries(activeDate).formattedDates.map((dateStr, idx) => (
-                                                            <th key={idx} className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">
+                                                            <th key={idx} className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-r border-slate-700 shadow-sm">
                                                                 {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][idx]}<br/><span className="text-slate-500">{dateStr}</span>
                                                             </th>
                                                         ))}
-                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-emerald-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Total</th>
-                                                        {isEditing && isAdminUser && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-900/90 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Edit / Delete</th>}
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-emerald-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Total</th>
+                                                        {isEditing && isAdminUser && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Edit / Delete</th>}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-700/50">
@@ -3519,13 +3915,21 @@
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Coverage Requirement: <span className="text-emerald-400">5:00 AM - 7:30 PM</span></div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1">
-                                        <button onClick={() => changeOfficeWeek(-1)} className="px-3 py-1.5 text-xs font-bold hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors cursor-pointer">&lt; Prev Week</button>
-                                        {(() => {
-                                            const bnds = getOfficeWeekBoundaries(officeActiveDate);
-                                            return <span className="font-black text-indigo-400 text-xs tracking-wider px-4">{bnds.formattedDates[0]} - {bnds.formattedDates[6]}</span>;
-                                        })()}
-                                        <button onClick={() => changeOfficeWeek(1)} className="px-3 py-1.5 text-xs font-bold hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors cursor-pointer">Next Week &gt;</button>
+                                    <div className="flex items-center gap-3">
+                                        {isEditing && (
+                                            <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all ${isOfficeOneTimeChange ? 'bg-amber-950/40 border-amber-500/50 text-amber-300' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'}`}>
+                                                <input type="checkbox" className="w-3.5 h-3.5 rounded bg-slate-950 border-slate-600 text-amber-500 cursor-pointer" checked={isOfficeOneTimeChange} onChange={(e) => setIsOfficeOneTimeChange(e.target.checked)} />
+                                                One-Time Change
+                                            </label>
+                                        )}
+                                        <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1">
+                                            <button onClick={() => changeOfficeWeek(-1)} className="px-3 py-1.5 text-xs font-bold hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors cursor-pointer">&lt; Prev Week</button>
+                                            {(() => {
+                                                const bnds = getOfficeWeekBoundaries(officeActiveDate);
+                                                return <span className="font-black text-indigo-400 text-xs tracking-wider px-4">{bnds.formattedDates[0]} - {bnds.formattedDates[6]}</span>;
+                                            })()}
+                                            <button onClick={() => changeOfficeWeek(1)} className="px-3 py-1.5 text-xs font-bold hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors cursor-pointer">Next Week &gt;</button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -3680,28 +4084,32 @@
                                             <button onClick={() => { localStorage.setItem(getUserNameKey(user.uid), userName); setIsEditingName(false); }} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-500 transition-colors cursor-pointer"><Check className="w-3 h-3" /></button>
                                         </div>
                                     ) : (
-                                        <button onClick={() => setIsEditingName(true)} className="flex items-center gap-1.5 bg-indigo-900/40 px-2.5 py-0.5 rounded-full border border-indigo-500/40 text-[9px] font-black text-indigo-200 hover:border-indigo-400 transition-all cursor-pointer">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> YOU: {cleanFirstName((masterLists.nameOverrides || {})[user?.uid] || userName)} <Edit3 className="w-2.5 h-2.5 opacity-50" />
+                                        <button onClick={() => setIsEditingName(true)} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[9px] font-black transition-all cursor-pointer ${currentUserIsIdle ? 'bg-amber-900/30 border-amber-500/30 text-amber-200 hover:border-amber-400' : 'bg-indigo-900/40 border-indigo-500/40 text-indigo-200 hover:border-indigo-400'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${currentUserIsIdle ? 'bg-amber-400' : 'bg-emerald-500'}`} /> YOU: {cleanFirstName((masterLists.nameOverrides || {})[user?.uid] || userName)} {currentUserIsIdle && <span className="text-[8px] uppercase tracking-widest text-amber-300/80">Idle</span>} <Edit3 className="w-2.5 h-2.5 opacity-50" />
                                         </button>
                                     )}
                                 </div>
-                                {activeUsers.filter(u => u.uid !== user?.uid).map(u => (
-                                    <div key={u.uid} className="flex items-center gap-1.5 bg-slate-800/60 px-2.5 py-0.5 rounded-full border border-slate-700 text-[9px] font-bold text-slate-400">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
-                                        {isAdminUser && editingOnlineUserId === u.uid ? (
-                                            <div className="flex items-center gap-1">
-                                                <input autoFocus className="bg-slate-950 border border-indigo-500/50 rounded px-2 py-0.5 text-[10px] text-white outline-none w-20" value={onlineNameDraft} onChange={(e) => setOnlineNameDraft(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') saveOnlineNameOverride(u.uid); }} />
-                                                <button onClick={() => saveOnlineNameOverride(u.uid)} className="text-emerald-400 hover:text-emerald-300 cursor-pointer" title="Save Name"><Check className="w-3 h-3" /></button>
-                                                <button onClick={() => { setEditingOnlineUserId(null); setOnlineNameDraft(''); }} className="text-slate-500 hover:text-white cursor-pointer" title="Cancel"><X className="w-3 h-3" /></button>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {getOnlineDisplayName(u)}
-                                                {isAdminUser && <button onClick={() => startEditingOnlineName(u)} className="text-slate-500 hover:text-indigo-300 cursor-pointer ml-1" title="Admin rename"><Edit3 className="w-2.5 h-2.5" /></button>}
-                                            </>
-                                        )}
-                                    </div>
-                                ))}
+                                {activeUsers.filter(u => u.uid !== user?.uid).map(u => {
+                                    const userIsIdle = isPresenceIdle(u);
+                                    return (
+                                        <div key={u.uid} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[9px] font-bold ${userIsIdle ? 'bg-amber-900/20 border-amber-500/25 text-amber-200/80' : 'bg-slate-800/60 border-slate-700 text-slate-400'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${userIsIdle ? 'bg-amber-400/80' : 'bg-emerald-500/60'}`} />
+                                            {isAdminUser && editingOnlineUserId === u.uid ? (
+                                                <div className="flex items-center gap-1">
+                                                    <input autoFocus className="bg-slate-950 border border-indigo-500/50 rounded px-2 py-0.5 text-[10px] text-white outline-none w-20" value={onlineNameDraft} onChange={(e) => setOnlineNameDraft(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') saveOnlineNameOverride(u.uid); }} />
+                                                    <button onClick={() => saveOnlineNameOverride(u.uid)} className="text-emerald-400 hover:text-emerald-300 cursor-pointer" title="Save Name"><Check className="w-3 h-3" /></button>
+                                                    <button onClick={() => { setEditingOnlineUserId(null); setOnlineNameDraft(''); }} className="text-slate-500 hover:text-white cursor-pointer" title="Cancel"><X className="w-3 h-3" /></button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {getOnlineDisplayName(u)}
+                                                    {userIsIdle && <span className="text-[8px] uppercase tracking-widest text-amber-300/70">Idle</span>}
+                                                    {isAdminUser && <button onClick={() => startEditingOnlineName(u)} className="text-slate-500 hover:text-indigo-300 cursor-pointer ml-1" title="Admin rename"><Edit3 className="w-2.5 h-2.5" /></button>}
+                                                </>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                         <div className="flex items-center gap-3 flex-wrap justify-center md:justify-end">
@@ -4054,6 +4462,9 @@
     </script>
 </body>
 </html>
+
+
+
 
 
 
