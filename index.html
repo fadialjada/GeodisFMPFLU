@@ -58,6 +58,13 @@
             scrollbar-color: #2c3849 transparent;
             scrollbar-width: thin;
         }
+        .dashboard-top-nav {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .dashboard-top-nav::-webkit-scrollbar {
+            display: none;
+        }
         html.show-dashboard-scrollbar,
         html.show-dashboard-scrollbar body,
         html.show-dashboard-scrollbar #root,
@@ -242,9 +249,7 @@
         }
         /* Balanced picture theme: remove purple from online user pills */
         .balanced-picture-theme footer [class*="bg-indigo-900"],
-        .balanced-picture-theme footer [class*="border-indigo-500"],
-        .balanced-picture-theme footer [class*="text-indigo-300"],
-        .balanced-picture-theme footer [class*="text-indigo-400"] {
+        .balanced-picture-theme footer [class*="border-indigo-500"] {
             background-color: #2c3849 !important;
             border-color: #56647a !important;
             color: #f7f9fc !important;
@@ -488,6 +493,19 @@
         .metric-ring-card:hover .metric-ring-stroke {
             animation: metricRingExpandDisappear 1.35s ease-out forwards;
         }
+        /* Export copies only: override theme shadows, including rounded panel edges. */
+        .balanced-picture-theme [data-screenshot-surface="true"],
+        .balanced-picture-theme [data-screenshot-surface="true"] *,
+        .balanced-picture-theme [data-screenshot-surface="true"]::before,
+        .balanced-picture-theme [data-screenshot-surface="true"]::after,
+        .balanced-picture-theme [data-screenshot-surface="true"] *::before,
+        .balanced-picture-theme [data-screenshot-surface="true"] *::after {
+            box-shadow: none !important;
+            text-shadow: none !important;
+            filter: none !important;
+            backdrop-filter: none !important;
+            outline: none !important;
+        }
     </style>
     <script>
         (() => {
@@ -518,14 +536,14 @@
         import { createRoot } from 'react-dom/client';
         import { initializeApp } from 'firebase/app';
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc, runTransaction } from 'firebase/firestore';
         import { 
             Truck, Package, Clock, CheckCircle2, AlertCircle, Navigation, ShieldCheck, 
             Calendar, LayoutDashboard, Info, Edit3, Save, Check, Users, UserCheck, 
             Camera, Activity, AlertTriangle, ArrowUp, Minus, Target, Download, 
             Table as TableIcon, Trash2, Route, Settings, ClipboardPaste, Award, DollarSign,
             PlusCircle, X, Loader2, ActivitySquare, MessageSquare, User, Share2,
-            FileText, Maximize, Minimize
+            FileText, History, Maximize, Minimize
         } from 'lucide-react';
 
         let firebaseConfig = {
@@ -596,7 +614,52 @@
                 { id: 'h2', name: 'Michael Gomez', phone: '' },
                 { id: 'h3', name: 'Pedro Reyes', phone: '' },
                 { id: 'h4', name: 'Brandon Cecena', phone: '' }
+            ],
+            parkingAssignments: [
+                { id: 'p22', spot: '22', assignee: "Pipo's Trucking LLC" },
+                { id: 'p23', spot: '23', assignee: "Pipo's Trucking LLC" },
+                { id: 'p24', spot: '24', assignee: "Pipo's Trucking LLC" },
+                { id: 'p25', spot: '25', assignee: 'Available' },
+                { id: 'p26', spot: '26', assignee: 'Guille Professional LLC' },
+                { id: 'p27', spot: '27', assignee: 'Guille Professional LLC' },
+                { id: 'p28', spot: '28', assignee: 'Available' },
+                { id: 'p29', spot: '29', assignee: 'Available' },
+                { id: 'p30', spot: '30', assignee: 'RR Logistics LLC' },
+                { id: 'p31', spot: '31', assignee: 'RR Logistics LLC' },
+                { id: 'p32', spot: '32', assignee: 'RR Logistics LLC' },
+                { id: 'p33', spot: '33', assignee: 'RR Logistics LLC' },
+                { id: 'p34', spot: '34', assignee: 'RR Logistics LLC' },
+                { id: 'p35', spot: '35', assignee: 'GM Trucking LLC' },
+                { id: 'p36', spot: '36', assignee: 'GM Trucking LLC' },
+                { id: 'p37', spot: '37', assignee: 'GM Trucking LLC' },
+                { id: 'p38', spot: '38', assignee: 'LTC Services LLC' },
+                { id: 'p39', spot: '39', assignee: 'LMRV Trucking LLC' },
+                { id: 'p40', spot: '40', assignee: 'LMRV Trucking LLC' },
+                { id: 'p41', spot: '41', assignee: 'PTD Services LLC' },
+                { id: 'p42', spot: '42', assignee: 'PTD Services LLC' },
+                { id: 'p43', spot: '43', assignee: 'PTD Services LLC' }
             ]
+        };
+
+        const normalizeContractorNameKey = (name) => String(name || '')
+            .toLowerCase()
+            .replace(/\bllc\b/g, '')
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim()
+            .replace(/\s+/g, ' ');
+
+        const resolveParkingAssigneeNames = (assignments = [], contractors = []) => {
+            const contractorLookup = new Map();
+            (contractors || []).forEach(contractor => {
+                const key = normalizeContractorNameKey(contractor.name);
+                if (key) contractorLookup.set(key, contractor.name);
+            });
+            return (assignments || []).map(assignment => {
+                const assignee = String(assignment.assignee || 'Available').trim() || 'Available';
+                if (assignee.toLowerCase() === 'available') return { ...assignment, assignee: 'Available' };
+                const matchedName = contractorLookup.get(normalizeContractorNameKey(assignee));
+                return { ...assignment, assignee: matchedName || assignee };
+            });
         };
 
         const ROUTE_COLUMNS = [
@@ -850,21 +913,27 @@
                     });
                 });
 
-                Object.entries(assignmentCounts).forEach(([key, count]) => {
-                    if (count > 1) {
-                        const [role, name] = key.split(':');
-                        const dayName = new Date(dayStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-                        sameDay.push(`${name} is assigned as ${role} on ${count} routes on ${dayName}.`);
-                    }
-                });
+                // A duplicate-route warning belongs only to the date being viewed.
+                if (dayStr === activeDateStr) {
+                    Object.entries(assignmentCounts).forEach(([key, count]) => {
+                        if (count > 1) {
+                            const [role, name] = key.split(':');
+                            const dayName = new Date(dayStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+                            sameDay.push(`${name} is assigned as ${role} on ${count} routes on ${dayName}.`);
+                        }
+                    });
+                }
             });
 
-            const weekly = Object.entries(weeklyAssignmentDays)
-                .filter(([, daySet]) => daySet.size > 6)
-                .map(([key, daySet]) => {
-                    const [role, name] = key.split(':');
-                    return `${name} is assigned as ${role} ${daySet.size} days this week. Confirm before overriding the six-day limit.`;
-                });
+            // A weekly warning is shown once, on Monday, instead of repeating on every date.
+            const weekly = activeDateStr === weekDays[0]
+                ? Object.entries(weeklyAssignmentDays)
+                    .filter(([, daySet]) => daySet.size > 6)
+                    .map(([key, daySet]) => {
+                        const [role, name] = key.split(':');
+                        return `${name} is assigned as ${role} ${daySet.size} days this week. Confirm before overriding the six-day limit.`;
+                    })
+                : [];
 
             return { sameDay, weekly };
         };
@@ -926,6 +995,31 @@
             return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
         };
 
+        const formatDriverCallText = ({ route, stopNumber, driver, customerName, soRma, note }) => {
+            const header = [
+                String(route || '').trim().toUpperCase(),
+                String(stopNumber || '').trim() ? `Stop ${String(stopNumber || '').trim()}` : '',
+                String(driver || '').trim(),
+                String(customerName || '').trim(),
+                String(soRma || '').trim()
+            ].filter(Boolean).join(' ');
+            return `${header}${header && String(note || '').trim() ? ': ' : ''}${String(note || '').trim()}`;
+        };
+
+        const normalizeMetricsNameData = (value) => {
+            const next = JSON.parse(JSON.stringify(value || {}));
+            if (!next.metricsTracker) return next;
+            ['wtd', 'mtd', 'feedback'].forEach((tab) => {
+                if (!Array.isArray(next.metricsTracker[tab])) return;
+                next.metricsTracker[tab] = next.metricsTracker[tab].map((row) => ({
+                    ...row,
+                    firstName: String(row.firstName || '').trim(),
+                    lastName: String(row.lastName || '').replace(/\?+\s*$/, '').trim()
+                }));
+            });
+            return next;
+        };
+
         const getDefaultUserName = (firebaseUser) => {
             const displayName = firebaseUser?.displayName?.trim();
             const emailName = (firebaseUser?.email || '').split('@')[0];
@@ -933,6 +1027,57 @@
         };
 
         const getUserNameKey = (uid) => `geodis_user_name_${uid}`;
+        const PRESENCE_AWAY_AFTER_MS = 10 * 60 * 1000;
+        const SCREENSHOT_BACKGROUND = '#1b1f25';
+        const prepareScreenshotSurface = (surface) => {
+            surface.setAttribute('data-screenshot-surface', 'true');
+            // The theme uses !important backgrounds; the copy must override those too.
+            surface.style.setProperty('background', SCREENSHOT_BACKGROUND, 'important');
+        };
+
+        const getScreenshotScale = (width, height) => {
+            if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
+                throw new Error('The screenshot area has no usable size.');
+            }
+            const longestEdge = Math.max(width, height);
+            // Render text and vectors at export resolution, preserving the panel's proportions.
+            const desiredScale = Math.max(2, 7680 / longestEdge);
+            return Math.min(desiredScale, 16384 / longestEdge, Math.sqrt((64 * 1024 * 1024) / (width * height)));
+        };
+
+        const downloadScreenshotPng = async (element, fileName, options) => {
+            if (document.fonts?.ready) await document.fonts.ready;
+            const scale = getScreenshotScale(options.width, options.height);
+            let lastError;
+            // Smaller devices may need a lower resolution to finish a large export.
+            for (const factor of [1, 0.5, 0.25]) {
+                let canvas;
+                let blob;
+                try {
+                    canvas = await window.html2canvas(element, { ...options, scale: scale * factor });
+                    if (!canvas.width || !canvas.height) throw new Error('Unable to allocate screenshot canvas.');
+                    blob = await new Promise((resolve, reject) => {
+                        canvas.toBlob(result => result ? resolve(result) : reject(new Error('Unable to encode screenshot.')), 'image/png');
+                    });
+                } catch (error) {
+                    lastError = error;
+                } finally {
+                    if (canvas) { canvas.width = 0; canvas.height = 0; }
+                }
+                if (!blob) continue;
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = url;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+                return;
+            }
+            throw lastError || new Error('Unable to create screenshot.');
+        };
+
         const App = () => {
             const [user, setUser] = useState(null);
             const [authReady, setAuthReady] = useState(false);
@@ -947,7 +1092,14 @@
             const [isCapturing, setIsCapturing] = useState(false);
             const [isLoading, setIsLoading] = useState(true);
             const dashboardRef = useRef(null);
+            const parkingScreenshotRef = useRef(null);
+            const preloadScreenshotRef = useRef(null);
+            const masterScreenshotRef = useRef(null);
+            const routesScreenshotRef = useRef(null);
+            const metricsScreenshotRef = useRef(null);
+            const bonusScreenshotRef = useRef(null);
             const lastUserActivityRef = useRef(Date.now());
+            const presenceHiddenSinceRef = useRef(null);
 
             const [openDates, setOpenDates] = useState([new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })]);
             const [activeDate, setActiveDate] = useState(openDates[0]);
@@ -959,6 +1111,9 @@
             const [editingOnlineUserId, setEditingOnlineUserId] = useState(null);
             const [onlineNameDraft, setOnlineNameDraft] = useState('');
             const [recordToDelete, setRecordToDelete] = useState(null);
+            const [isCreatingDriverCall, setIsCreatingDriverCall] = useState(false);
+            const [driverCallDraft, setDriverCallDraft] = useState({ route: '', stopNumber: '', driver: '', customerName: '', soRma: '', note: '' });
+            const [driverCallError, setDriverCallError] = useState('');
 
             const [metricsSubTab, setMetricsSubTab] = useState('wtd');
             const [bonusData, setBonusData] = useState({ drivers: {}, hiddenDrivers: [], nameMappings: {}, manualDrivers: [] });
@@ -976,10 +1131,15 @@
             const [preloadActiveDate, setPreloadActiveDate] = useState(openDates[0]);
             const [allPreloadSchedules, setAllPreloadSchedules] = useState({});
             const [isPreloadFullscreen, setIsPreloadFullscreen] = useState(false);
+            const [isParkingModalOpen, setIsParkingModalOpen] = useState(false);
+            const [isParkingEditing, setIsParkingEditing] = useState(false);
+            const [parkingDraft, setParkingDraft] = useState([]);
+            const [isParkingFullscreen, setIsParkingFullscreen] = useState(false);
 
             const [officeActiveDate, setOfficeActiveDate] = useState(openDates[0]);
             const [officeData, setOfficeData] = useState(generateDefaultOfficeSchedule(getOfficeWeekBoundaries(openDates[0]).days));
             const [isOfficeOneTimeChange, setIsOfficeOneTimeChange] = useState(false);
+            const [dismissedOfficeWarningKey, setDismissedOfficeWarningKey] = useState('');
 
             const [pasteFeedback, setPasteFeedback] = useState('');
             const [routePasteFeedback, setRoutePasteFeedback] = useState('');
@@ -1003,6 +1163,9 @@
 
             // Alerts State
             const [showPreloadAlert, setShowPreloadAlert] = useState(false);
+            const [isAcknowledgingPreload, setIsAcknowledgingPreload] = useState(false);
+            const [preloadAckError, setPreloadAckError] = useState('');
+            const preloadAckInFlight = useRef(false);
             const [preloadDismissed, setPreloadDismissed] = useState(() => {
                 const todayKey = getChicagoDateKey();
                 return localStorage.getItem(`geodis_preload_ack_${todayKey}`) === 'true';
@@ -1052,7 +1215,60 @@
             const [editingMasterId, setEditingMasterId] = useState(null);
             const [editMasterValues, setEditMasterValues] = useState({ name: '', phone: '', total: '', planned: '' });
 
-            const NOTE_CATEGORIES = ["URGENT","Follow-up","Incident","Driver Issue","Damage/Loss","Facility","Safety","General"];
+            const NOTE_CATEGORIES = ["URGENT","Follow-up","Incident","Driver Calls","Driver Issue","Damage/Loss","Facility","Safety","General"];
+            const getDriverCallPeople = () => Array.from(new Set([
+                ...(masterLists.drivers || []),
+                ...(masterLists.helpers || [])
+            ].map(person => String(person?.name || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+            const beginDriverCall = () => {
+                setDriverCallDraft({ route: '', stopNumber: '', driver: '', customerName: '', soRma: '', note: '' });
+                setDriverCallError('');
+                setIsCreatingDriverCall(true);
+            };
+
+            const addDriverCallNote = () => {
+                const route = String(driverCallDraft.route || '').trim().toUpperCase();
+                const stopNumber = String(driverCallDraft.stopNumber || '').trim();
+                const driver = String(driverCallDraft.driver || '').trim();
+                const customerName = String(driverCallDraft.customerName || '').trim();
+                const soRma = String(driverCallDraft.soRma || '').trim();
+                const noteText = String(driverCallDraft.note || '').trim();
+                if (!route || !stopNumber || !driver || !customerName || !soRma || !noteText) {
+                    setDriverCallError('Enter the route, stop number, driver, customer name, SO / RMA number, and call notes before adding the entry.');
+                    return;
+                }
+                const acknowledgedBy = cleanFirstName(userName || getDefaultUserName(auth?.currentUser));
+                const timestamp = new Date().toISOString();
+                const newId = Math.max(0, ...(data.shiftNotes || []).map(n => Number(n.id) || 0)) + 1;
+                const driverCall = { route, stopNumber, driver, customerName, soRma, note: noteText };
+                const nd = JSON.parse(JSON.stringify(data));
+                if (!nd.shiftNotes) nd.shiftNotes = [];
+                nd.shiftNotes.push({
+                    id: newId,
+                    text: formatDriverCallText(driverCall),
+                    category: 'Driver Calls',
+                    author: acknowledgedBy,
+                    timestamp,
+                    noteType: 'driver-call',
+                    driverCall,
+                    replies: []
+                });
+                setData(nd);
+                setDriverCallDraft({ route: '', stopNumber: '', driver: '', customerName: '', soRma: '', note: '' });
+                setDriverCallError('');
+                setIsCreatingDriverCall(false);
+            };
+
+            const updateDriverCallField = (noteId, field, value) => {
+                const nd = JSON.parse(JSON.stringify(data));
+                const noteIndex = nd.shiftNotes.findIndex(n => n.id === noteId);
+                if (noteIndex < 0) return;
+                if (!nd.shiftNotes[noteIndex].driverCall) nd.shiftNotes[noteIndex].driverCall = { route: '', stopNumber: '', driver: '', note: '' };
+                nd.shiftNotes[noteIndex].driverCall[field] = field === 'route' ? String(value).toUpperCase() : String(value);
+                nd.shiftNotes[noteIndex].text = formatDriverCallText(nd.shiftNotes[noteIndex].driverCall);
+                setData(nd);
+            };
 
             useEffect(() => {
                 const checkTime = () => {
@@ -1083,20 +1299,60 @@
 
             const acknowledgePreloadReminder = async () => {
                 const todayKey = getChicagoDateKey();
-                localStorage.setItem(`geodis_preload_ack_${todayKey}`, 'true');
-                setPreloadDismissed(true);
-
-                const existing = allPreloadSchedules[todayKey] || { contractor: '', door: '', status: 'Pending' };
-                const updated = { ...existing, status: 'Completed' };
-                setAllPreloadSchedules(prev => ({ ...prev, [todayKey]: updated }));
-
-                if (!db) return;
-                let currentUid ="local";
-                if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
+                if (activeDate !== todayKey || isLoading || preloadAckInFlight.current) return;
+                preloadAckInFlight.current = true;
+                setIsAcknowledgingPreload(true);
+                setPreloadAckError('');
+                const currentUser = auth?.currentUser || user;
+                const currentUid = currentUser?.uid || 'local';
+                const acknowledgedBy = cleanFirstName((masterLists.nameOverrides || {})[currentUid] || userName || getDefaultUserName(currentUser));
+                const acknowledgedAt = new Date();
+                const timestamp = acknowledgedAt.toISOString();
+                const timeLabel = acknowledgedAt.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' });
+                const addAcknowledgement = (notes = []) => {
+                    // One shared record per day's reminder, including concurrent clicks.
+                    const existingNote = notes.find(n => n.system && n.preloadDate === todayKey && n.preloadReminder === true);
+                    const note = existingNote || {
+                        id: Math.max(0, ...notes.map(n => Number(n.id) || 0)) + 1,
+                        text: `Compliance 12:30 PM (Preload) was acknowledged by ${acknowledgedBy} at ${timeLabel} Central.`,
+                        category: 'General',
+                        author: acknowledgedBy,
+                        authorUid: currentUid,
+                        timestamp,
+                        system: true,
+                        preloadReminder: true,
+                        preloadDate: todayKey,
+                        replies: []
+                    };
+                    return { note, notes: existingNote ? notes : [...notes, note] };
+                };
                 try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', todayKey);
-                    await setDoc(docRef, { ...updated, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
-                } catch(e) { console.error("Failed to sync preload acknowledgement:", e); }
+                    if (db) {
+                        const recapRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', todayKey);
+                        await runTransaction(db, async transaction => {
+                            const recapSnap = await transaction.get(recapRef);
+                            const recap = recapSnap.exists() ? recapSnap.data() : {};
+                            const { notes } = addAcknowledgement(recap.shiftNotes || []);
+                            transaction.set(recapRef, {
+                                shiftNotes: notes,
+                                lastUpdatedBy: acknowledgedBy,
+                                lastUpdatedAt: timestamp
+                            }, { merge: true });
+                        });
+                        // Acknowledging logs the reminder; schedule status is updated manually.
+                    } else {
+                        const { notes } = addAcknowledgement(data.shiftNotes || []);
+                        setData(prev => ({ ...prev, shiftNotes: notes }));
+                    }
+                    localStorage.setItem(`geodis_preload_ack_${todayKey}`, 'true');
+                    setPreloadDismissed(true);
+                } catch(e) {
+                    console.error("Failed to sync preload acknowledgement:", e);
+                    setPreloadAckError('Could not save the acknowledgement and Shift Notes record. Please try again.');
+                } finally {
+                    preloadAckInFlight.current = false;
+                    setIsAcknowledgingPreload(false);
+                }
             };
 
             const acknowledgeComplianceReminder = async (alertId, label, timeStr) => {
@@ -1338,7 +1594,7 @@
                         });
                         dbData.midDay.status = newMidDayStatus;
 
-                        setData(dbData);
+                        setData(normalizeMetricsNameData(dbData));
                         setIsLoading(false);
                     });
 
@@ -1353,10 +1609,12 @@
                     const unsubscribeMaster = onSnapshot(masterRef, (docSnap) => {
                         if (docSnap.exists()) {
                             const ml = docSnap.data();
-                            if (!ml.nameOverrides) ml.nameOverrides = {};
-                            setMasterLists(ml);
+                            const mergedLists = { ...DEFAULT_MASTER_LISTS, ...ml, nameOverrides: ml.nameOverrides || {} };
+                            mergedLists.parkingAssignments = resolveParkingAssigneeNames(mergedLists.parkingAssignments, mergedLists.contractors);
+                            setMasterLists(mergedLists);
                         } else {
                             const defaults = { ...DEFAULT_MASTER_LISTS, nameOverrides: {} };
+                            defaults.parkingAssignments = resolveParkingAssigneeNames(defaults.parkingAssignments, defaults.contractors);
                             setMasterLists(defaults);
                             setDoc(masterRef, defaults).catch(console.error);
                         }
@@ -1452,7 +1710,6 @@
                 if (!auth || !db) return;
                 let currentUser = auth.currentUser;
                 if (!currentUser) return;
-                const idleAfterMs = 2 * 60 * 1000;
                 const offlineAfterMs = 15 * 60 * 1000;
                 let lastPresenceWrite = 0;
 
@@ -1460,7 +1717,11 @@
                     try {
                         const now = Date.now();
                         const lastInteraction = lastUserActivityRef.current || now;
-                        const isIdle = document.hidden || (now - lastInteraction >= idleAfterMs);
+                        if (document.hidden && !presenceHiddenSinceRef.current) presenceHiddenSinceRef.current = now;
+                        if (!document.hidden) presenceHiddenSinceRef.current = null;
+                        const hiddenSince = presenceHiddenSinceRef.current;
+                        const hiddenForMs = hiddenSince ? now - hiddenSince : 0;
+                        const status = !document.hidden ? 'active' : hiddenForMs >= PRESENCE_AWAY_AFTER_MS ? 'away' : 'idle';
                         const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', currentUser.uid);
                         lastPresenceWrite = now;
                         await setDoc(presenceRef, {
@@ -1469,19 +1730,25 @@
                             lastActive: lastInteraction,
                             lastInteraction,
                             lastSeen: now,
-                            status: isIdle ? 'idle' : 'active'
+                            status,
+                            hiddenSince: hiddenSince || null
                         });
                     } catch (e) {}
                 };
                 const markUserActivity = () => {
                     const now = Date.now();
-                    const wasIdle = now - (lastUserActivityRef.current || now) >= idleAfterMs;
+                    if (!document.hidden) presenceHiddenSinceRef.current = null;
                     lastUserActivityRef.current = now;
-                    if (wasIdle || now - lastPresenceWrite > 15000) updatePresence();
+                    if (now - lastPresenceWrite > 15000) updatePresence();
                 };
                 const handleVisibilityChange = () => {
-                    if (document.hidden) updatePresence();
-                    else markUserActivity();
+                    if (document.hidden) {
+                        presenceHiddenSinceRef.current = Date.now();
+                        updatePresence();
+                    } else {
+                        presenceHiddenSinceRef.current = null;
+                        markUserActivity();
+                    }
                 };
                 const activityEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'pointerdown'];
                 activityEvents.forEach(eventName => window.addEventListener(eventName, markUserActivity, true));
@@ -1496,11 +1763,14 @@
                     snapshot.forEach(doc => { 
                         const presence = doc.data();
                         const lastSeen = Number(presence.lastSeen || presence.lastActive || 0);
-                        const lastInteraction = Number(presence.lastInteraction || presence.lastActive || 0);
                         if (lastSeen > threshold) {
+                            const hiddenSince = Number(presence.hiddenSince || 0);
+                            const inferredStatus = hiddenSince
+                                ? (now - hiddenSince >= PRESENCE_AWAY_AFTER_MS ? 'away' : 'idle')
+                                : 'active';
                             active.push({
                                 ...presence,
-                                status: presence.status || (now - lastInteraction >= idleAfterMs ? 'idle' : 'active')
+                                status: presence.hiddenSince ? inferredStatus : (presence.status || inferredStatus)
                             });
                         }
                     });
@@ -1519,10 +1789,12 @@
                 if (!db) return; // local mode bypass
                 let currentUid ="local";
                 if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
+                const dataToSave = normalizeMetricsNameData(data);
+                setData(dataToSave);
                 
                 try {
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
-                    await setDoc(docRef, { ...data, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                    await setDoc(docRef, { ...dataToSave, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
 
                     const bonusBoundaries = getBonusWeekBoundaries(activeDate);
                     const bonusDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'weeklyBonuses', bonusBoundaries.mondayStr);
@@ -2042,7 +2314,7 @@
                         });
                     });
                 } else {
-                    headers = ["Data Date","First Name","Last Name","Survey Count","Survey AVG","OnTime%","Completion %","Exchange % ($)"];
+                    headers = ["Data Date","First Name","Last Name","Survey Count","Survey AVG","OnTime%","Completion %","Exchange %"];
                     filteredHistoryData.forEach(h => {
                         const metricsList = h.metricsTracker?.[type] || [];
                         if (metricsList.length > 0) hasData = true;
@@ -2094,7 +2366,7 @@
             };
 
             const handleDownloadScreenshot = async () => {
-                if (!window.html2canvas || !dashboardRef.current) return;
+                if (!window.html2canvas || !dashboardRef.current || isCapturing) return;
                 const scrollPos = window.scrollY;
                 setIsCapturing(true);
                 window.scrollTo({ top: 0, behavior: 'instant' });
@@ -2102,10 +2374,15 @@
                 setTimeout(async () => {
                     try {
                         const element = dashboardRef.current;
-                        const canvas = await window.html2canvas(element, { 
-                            backgroundColor: '#0f172a', scale: 2, useCORS: true, logging: false, allowTaint: true, scrollY: 0, scrollX: 0,
+                        const bounds = element.getBoundingClientRect();
+                        const width = Math.ceil(bounds.width);
+                        const height = Math.ceil(bounds.height);
+                        await downloadScreenshotPng(element, `Geodis-Recap-${activeDate}.png`, {
+                            backgroundColor: SCREENSHOT_BACKGROUND, useCORS: true, logging: false, allowTaint: true, scrollY: 0, scrollX: 0,
+                            width, height,
                             windowWidth: element.scrollWidth, windowHeight: element.scrollHeight,
-                            onclone: (clonedDoc) => {
+                            onclone: (clonedDoc, clonedElement) => {
+                                prepareScreenshotSurface(clonedElement);
                                 const header = clonedDoc.querySelector('header');
                                 const footer = clonedDoc.querySelector('footer');
                                 if (header) { header.style.display = 'none'; }
@@ -2120,16 +2397,125 @@
                                 }
                             }
                         });
-                        const link = document.createElement("a");
-                        link.download = `Geodis-Recap-${activeDate}.png`;
-                        link.href = canvas.toDataURL("image/png", 1.0);
-                        link.click();
-                    } catch (err) { } finally { 
+                    } catch (err) {
+                        console.error('Screenshot export failed:', err);
+                        window.alert('The screenshot could not be downloaded. Please try again.');
+                    } finally {
                         window.scrollTo(0, scrollPos);
                         setIsCapturing(false); 
                     }
                 }, 600); 
             };
+
+            const downloadPanelScreenshot = async (element, fileName) => {
+                if (!window.html2canvas || !element || isCapturing) return;
+                setIsCapturing(true);
+                let screenshotClone = null;
+                setTimeout(async () => {
+                    try {
+                        const isMasterPanel = element.matches('[data-master-screenshot-panel="true"]');
+                        const isPreloadTable = element.matches('[data-preload-screenshot-table="true"]');
+                        const baseWidth = Math.ceil(isMasterPanel
+                            ? element.getBoundingClientRect().width
+                            : Math.max(element.offsetWidth, element.scrollWidth, element.getBoundingClientRect().width));
+                        screenshotClone = element.cloneNode(true);
+                        screenshotClone.style.position = 'fixed';
+                        screenshotClone.style.left = '-10000px';
+                        screenshotClone.style.top = '0';
+                        screenshotClone.style.width = `${baseWidth}px`;
+                        if (isMasterPanel || isPreloadTable) screenshotClone.style.boxSizing = 'border-box';
+                        screenshotClone.style.maxWidth = 'none';
+                        screenshotClone.style.maxHeight = 'none';
+                        screenshotClone.style.height = 'auto';
+                        screenshotClone.style.minHeight = 'auto';
+                        screenshotClone.style.overflow = 'hidden';
+                        screenshotClone.style.contain = 'none';
+                        screenshotClone.style.flex = 'none';
+                        screenshotClone.style.boxShadow = 'none';
+                        screenshotClone.style.filter = 'none';
+                        screenshotClone.style.outline = 'none';
+                        screenshotClone.style.borderRadius = '16px';
+                        prepareScreenshotSurface(screenshotClone);
+                        screenshotClone.style.transform = 'none';
+                        screenshotClone.style.animation = 'none';
+                        screenshotClone.querySelectorAll('[data-panel-screenshot-ignore="true"], [data-master-screenshot-ignore="true"]').forEach(node => {
+                            node.style.display = 'none';
+                        });
+                        screenshotClone.querySelectorAll('[data-panel-screenshot-only="true"], [data-master-screenshot-only="true"]').forEach(node => {
+                            node.style.display = 'flex';
+                        });
+                        if (isPreloadTable) {
+                            // Export the currently selected values as text, without dropdown arrows or inputs.
+                            const liveControls = element.querySelectorAll('input, select, button');
+                            screenshotClone.querySelectorAll('input, select, button').forEach((control, index) => {
+                                const live = liveControls[index];
+                                const label = document.createElement('div');
+                                label.className = control.className;
+                                label.textContent = live.tagName === 'SELECT'
+                                    ? (live.selectedOptions[0]?.textContent || live.value || 'Unassigned')
+                                    : live.tagName === 'INPUT' ? (live.value || '—') : live.textContent;
+                                label.style.whiteSpace = 'normal';
+                                label.style.overflowWrap = 'anywhere';
+                                label.style.height = 'auto';
+                                label.style.cursor = 'default';
+                                control.replaceWith(label);
+                            });
+                        }
+                        // The master panel's scrolling parent is outside this copy. Preserve
+                        // its card clipping and progress-bar heights instead of opening them.
+                        if (!isMasterPanel) screenshotClone.querySelectorAll('[class*="overflow"], [style*="overflow"], [class*="max-h"], [class*="h-full"], [class*="flex-1"], [class*="min-h-0"]').forEach(node => {
+                            node.style.overflow = 'visible';
+                            node.style.maxHeight = 'none';
+                            node.style.height = 'auto';
+                            node.style.minHeight = 'auto';
+                            node.style.flex = 'none';
+                            node.style.contain = 'none';
+                        });
+                        screenshotClone.querySelectorAll('table').forEach(table => {
+                            table.style.width = '100%';
+                        });
+                        document.body.appendChild(screenshotClone);
+                        await new Promise(resolve => requestAnimationFrame(resolve));
+                        await new Promise(resolve => setTimeout(resolve, 80));
+                        const captureRect = screenshotClone.getBoundingClientRect();
+                        const captureWidth = Math.ceil(isMasterPanel || isPreloadTable
+                            ? captureRect.width
+                            : Math.max(screenshotClone.scrollWidth, captureRect.width, baseWidth));
+                        const captureHeight = isMasterPanel || isPreloadTable
+                            ? Math.ceil(captureRect.height)
+                            : Math.ceil(Math.max(screenshotClone.scrollHeight, captureRect.height)) + 6;
+                        await downloadScreenshotPng(screenshotClone, fileName, {
+                            backgroundColor: isPreloadTable ? null : SCREENSHOT_BACKGROUND,
+                            useCORS: true,
+                            logging: false,
+                            allowTaint: true,
+                            scrollY: 0,
+                            scrollX: 0,
+                            width: captureWidth,
+                            height: captureHeight,
+                            windowWidth: captureWidth,
+                            windowHeight: captureHeight
+                        });
+                    } catch (err) {
+                        console.error('Screenshot export failed:', err);
+                        window.alert('The screenshot could not be downloaded. Please try again.');
+                    } finally {
+                        if (screenshotClone && screenshotClone.parentNode) screenshotClone.parentNode.removeChild(screenshotClone);
+                        setIsCapturing(false);
+                    }
+                }, 200);
+            };
+
+            const handleDownloadRoutesScreenshot = () => downloadPanelScreenshot(routesScreenshotRef.current, `Geodis-Routes-Table-${activeDate}.png`);
+            const handleDownloadMetricsScreenshot = () => downloadPanelScreenshot(metricsScreenshotRef.current, `Geodis-Metrics-${metricsSubTab.toUpperCase()}-${activeDate}.png`);
+            const handleDownloadBonusScreenshot = () => {
+                const bonusWeek = getBonusWeekBoundaries(activeDate);
+                downloadPanelScreenshot(bonusScreenshotRef.current, `Geodis-Bonus-${bonusWeek.mondayStr}.png`);
+            };
+
+            const handleDownloadParkingScreenshot = () => downloadPanelScreenshot(parkingScreenshotRef.current, `Geodis-Parking-Assignments-${new Date().toISOString().split('T')[0]}.png`);
+            const handleDownloadPreloadScreenshot = () => downloadPanelScreenshot(preloadScreenshotRef.current, `Geodis-Driver-Preload-${getOfficeWeekBoundaries(preloadActiveDate).days[0]}.png`);
+            const handleDownloadMasterScreenshot = () => downloadPanelScreenshot(masterScreenshotRef.current, `Geodis-Master-List-${masterActiveTab}-${new Date().toISOString().split('T')[0]}.png`);
 
             const saveMasterLists = async (newLists) => {
                 if (!db) return;
@@ -2145,12 +2531,15 @@
             const getOnlineDisplayName = (onlineUser) => cleanFirstName((masterLists.nameOverrides || {})[onlineUser.uid] || onlineUser.name || 'Teammate');
             const getPresenceStatus = (onlineUser) => {
                 if (!onlineUser) return 'active';
-                const lastInteraction = Number(onlineUser.lastInteraction || onlineUser.lastActive || Date.now());
-                return onlineUser.status || (Date.now() - lastInteraction >= 2 * 60 * 1000 ? 'idle' : 'active');
+                const hiddenSince = Number(onlineUser.hiddenSince || 0);
+                if (hiddenSince) return Date.now() - hiddenSince >= PRESENCE_AWAY_AFTER_MS ? 'away' : 'idle';
+                return onlineUser.status || 'active';
             };
             const isPresenceIdle = (onlineUser) => getPresenceStatus(onlineUser) === 'idle';
+            const isPresenceAway = (onlineUser) => getPresenceStatus(onlineUser) === 'away';
             const currentPresence = activeUsers.find(onlineUser => onlineUser.uid === user?.uid);
             const currentUserIsIdle = isPresenceIdle(currentPresence);
+            const currentUserIsAway = isPresenceAway(currentPresence);
             const startEditingOnlineName = (onlineUser) => {
                 setEditingOnlineUserId(onlineUser.uid);
                 setOnlineNameDraft(getOnlineDisplayName(onlineUser));
@@ -2162,6 +2551,30 @@
                 setEditingOnlineUserId(null);
                 setOnlineNameDraft('');
                 await saveMasterLists(newLists);
+            };
+
+            const getParkingAssignments = () => resolveParkingAssigneeNames(masterLists.parkingAssignments || DEFAULT_MASTER_LISTS.parkingAssignments, masterLists.contractors || DEFAULT_MASTER_LISTS.contractors);
+
+            const openParkingAssignments = () => {
+                setParkingDraft(JSON.parse(JSON.stringify(getParkingAssignments())));
+                setIsParkingEditing(false);
+                setIsParkingModalOpen(true);
+            };
+
+            const updateParkingAssignment = (id, assignee) => {
+                setParkingDraft(prev => prev.map(item => item.id === id ? { ...item, assignee } : item));
+            };
+
+            const saveParkingAssignments = async () => {
+                const cleanedAssignments = resolveParkingAssigneeNames(parkingDraft.map(item => ({
+                    ...item,
+                    spot: String(item.spot || '').trim(),
+                    assignee: String(item.assignee || 'Available').trim() || 'Available'
+                })), masterLists.contractors || DEFAULT_MASTER_LISTS.contractors);
+                const newLists = { ...masterLists, parkingAssignments: cleanedAssignments };
+                setMasterLists(newLists);
+                await saveMasterLists(newLists);
+                setIsParkingEditing(false);
             };
 
             const addMasterListItem = () => {
@@ -2469,7 +2882,7 @@
             const toFixedSafe = (val, dec = 1) => { const num = Number(val); return isNaN(num) ? '0.0' : num.toFixed(dec); };
             const driverAssignmentWarnings = calculateDriverAssignmentWarnings(data, historyData, activeDate);
             const preloadAssignmentWarnings = calculatePreloadAssignmentWarnings(allPreloadSchedules, getOfficeWeekBoundaries(preloadActiveDate).days);
-            const driverAssignmentAlertKey = ['routes', activeDate, ...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.weekly].join('|');
+            const driverAssignmentAlertKey = ['routes-week', getOfficeWeekBoundaries(activeDate).mondayStr, ...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.weekly].join('|');
             const preloadAssignmentAlertKey = ['preload', preloadActiveDate, ...preloadAssignmentWarnings].join('|');
 
             const TrendIndicator = ({ current, previous, inverse = false, isPercent = true }) => {
@@ -2607,21 +3020,22 @@
             return (
                 <div ref={dashboardRef} className="relative min-h-screen bg-slate-900 font-sans text-slate-100 pb-20 overflow-x-hidden">
                     <header data-html2canvas-ignore="true" className={`bg-slate-800 border-b border-slate-700 relative z-30 shadow-lg ${isCapturing ? 'hidden' : 'sticky top-0'}`}>
-                        <div className="max-w-7xl mx-auto px-4 h-12 flex justify-between items-center">
-                            <div className="flex items-center gap-4">
-                                <LayoutDashboard className="w-7 h-7 text-slate-100 drop-shadow-lg" />
-                                <h1 className="text-lg font-bold text-white tracking-tight">Geodis Final Mile</h1>
-                                <nav className="ml-5 flex items-center bg-slate-900/50 p-1 rounded-xl border border-slate-700">
+                        <div className="max-w-7xl mx-auto px-4 h-12 flex justify-between items-center gap-3">
+                            <div className="flex items-center gap-4 min-w-0 flex-1">
+                                <LayoutDashboard className="w-7 h-7 shrink-0 text-slate-100 drop-shadow-lg" />
+                                <h1 className="text-lg font-bold text-white tracking-tight shrink-0 whitespace-nowrap">Geodis Final Mile</h1>
+                                <nav aria-label="Dashboard sections" className="dashboard-top-nav ml-5 min-w-0 flex items-center overflow-x-auto whitespace-nowrap [&>button]:shrink-0 bg-slate-900/50 p-1 rounded-xl border border-slate-700">
                                     <button onClick={() => setActiveTab('overview')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'overview' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}>OVERVIEW</button>
                                     <button onClick={() => setActiveTab('routes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'routes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Route className="w-3 h-3" /> ROUTES</button>
+                                    <button onClick={() => setActiveTab('driver-hub')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'driver-hub' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Truck className="w-3 h-3" /> DRIVER HUB</button>
                                     <button onClick={() => setActiveTab('metrics')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'metrics' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Activity className="w-3 h-3" /> METRICS</button>
-                                    <button onClick={() => setActiveTab('history')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'history' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}>HISTORY</button>
-                                    <button onClick={() => setActiveTab('notes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'notes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}>SHIFT NOTES</button>
+                                    <button onClick={() => setActiveTab('history')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'history' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><History className="w-3 h-3" /> HISTORY</button>
                                     <button onClick={() => setActiveTab('bonus')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'bonus' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Award className="w-3 h-3" /> BONUS</button>
+                                    <button onClick={() => setActiveTab('notes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'notes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><MessageSquare className="w-3 h-3" /> SHIFT NOTES</button>
                                     <button onClick={() => setActiveTab('office')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'office' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Users className="w-3 h-3" /> OFFICE</button>
                                 </nav>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 shrink-0">
                                 <button onClick={handleDownloadScreenshot} className="p-1 bg-transparent border-0 text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer" title="Download Screenshot">
                                     <Camera className="w-4 h-4" />
                                 </button>
@@ -2709,12 +3123,13 @@
                                 })}
 
                                 {/* Preload Alert */}
-                                {activeDate === getChicagoDateKey() && showPreloadAlert && !preloadDismissed && allPreloadSchedules[getChicagoDateKey()]?.status !== 'Completed' && (
+                                {activeDate === getChicagoDateKey() && showPreloadAlert && !preloadDismissed && !(data.shiftNotes || []).some(n => n.system && n.preloadReminder === true && n.preloadDate === activeDate) && allPreloadSchedules[getChicagoDateKey()]?.status !== 'Completed' && (
                                     <div className="mb-6 bg-amber-500/20 border border-amber-500/50 text-amber-400 p-4 rounded-xl flex items-center gap-4 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-in slide-in-from-top-2 relative">
                                         <div className="bg-amber-500/20 p-2 rounded-lg animate-pulse"><AlertTriangle className="w-6 h-6" /></div>
                                         <div className="min-w-0 flex-1">
                                             <h3 className="font-black tracking-widest text-xs uppercase mb-0.5">Time-Sensitive Task</h3>
                                             <span className="font-medium text-sm">Reminder: Send today’s preload message to the designated driver.</span>
+                                            {preloadAckError && <p role="alert" className="mt-2 text-sm font-semibold text-rose-300">{preloadAckError}</p>}
                                             {(() => {
                                                 const todayPreload = allPreloadSchedules[getChicagoDateKey()] || { contractor: '', status: 'Pending', door: '' };
                                                 return todayPreload.contractor ? (
@@ -2724,7 +3139,7 @@
                                                 ) : null;
                                             })()}
                                         </div>
-                                        <button onClick={acknowledgePreloadReminder} className="px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-100 hover:bg-amber-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer" title="Acknowledge Reminder">Acknowledge</button>
+                                        <button onClick={acknowledgePreloadReminder} disabled={isAcknowledgingPreload} className="px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-100 hover:bg-amber-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer disabled:opacity-50 disabled:cursor-wait" title="Acknowledge Reminder">{isAcknowledgingPreload ? 'Saving…' : 'Acknowledge'}</button>
                                     </div>
                                 )}
 
@@ -3025,9 +3440,11 @@
                                                             <div className="flex items-center justify-between">
                                                                 <span className={`text-sm font-bold ${todayPreload.contractor ? 'text-slate-200' : 'text-slate-500 italic'}`}>{todayPreload.contractor || 'Unassigned'}</span>
                                                                 {todayPreload.contractor && (
-                                                                    <span className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${todayPreload.status === 'Completed' ? 'bg-emerald-900/40 text-emerald-400 border-emerald-500/30' : 'bg-amber-900/40 text-amber-400 border-amber-500/30'}`}>
-                                                                        {todayPreload.status}
-                                                                    </span>
+                                                                    <StatusBadge
+                                                                        status={todayPreload.status === 'Completed'}
+                                                                        isEditing={isEditing}
+                                                                        onClick={() => updatePreloadDay(activeDate, 'status', todayPreload.status === 'Completed' ? 'Pending' : 'Completed')}
+                                                                    />
                                                                 )}
                                                             </div>
                                                             {todayPreload.door && <span className="text-xs text-indigo-400 font-medium">Door {todayPreload.door}</span>}
@@ -3062,15 +3479,12 @@
                                         <button onClick={() => setIsRoutesFullscreen(!isRoutesFullscreen)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title={isRoutesFullscreen ?"Restore Size" :"Maximize"}>
                                             {isRoutesFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
+                                        <button onClick={handleDownloadRoutesScreenshot} disabled={(!data.routeTable || data.routeTable.length === 0)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title="Download Routes Screenshot">
+                                            <Camera className="w-4 h-4" />
+                                        </button>
                                         <button onClick={exportCurrentRoutesToCSV} disabled={(!data.routeTable || data.routeTable.length === 0)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-900/40 cursor-pointer">
                                             <Download className="w-4 h-4" /> Export CSV
                                         </button>
-                                        <button onClick={() => setIsPreloadModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-900/40 cursor-pointer">
-                                            <Truck className="w-4 h-4" /> Driver Preload Schedule
-                                        </button>
-                                        {canOpenMasterLists && <button onClick={() => { setMasterActiveTab('contractors'); setIsMasterModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition-all border border-slate-600 cursor-pointer">
-                                            <Settings className="w-4 h-4" /> {isAdminUser ? 'Manage Master Lists' : 'Contractor Plan'}
-                                        </button>}
                                         {isEditing && (
                                             <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newRow = { id: Date.now().toString() }; ROUTE_COLUMNS.forEach(col => { newRow[col.key] = col.type === 'checkbox' ? false : ''; }); nd.routeTable.push(newRow); setData(nd); }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-900/40 cursor-pointer">
                                                 <PlusCircle className="w-4 h-4" /> Add Route Row
@@ -3102,7 +3516,17 @@
                                     </div>
                                 )}
 
-                                <div className={`bg-slate-800 rounded-xl border border-slate-700 shadow-2xl relative ${isRoutesFullscreen ? 'flex-1 overflow-hidden flex flex-col' : 'overflow-hidden'}`}>
+                                <div ref={routesScreenshotRef} className={`bg-slate-800 rounded-xl border border-slate-700 shadow-2xl relative ${isRoutesFullscreen ? 'flex-1 overflow-hidden flex flex-col' : 'overflow-hidden'}`}>
+                                    <div data-panel-screenshot-only="true" className="hidden items-center justify-between gap-4 px-5 py-4 bg-slate-900 border-b border-slate-700">
+                                        <div className="flex items-center gap-3">
+                                            <Route className="w-6 h-6 text-slate-100" />
+                                            <div>
+                                                <div className="text-sm font-black text-white tracking-wide">Pflugerville Route</div>
+                                                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Route table snapshot</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{displayDateString}</div>
+                                    </div>
                                     <div className={`overflow-x-auto ${isRoutesFullscreen ? 'flex-1 overflow-y-auto' : ''}`}>
                                         <table className="w-full text-center align-middle border-collapse min-w-[1200px]" style={{ backgroundColor: '#1e293b', color: '#f8fafc', borderCollapse: 'collapse', width: '100%', fontFamily: 'sans-serif' }}>
                                             <thead>
@@ -3112,7 +3536,7 @@
                                                             {col.label}
                                                         </th>
                                                     ))}
-                                                    {isEditing && <th className="px-2 py-2 text-[9px] font-black uppercase text-slate-400 tracking-wider sticky right-0 bg-slate-900/90 w-12 text-center shadow-[-5px_0_10px_rgba(0,0,0,0.1)]" style={{ padding: '8px 8px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>Action</th>}
+                                                    {isEditing && <th data-panel-screenshot-ignore="true" className="px-2 py-2 text-[9px] font-black uppercase text-slate-400 tracking-wider sticky right-0 bg-slate-900/90 w-12 text-center shadow-[-5px_0_10px_rgba(0,0,0,0.1)]" style={{ padding: '8px 8px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>Action</th>}
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-700/50">
@@ -3165,7 +3589,7 @@
                                                                 );
                                                             })}
                                                             {isEditing && (
-                                                                <td className="px-2 py-1 text-center sticky right-0 bg-slate-800 border-l border-slate-700">
+                                                                <td data-panel-screenshot-ignore="true" className="px-2 py-1 text-center sticky right-0 bg-slate-800 border-l border-slate-700">
                                                                     <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.routeTable = nd.routeTable.filter(r => r.id !== row.id); setData(nd); }} className="p-1 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"><Trash2 className="w-4 h-4" /></button>
                                                                 </td>
                                                             )}
@@ -3178,6 +3602,38 @@
                                 </div>
                             </div>
 
+                        ) : activeTab === 'driver-hub' ? (
+                            <div className="animate-in fade-in duration-500">
+                                <div className="flex items-center gap-3 mb-4 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
+                                    <Truck className="w-7 h-7 text-slate-100" />
+                                    <div>
+                                        <h2 className="text-lg font-black text-white">Driver Hub</h2>
+                                        <p className="text-xs text-slate-400 mt-1">Parking, preload assignments, and contractor information.</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <button type="button" onClick={openParkingAssignments} className="flex flex-col items-start gap-3 bg-slate-800 hover:bg-slate-700/50 p-5 rounded-xl border border-slate-700 hover:border-slate-500 text-left transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                                        <Truck className="w-7 h-7 text-slate-100" />
+                                        <span className="text-sm font-bold text-white">Parking Assignments</span>
+                                        <span className="text-xs text-slate-400 leading-relaxed">View assigned parking spots and available spaces.</span>
+                                        <span className="text-xs font-bold text-indigo-300 mt-auto pt-2">Open parking assignments →</span>
+                                    </button>
+                                    <button type="button" onClick={() => setIsPreloadModalOpen(true)} className="flex flex-col items-start gap-3 bg-slate-800 hover:bg-slate-700/50 p-5 rounded-xl border border-slate-700 hover:border-slate-500 text-left transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                                        <Calendar className="w-7 h-7 text-slate-100" />
+                                        <span className="text-sm font-bold text-white">Driver Preload Schedule</span>
+                                        <span className="text-xs text-slate-400 leading-relaxed">View weekly contractor assignments, doors, and preload status.</span>
+                                        <span className="text-xs font-bold text-indigo-300 mt-auto pt-2">Open preload schedule →</span>
+                                    </button>
+                                    {canOpenMasterLists && (
+                                        <button type="button" onClick={() => { setMasterActiveTab('contractors'); setIsMasterModalOpen(true); }} className="flex flex-col items-start gap-3 bg-slate-800 hover:bg-slate-700/50 p-5 rounded-xl border border-slate-700 hover:border-slate-500 text-left transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                                            <Settings className="w-7 h-7 text-slate-100" />
+                                            <span className="text-sm font-bold text-white">{isAdminUser ? 'Manage Master Lists' : 'Contractor Plan'}</span>
+                                            <span className="text-xs text-slate-400 leading-relaxed">{isAdminUser ? 'Manage contractors, drivers, helpers, and fleet capacity.' : 'View contractor capacity and update planned trucks.'}</span>
+                                            <span className="text-xs font-bold text-indigo-300 mt-auto pt-2">{isAdminUser ? 'Open master lists' : 'Open contractor plan'} →</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
                         ) : activeTab === 'metrics' ? (
                             
                             <div className="animate-in fade-in duration-500 relative">
@@ -3189,7 +3645,10 @@
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Performance Snapshot: <span className="text-indigo-400">{displayDateString}</span></div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                     <div className="flex items-center gap-2">
+                                        <button onClick={handleDownloadMetricsScreenshot} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title="Download Metrics Screenshot">
+                                            <Camera className="w-4 h-4" />
+                                        </button>
                                         <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
                                             <button onClick={() => setMetricsSubTab('wtd')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${metricsSubTab === 'wtd' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>WTD</button>
                                             <button onClick={() => setMetricsSubTab('mtd')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${metricsSubTab === 'mtd' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>MTD</button>
@@ -3223,7 +3682,17 @@
                                     </div>
                                 )}
 
-                                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-2xl relative">
+                                <div ref={metricsScreenshotRef} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-2xl relative">
+                                    <div data-panel-screenshot-only="true" className="hidden items-center justify-between gap-4 px-5 py-4 bg-slate-900 border-b border-slate-700">
+                                        <div className="flex items-center gap-3">
+                                            <Activity className="w-6 h-6 text-slate-100" />
+                                            <div>
+                                                <div className="text-sm font-black text-white tracking-wide">Metrics Tracker</div>
+                                                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{metricsSubTab.toUpperCase()} snapshot</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{displayDateString}</div>
+                                    </div>
                                     <div className="overflow-x-auto">
                                         {metricsSubTab === 'feedback' ? (
                                             <table className="w-full text-left border-collapse" style={{ backgroundColor: '#1e293b', color: '#f8fafc', borderCollapse: 'collapse', width: '100%', fontFamily: 'sans-serif' }}>
@@ -3235,7 +3704,7 @@
                                                         <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700">Score</th>
                                                         <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-700">Order #</th>
                                                         <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-700">Feedback Comments</th>
-                                                        {isEditing && <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700">Action</th>}
+                                                        {isEditing && <th data-panel-screenshot-ignore="true" className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700">Action</th>}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-700/50">
@@ -3261,7 +3730,7 @@
                                                                         {row.comment || <span className="text-slate-600 italic">No comments provided.</span>}
                                                                     </td>
                                                                     {isEditing && (
-                                                                        <td className="px-3 py-2 text-center border-b border-slate-700/50">
+                                                                        <td data-panel-screenshot-ignore="true" className="px-3 py-2 text-center border-b border-slate-700/50">
                                                                             <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.metricsTracker.feedback = nd.metricsTracker.feedback.filter(r => r.id !== row.id); setData(nd); }} className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer">
                                                                                 <Trash2 className="w-4 h-4" />
                                                                         </button>
@@ -3283,7 +3752,7 @@
                                                         <th className="px-3 py-2 text-xs font-black text-center text-white bg-slate-800 border-x border-slate-700 shadow-inner" style={{ padding: '8px 16px' }}>97.50%</th>
                                                         <th className="px-3 py-2 text-xs font-black text-center text-white bg-slate-800 border-x border-slate-700 shadow-inner" style={{ padding: '8px 16px' }}>98.05%</th>
                                                         <th className="px-3 py-2 text-xs font-black text-center text-white bg-slate-800 border-x border-slate-700 shadow-inner" style={{ padding: '8px 16px' }}>1.70%</th>
-                                                        {isEditing && <th className="bg-slate-900"></th>}
+                                                        {isEditing && <th data-panel-screenshot-ignore="true" className="bg-slate-900"></th>}
                                                     </tr>
                                                     <tr className="bg-slate-900/80">
                                                         <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-700" style={{ padding: '12px 16px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>First Name</th>
@@ -3292,8 +3761,8 @@
                                                         <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700" style={{ padding: '12px 16px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>Survey AVG</th>
                                                         <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700" style={{ padding: '12px 16px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>OnTime%</th>
                                                         <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700" style={{ padding: '12px 16px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>Completion %</th>
-                                                        <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700" style={{ padding: '12px 16px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>Exchange % ($)</th>
-                                                        {isEditing && <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700" style={{ padding: '12px 16px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>Action</th>}
+                                                        <th className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700" style={{ padding: '12px 16px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>Exchange %</th>
+                                                        {isEditing && <th data-panel-screenshot-ignore="true" className="px-3 py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center border-b border-slate-700" style={{ padding: '12px 16px', borderBottom: '1px solid #334155', color: '#94a3b8' }}>Action</th>}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-700/50">
@@ -3311,7 +3780,7 @@
                                                                     <td className={`px-3 py-2 text-xs font-bold text-center ${getMetricColor('completion', row.completion, metricsSubTab)}`} style={{ padding: '8px 16px', borderBottom: '1px solid #334155' }}>{row.completion?.toFixed(2)}%</td>
                                                                     <td className={`px-3 py-2 text-xs font-bold text-center ${getMetricColor('exchange', row.exchange, metricsSubTab)}`} style={{ padding: '8px 16px', borderBottom: '1px solid #334155' }}>{row.exchange?.toFixed(2)}%</td>
                                                                     {isEditing && (
-                                                                        <td className="px-3 py-2 text-center" style={{ padding: '8px 16px', borderBottom: '1px solid #334155' }}>
+                                                                        <td data-panel-screenshot-ignore="true" className="px-3 py-2 text-center" style={{ padding: '8px 16px', borderBottom: '1px solid #334155' }}>
                                                                             <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.metricsTracker[metricsSubTab] = nd.metricsTracker[metricsSubTab].filter((_, i) => i !== idx); setData(nd); }} className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer">
                                                                                 <Trash2 className="w-4 h-4" />
                                                                             </button>
@@ -3336,7 +3805,7 @@
                                                                         <td className={`px-3 py-3 text-xs font-black text-center ${getMetricColor('onTime', totals.onTime, metricsSubTab, true)}`} style={{ padding: '12px 16px' }}>{isEditing ? <input type="number" step="0.01" className="w-16 bg-slate-800 border border-slate-600 rounded text-center focus:ring-1 focus:ring-indigo-500 outline-none text-white" value={totals.onTime} onChange={(e) => updateCustomTotal('onTime', e.target.value)} /> : `${Number(totals.onTime).toFixed(2)}%`}</td>
                                                                         <td className={`px-3 py-3 text-xs font-black text-center ${getMetricColor('completion', totals.completion, metricsSubTab, true)}`} style={{ padding: '12px 16px' }}>{isEditing ? <input type="number" step="0.01" className="w-16 bg-slate-800 border border-slate-600 rounded text-center focus:ring-1 focus:ring-indigo-500 outline-none text-white" value={totals.completion} onChange={(e) => updateCustomTotal('completion', e.target.value)} /> : `${Number(totals.completion).toFixed(2)}%`}</td>
                                                                         <td className={`px-3 py-3 text-xs font-black text-center ${getMetricColor('exchange', totals.exchange, metricsSubTab, true)}`} style={{ padding: '12px 16px' }}>{isEditing ? <input type="number" step="0.01" className="w-16 bg-slate-800 border border-slate-600 rounded text-center focus:ring-1 focus:ring-indigo-500 outline-none text-white" value={totals.exchange} onChange={(e) => updateCustomTotal('exchange', e.target.value)} /> : `${Number(totals.exchange).toFixed(2)}%`}</td>
-                                                                        {isEditing && <td></td>}
+                                                                        {isEditing && <td data-panel-screenshot-ignore="true"></td>}
                                                                     </tr>
                                                                 );
                                                             })()}
@@ -3495,9 +3964,57 @@
                                 <div className="bg-slate-800 rounded-3xl border border-slate-700 overflow-hidden shadow-2xl">
                                     <div className="px-8 py-6 bg-slate-900/50 border-b border-slate-700 flex justify-between items-center">
                                         <div className="flex items-center gap-3"><MessageSquare className="w-8 h-8 text-slate-100" /><h2 className="text-xl font-black text-white italic">Shift Notes</h2></div>
-                                        {isEditing && <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newId = nd.shiftNotes.length > 0 ? Math.max(...nd.shiftNotes.map(n => n.id)) + 1 : 1; const firstName = userName ? userName.split(' ')[0] : 'User'; nd.shiftNotes.push({ id: newId, text:"", category:"Follow-up", author: firstName, timestamp: new Date().toISOString(), replies: [] }); setData(nd); }} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/40 cursor-pointer"><PlusCircle className="w-4 h-4" /> NEW ENTRY</button>}
+                                        {isEditing && <div className="flex items-center gap-2">
+                                            <button onClick={beginDriverCall} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/30 cursor-pointer"><Truck className="w-4 h-4" /> DRIVER CALL</button>
+                                            <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newId = nd.shiftNotes.length > 0 ? Math.max(...nd.shiftNotes.map(n => Number(n.id) || 0)) + 1 : 1; const firstName = cleanFirstName(userName || getDefaultUserName(auth?.currentUser)); nd.shiftNotes.push({ id: newId, text:"", category:"Follow-up", author: firstName, timestamp: new Date().toISOString(), replies: [] }); setData(nd); }} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/40 cursor-pointer"><PlusCircle className="w-4 h-4" /> NEW ENTRY</button>
+                                        </div>}
                                     </div>
                                     <div className="p-8 space-y-4">
+                                        {isCreatingDriverCall && (
+                                            <div className="bg-slate-900/30 rounded-2xl border border-slate-700 p-6 shadow-lg">
+                                                <div className="flex items-center justify-between gap-4 mb-5">
+                                                    <div>
+                                                        <h3 className="text-sm font-black uppercase tracking-widest text-white">New Driver Call</h3>
+                                                        <p className="mt-1 text-xs text-slate-400">Use these fields so every driver call follows the same format.</p>
+                                                    </div>
+                                                    <button onClick={() => { setIsCreatingDriverCall(false); setDriverCallError(''); }} className="text-slate-500 hover:text-white p-1 cursor-pointer" title="Cancel"><X className="w-5 h-5" /></button>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Route / PFL</span>
+                                                        <input autoFocus value={driverCallDraft.route} onChange={e => setDriverCallDraft(prev => ({ ...prev, route: e.target.value.toUpperCase() }))} placeholder="PFL 01-03" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 uppercase outline-none focus:border-indigo-500" />
+                                                    </label>
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Stop Number</span>
+                                                        <input inputMode="numeric" value={driverCallDraft.stopNumber} onChange={e => setDriverCallDraft(prev => ({ ...prev, stopNumber: e.target.value }))} placeholder="7" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500" />
+                                                    </label>
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Driver</span>
+                                                        <select value={driverCallDraft.driver} onChange={e => setDriverCallDraft(prev => ({ ...prev, driver: e.target.value }))} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500">
+                                                            <option value="">Select a driver or helper</option>
+                                                            {getDriverCallPeople().map(name => <option key={name} value={name}>{name}</option>)}
+                                                        </select>
+                                                    </label>
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Name</span>
+                                                        <input value={driverCallDraft.customerName} onChange={e => setDriverCallDraft(prev => ({ ...prev, customerName: e.target.value }))} placeholder="Wendy Miller" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500" />
+                                                    </label>
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">SO / RMA Number</span>
+                                                        <input value={driverCallDraft.soRma} onChange={e => setDriverCallDraft(prev => ({ ...prev, soRma: e.target.value }))} placeholder="SO-016967144" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500" />
+                                                    </label>
+                                                </div>
+                                                <label className="block mt-4">
+                                                    <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Call Notes — Free Text</span>
+                                                    <textarea rows="5" value={driverCallDraft.note} onChange={e => setDriverCallDraft(prev => ({ ...prev, note: e.target.value }))} placeholder="Customer issue, team response, refund, return, or follow-up..." className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none resize-y focus:border-indigo-500" />
+                                                </label>
+                                                {driverCallError && <p role="alert" className="mt-3 text-xs font-semibold text-rose-300">{driverCallError}</p>}
+                                                <div className="mt-4 flex justify-end gap-2">
+                                                    <button onClick={() => { setIsCreatingDriverCall(false); setDriverCallError(''); }} className="px-4 py-2 rounded-lg border border-slate-600 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer">Cancel</button>
+                                                    <button onClick={addDriverCallNote} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black cursor-pointer">Add Driver Call</button>
+                                                </div>
+                                            </div>
+                                        )}
                                         {(data.shiftNotes || []).length === 0 ? <div className="text-center py-20 text-slate-600 font-black uppercase tracking-[0.2em] italic">No shift entries found.</div> : (data.shiftNotes || []).map((note) => (
                                             <div key={note.id} className="bg-slate-900/30 rounded-2xl border border-slate-700 p-6 transition-all hover:bg-slate-900/50 relative group">
                                                 <div className="flex justify-between items-start mb-4">
@@ -3531,9 +4048,31 @@
                                                     {isEditing && isAdminUser && <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.filter(n => n.id !== note.id); setData(nd); }} className="text-slate-600 hover:text-rose-400 p-1 transition-colors cursor-pointer"><X className="w-5 h-5" /></button>}
                                                 </div>
                                                 {isEditing ? (
-                                                    <textarea className={`w-full bg-slate-950 border rounded-xl p-4 text-slate-200 text-sm focus:ring-2 outline-none resize-none ${note.category === 'URGENT' ? 'border-rose-500/50 focus:ring-rose-500' : 'border-slate-700 focus:ring-indigo-500'}`} rows="3" value={String(note.text)} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.map(n => n.id === note.id ? { ...n, text: String(e.target.value) } : n); setData(nd); }} />
+                                                    note.noteType === 'driver-call' && note.driverCall ? (
+                                                        <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 space-y-3">
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                                <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Route / PFL</span><input className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 uppercase outline-none focus:border-indigo-500" value={String(note.driverCall.route || '')} onChange={e => updateDriverCallField(note.id, 'route', e.target.value)} /></label>
+                                                                <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Stop Number</span><input inputMode="numeric" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" value={String(note.driverCall.stopNumber || '')} onChange={e => updateDriverCallField(note.id, 'stopNumber', e.target.value)} /></label>
+                                                                <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Driver</span><select className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" value={String(note.driverCall.driver || '')} onChange={e => updateDriverCallField(note.id, 'driver', e.target.value)}><option value="">Select a driver or helper</option>{String(note.driverCall.driver || '').trim() && !getDriverCallPeople().includes(String(note.driverCall.driver || '').trim()) && <option value={String(note.driverCall.driver || '')}>{String(note.driverCall.driver || '')}</option>}{getDriverCallPeople().map(name => <option key={name} value={name}>{name}</option>)}</select></label>
+                                                                <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Customer Name</span><input className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" value={String(note.driverCall.customerName || '')} onChange={e => updateDriverCallField(note.id, 'customerName', e.target.value)} /></label>
+                                                                <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">SO / RMA Number</span><input className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" value={String(note.driverCall.soRma || '')} onChange={e => updateDriverCallField(note.id, 'soRma', e.target.value)} /></label>
+                                                            </div>
+                                                            <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Call Notes — Free Text</span><textarea className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none resize-y focus:border-indigo-500" rows="4" value={String(note.driverCall.note || '')} onChange={e => updateDriverCallField(note.id, 'note', e.target.value)} /></label>
+                                                        </div>
+                                                    ) : (
+                                                        <textarea className={`w-full bg-slate-950 border rounded-xl p-4 text-slate-200 text-sm focus:ring-2 outline-none resize-none ${note.category === 'URGENT' ? 'border-rose-500/50 focus:ring-rose-500' : 'border-slate-700 focus:ring-indigo-500'}`} rows="3" value={String(note.text)} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.map(n => n.id === note.id ? { ...n, text: String(e.target.value) } : n); setData(nd); }} />
+                                                    )
                                                 ) : (
-                                                    <p className={`text-slate-200 text-sm font-medium leading-relaxed italic border-l-4 pl-6 py-1 whitespace-pre-wrap ${note.category === 'URGENT' ? 'border-rose-500' : 'border-indigo-500'}`}>{String(note.text)}</p>
+                                                    note.noteType === 'driver-call' && note.driverCall ? (
+                                                        <div className="text-slate-200 text-sm font-medium leading-relaxed border-l-4 border-indigo-500 pl-6 py-1">
+                                                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">
+                                                                <span>Route: {String(note.driverCall.route || '')}</span><span>Stop: {String(note.driverCall.stopNumber || '')}</span><span>Driver: {String(note.driverCall.driver || '')}</span><span>Customer: {String(note.driverCall.customerName || '')}</span><span>SO / RMA: {String(note.driverCall.soRma || '')}</span>
+                                                            </div>
+                                                            <p className="whitespace-pre-wrap">{String(note.driverCall.note || '')}</p>
+                                                        </div>
+                                                    ) : (
+                                                        <p className={`text-slate-200 text-sm font-medium leading-relaxed italic border-l-4 pl-6 py-1 whitespace-pre-wrap ${note.category === 'URGENT' ? 'border-rose-500' : 'border-indigo-500'}`}>{String(note.text)}</p>
+                                                    )
                                                 )}
 
                                                 {((note.replies && note.replies.length > 0) || isEditing) && (
@@ -3611,6 +4150,9 @@
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <button onClick={handleDownloadBonusScreenshot} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title="Download Bonus Screenshot">
+                                            <Camera className="w-4 h-4" />
+                                        </button>
                                         <button onClick={() => setIsBonusFullscreen(!isBonusFullscreen)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title={isBonusFullscreen ?"Restore Size" :"Maximize"}>
                                             {isBonusFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
@@ -3622,7 +4164,17 @@
                                     </div>
                                 </div>
 
-                                <div className={isBonusFullscreen ? 'flex-1 flex flex-col gap-4 overflow-hidden' : ''}>
+                                <div ref={bonusScreenshotRef} className={isBonusFullscreen ? 'flex-1 flex flex-col gap-4 overflow-hidden' : ''}>
+                                    <div data-panel-screenshot-only="true" className="hidden items-center justify-between gap-4 px-5 py-4 bg-slate-900 border border-slate-700 rounded-xl mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <Award className="w-6 h-6 text-slate-100" />
+                                            <div>
+                                                <div className="text-sm font-black text-white tracking-wide">Weekly Bonus Evaluation</div>
+                                                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Bonus snapshot</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{getBonusWeekBoundaries(activeDate).formattedDates[0]} - {getBonusWeekBoundaries(activeDate).formattedDates[6]}</div>
+                                    </div>
                                     <div className={`bg-slate-800 rounded-xl border border-slate-700 flex flex-col shadow-2xl relative ${isBonusFullscreen ? 'flex-[0.4] overflow-hidden' : 'mb-8 shrink-0 overflow-hidden'}`}>
                                         <div className="bonus-panel-title px-4 py-3 bg-slate-950 border-b border-slate-700 text-xs font-black uppercase text-indigo-300 tracking-widest flex items-center gap-2 shrink-0">
                                             <DollarSign className="w-4 h-4" /> Bonus Metrics Qualification
@@ -3641,7 +4193,7 @@
                                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">OnTime% ($)</th>
                                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-indigo-300 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Completion % ($)</th>
                                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-emerald-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Total</th>
-                                                        {isEditing && isAdminUser && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Action</th>}
+                                                        {isEditing && isAdminUser && <th data-panel-screenshot-ignore="true" className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 border-l border-slate-700 shadow-sm">Action</th>}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-700/50">
@@ -3688,7 +4240,7 @@
                                                                     <td className="px-4 py-2 text-xs font-black text-center text-slate-300 bg-slate-900/30">${compRate}</td>
                                                                     <td className="px-4 py-2 text-xs font-black text-center text-emerald-400 bg-slate-900/50 border-l border-slate-700">${dailyRate}</td>
                                                                     {isEditing && isAdminUser && (
-                                                                        <td className="px-4 py-2 text-center border-l border-slate-700">
+                                                                        <td data-panel-screenshot-ignore="true" className="px-4 py-2 text-center border-l border-slate-700">
                                                                             <div className="flex items-center justify-center gap-1.5">
                                                                                 {isRowEditing ? (
                                                                                     <button onClick={() => setEditingWtdIdx(null)} className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors shadow-lg cursor-pointer"><Check className="w-3 h-3" /></button>
@@ -3711,7 +4263,7 @@
                                     <div className={`bg-slate-800 rounded-xl border border-slate-700 flex flex-col shadow-2xl relative ${isBonusFullscreen ? 'flex-[0.6] overflow-hidden' : 'overflow-hidden'}`}>
                                         <div className="bonus-panel-title px-4 py-3 bg-slate-950 border-b border-slate-700 text-xs font-black uppercase text-indigo-300 tracking-widest flex items-center justify-between shrink-0">
                                             <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /> Daily Bonus Payout Tracker</div>
-                                            {isEditing && isAdminUser && <span className="text-[10px] text-slate-400 italic font-medium lowercase">type amount,"off", or violation ("socks","belt")</span>}
+                                            {isEditing && isAdminUser && <span data-panel-screenshot-ignore="true" className="text-[10px] text-slate-400 italic font-medium lowercase">type amount,"off", or violation ("socks","belt")</span>}
                                         </div>
                                         <div className={`overflow-x-auto ${isBonusFullscreen ? 'flex-1 overflow-y-auto' : ''}`}>
                                             <table className="bonus-payout-table w-full text-left border-collapse whitespace-nowrap min-w-[1200px]">
@@ -3726,7 +4278,7 @@
                                                             </th>
                                                         ))}
                                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-emerald-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Total</th>
-                                                        {isEditing && isAdminUser && <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Edit / Delete</th>}
+                                                        {isEditing && isAdminUser && <th data-panel-screenshot-ignore="true" className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center sticky top-0 bg-slate-950/95 backdrop-blur-sm z-10 shadow-inner border-l border-slate-700 shadow-sm">Edit / Delete</th>}
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-700/50">
@@ -3858,7 +4410,7 @@
                                                                     {evaluatedDays}
                                                                     <td className="px-4 py-2 text-sm font-black text-center text-emerald-400 bg-slate-900/50 border-l border-slate-700 shadow-inner">${rowTotal}</td>
                                                                     {isEditing && isAdminUser && (
-                                                                    <td className="px-4 py-2 text-center border-l border-slate-700">
+                                                                    <td data-panel-screenshot-ignore="true" className="px-4 py-2 text-center border-l border-slate-700">
                                                                         <div className="flex items-center justify-center gap-1.5">
                                                                             {isEditingThisDriver ? (
                                                                                 <button onClick={() => {
@@ -3889,7 +4441,7 @@
                                                         });
                                                     })()}
                                                     {isEditing && isAdminUser && (
-                                                        <tr className="bg-slate-900/30">
+                                                        <tr data-panel-screenshot-ignore="true" className="bg-slate-900/30">
                                                             <td className="px-2 py-1.5 border-r border-slate-700"><input type="text" placeholder="First Name" className="w-full bg-slate-950 border border-emerald-500/50 rounded px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-emerald-500" value={newBonusDriver.firstName} onChange={(e) => setNewBonusDriver({...newBonusDriver, firstName: e.target.value})} /></td>
                                                             <td className="px-2 py-1.5 border-r border-slate-700"><input type="text" placeholder="Last Name" className="w-full bg-slate-950 border border-emerald-500/50 rounded px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-emerald-500" value={newBonusDriver.lastName} onChange={(e) => setNewBonusDriver({...newBonusDriver, lastName: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && (() => { if (!newBonusDriver.firstName.trim()) return; const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.manualDrivers) nd.manualDrivers = []; nd.manualDrivers.push({ firstName: newBonusDriver.firstName.trim(), lastName: newBonusDriver.lastName.trim() }); setBonusData(nd); setNewBonusDriver({ firstName: '', lastName: '' }); })()} /></td>
                                                             <td colSpan={10} className="px-4 py-2 border-l border-slate-700 text-left shadow-inner">
@@ -3937,12 +4489,16 @@
                                     const bnds = getOfficeWeekBoundaries(officeActiveDate);
                                     const officeWarnings = calculateOfficeWarnings(officeData, bnds.days);
                                     const hasWarnings = Object.keys(officeWarnings.coverage).length > 0 || Object.keys(officeWarnings.conflicts).some(d => officeWarnings.conflicts[d].length > 0);
+                                    const warningKey = `${bnds.startStr}|${JSON.stringify(officeWarnings)}`;
                                     
-                                    if (!hasWarnings) return null;
+                                    if (!hasWarnings || dismissedOfficeWarningKey === warningKey) return null;
 
                                     return (
                                         <div className="mb-6 bg-amber-950/30 border border-amber-500/40 rounded-xl p-4 shadow-inner animate-in slide-in-from-top-2">
-                                            <h3 className="text-amber-400 font-black text-xs tracking-widest uppercase mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> Schedule Conflicts Detected</h3>
+                                            <div className="flex items-center justify-between gap-3 mb-2">
+                                                <h3 className="text-amber-400 font-black text-xs tracking-widest uppercase flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> Schedule Conflicts Detected</h3>
+                                                <button type="button" onClick={() => setDismissedOfficeWarningKey(warningKey)} className="shrink-0 rounded-lg border border-amber-400/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-200 hover:bg-amber-500/20 transition-colors cursor-pointer" title="Dismiss these schedule warnings">Dismiss</button>
+                                            </div>
                                             <ul className="list-disc pl-6 text-xs text-amber-200/90 space-y-1.5">
                                                 {bnds.days.map(dayStr => {
                                                     const covWarn = officeWarnings.coverage[dayStr];
@@ -4084,16 +4640,17 @@
                                             <button onClick={() => { localStorage.setItem(getUserNameKey(user.uid), userName); setIsEditingName(false); }} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-500 transition-colors cursor-pointer"><Check className="w-3 h-3" /></button>
                                         </div>
                                     ) : (
-                                        <button onClick={() => setIsEditingName(true)} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[9px] font-black transition-all cursor-pointer ${currentUserIsIdle ? 'bg-amber-900/30 border-amber-500/30 text-amber-200 hover:border-amber-400' : 'bg-indigo-900/40 border-indigo-500/40 text-indigo-200 hover:border-indigo-400'}`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${currentUserIsIdle ? 'bg-amber-400' : 'bg-emerald-500'}`} /> YOU: {cleanFirstName((masterLists.nameOverrides || {})[user?.uid] || userName)} {currentUserIsIdle && <span className="text-[8px] uppercase tracking-widest text-amber-300/80">Idle</span>} <Edit3 className="w-2.5 h-2.5 opacity-50" />
+                                        <button onClick={() => setIsEditingName(true)} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[9px] font-black transition-all cursor-pointer ${currentUserIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400 hover:border-slate-500' : currentUserIsIdle ? 'bg-amber-900/30 border-amber-500/30 text-amber-200 hover:border-amber-400' : 'bg-indigo-900/40 border-indigo-500/40 text-indigo-200 hover:border-indigo-400'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${currentUserIsAway ? 'bg-slate-500' : currentUserIsIdle ? 'bg-amber-400' : 'bg-emerald-500'}`} /> YOU: {cleanFirstName((masterLists.nameOverrides || {})[user?.uid] || userName)} {currentUserIsAway ? <span className="text-[8px] normal-case tracking-normal font-semibold text-slate-400">Away</span> : currentUserIsIdle ? <span className="text-[8px] normal-case tracking-normal font-semibold text-amber-300/75">Idle</span> : null} <Edit3 className="w-2.5 h-2.5 opacity-50" />
                                         </button>
                                     )}
                                 </div>
                                 {activeUsers.filter(u => u.uid !== user?.uid).map(u => {
                                     const userIsIdle = isPresenceIdle(u);
+                                    const userIsAway = isPresenceAway(u);
                                     return (
-                                        <div key={u.uid} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[9px] font-bold ${userIsIdle ? 'bg-amber-900/20 border-amber-500/25 text-amber-200/80' : 'bg-slate-800/60 border-slate-700 text-slate-400'}`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${userIsIdle ? 'bg-amber-400/80' : 'bg-emerald-500/60'}`} />
+                                        <div key={u.uid} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[9px] font-bold ${userIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400' : userIsIdle ? 'bg-amber-900/20 border-amber-500/25 text-amber-200/80' : 'bg-slate-800/60 border-slate-700 text-slate-400'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${userIsAway ? 'bg-slate-500/80' : userIsIdle ? 'bg-amber-400/80' : 'bg-emerald-500/60'}`} />
                                             {isAdminUser && editingOnlineUserId === u.uid ? (
                                                 <div className="flex items-center gap-1">
                                                     <input autoFocus className="bg-slate-950 border border-indigo-500/50 rounded px-2 py-0.5 text-[10px] text-white outline-none w-20" value={onlineNameDraft} onChange={(e) => setOnlineNameDraft(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') saveOnlineNameOverride(u.uid); }} />
@@ -4103,8 +4660,8 @@
                                             ) : (
                                                 <>
                                                     {getOnlineDisplayName(u)}
-                                                    {userIsIdle && <span className="text-[8px] uppercase tracking-widest text-amber-300/70">Idle</span>}
-                                                    {isAdminUser && <button onClick={() => startEditingOnlineName(u)} className="text-slate-500 hover:text-indigo-300 cursor-pointer ml-1" title="Admin rename"><Edit3 className="w-2.5 h-2.5" /></button>}
+                                                    {userIsAway ? <span className="text-[8px] normal-case tracking-normal font-semibold text-slate-400">Away</span> : userIsIdle ? <span className="text-[8px] normal-case tracking-normal font-semibold text-amber-300/70">Idle</span> : null}
+                                                    {isAdminUser && <button onClick={() => startEditingOnlineName(u)} className="inline-flex items-center justify-center bg-transparent p-0 text-slate-500 hover:text-indigo-300 cursor-pointer ml-1" title="Admin rename"><Edit3 className="w-2.5 h-2.5" /></button>}
                                                 </>
                                             )}
                                         </div>
@@ -4124,6 +4681,113 @@
                     </footer>
 
                     {}
+                    {isParkingModalOpen && (
+                        <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm transition-all ${isParkingFullscreen ? 'p-0' : 'p-4'}`}>
+                            <div className={`bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ${isParkingFullscreen ? 'w-full h-full rounded-none' : 'rounded-2xl w-full max-w-4xl max-h-[90vh]'}`}>
+                                <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
+                                    <div className="flex items-center gap-3">
+                                        <Truck className="w-7 h-7 text-slate-100" />
+                                        <div>
+                                            <h2 className="text-lg font-black text-white">Parking Assignments</h2>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Driver parking spot map</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {isAdminUser && (
+                                            isParkingEditing ? (
+                                                <>
+                                                    <button onClick={saveParkingAssignments} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-2">
+                                                        <Save className="w-4 h-4" /> Save
+                                                    </button>
+                                                    <button onClick={() => { setParkingDraft(JSON.parse(JSON.stringify(getParkingAssignments()))); setIsParkingEditing(false); }} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg border border-slate-600 transition-colors cursor-pointer">
+                                                        Cancel
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button onClick={() => setIsParkingEditing(true)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg border border-slate-600 transition-colors cursor-pointer flex items-center gap-2">
+                                                    <Edit3 className="w-4 h-4" /> Edit
+                                                </button>
+                                            )
+                                        )}
+                                        <button onClick={handleDownloadParkingScreenshot} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Download Parking Screenshot">
+                                            <Camera className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={() => setIsParkingFullscreen(!isParkingFullscreen)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title={isParkingFullscreen ? "Restore Size" : "Maximize"}>
+                                            {isParkingFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                                        </button>
+                                        <button onClick={() => { setIsParkingModalOpen(false); setIsParkingFullscreen(false); }} className="text-slate-400 hover:text-white cursor-pointer p-2"><X className="w-5 h-5" /></button>
+                                    </div>
+                                </div>
+
+                                <div className="dashboard-scroll-area overflow-y-auto flex-1 p-6">
+                                    <datalist id="parking-assignment-options">
+                                        {['Available', ...(masterLists.contractors || []).map(c => c.name), ...parkingDraft.map(item => item.assignee)]
+                                            .filter((name, index, arr) => name && arr.indexOf(name) === index)
+                                            .map(name => <option key={name} value={name} />)}
+                                    </datalist>
+                                    {!isAdminUser && (
+                                        <div className="mb-4 rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-3 text-xs font-bold text-slate-400">
+                                            Parking assignments are view-only for team users.
+                                        </div>
+                                    )}
+                                    <div ref={parkingScreenshotRef} className="bg-slate-900 rounded-2xl border border-slate-700 overflow-hidden shadow-2xl p-4">
+                                        <div className="flex items-center justify-between gap-4 mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <Truck className="w-6 h-6 text-slate-100" />
+                                                <div>
+                                                    <div className="text-sm font-black text-white tracking-wide">Parking Assignments</div>
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Driver parking spot map</div>
+                                                </div>
+                                            </div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{parkingDraft.length} Spots</div>
+                                        </div>
+                                        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                                        <div className="grid grid-cols-[120px_1fr_120px] gap-0 bg-slate-900/80 border-b border-slate-700">
+                                            <div className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Spot</div>
+                                            <div className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Assigned To</div>
+                                            <div className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Status</div>
+                                        </div>
+                                        <div className="divide-y divide-slate-700/60">
+                                            {parkingDraft.map((assignment) => {
+                                                const isAvailable = !assignment.assignee || String(assignment.assignee).toLowerCase() === 'available';
+                                                return (
+                                                    <div key={assignment.id} className="grid grid-cols-[120px_1fr_120px] gap-0 items-center hover:bg-slate-700/25 transition-colors">
+                                                        <div className="px-4 py-3">
+                                                            <div className="text-sm font-black text-slate-100">Spot {assignment.spot}</div>
+                                                        </div>
+                                                        <div className="px-4 py-3">
+                                                            {isParkingEditing && isAdminUser ? (
+                                                                <input
+                                                                    type="text"
+                                                                    list="parking-assignment-options"
+                                                                    className="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-slate-400 shadow-inner"
+                                                                    value={assignment.assignee}
+                                                                    onChange={(e) => updateParkingAssignment(assignment.id, e.target.value)}
+                                                                    placeholder="Available or contractor name"
+                                                                />
+                                                            ) : (
+                                                                <div className={`min-h-[34px] flex items-center rounded-lg border px-3 py-2 text-xs font-bold ${isAvailable ? 'bg-emerald-950/20 border-emerald-500/20 text-emerald-300' : 'bg-slate-950/40 border-slate-700 text-slate-200'}`}>
+                                                                    {assignment.assignee || 'Available'}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="px-4 py-3 text-center">
+                                                            <span className={`inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${isAvailable ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/20' : 'bg-slate-900 text-slate-400 border-slate-700'}`}>
+                                                                {isAvailable ? 'Available' : 'Assigned'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {}
                     {isPreloadModalOpen && (
                         <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm transition-all ${isPreloadFullscreen ? 'p-0' : 'p-4'}`}>
                             <div className={`bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ${isPreloadFullscreen ? 'w-full h-full rounded-none' : 'rounded-2xl w-full max-w-5xl max-h-[90vh]'}`}>
@@ -4136,6 +4800,9 @@
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <button onClick={handleDownloadPreloadScreenshot} disabled={isCapturing} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait" title="Download Preload Table Screenshot" aria-label="Download Preload Table Screenshot">
+                                            <Camera className="w-4 h-4" />
+                                        </button>
                                         <button onClick={() => setIsPreloadFullscreen(!isPreloadFullscreen)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title={isPreloadFullscreen ?"Restore Size" :"Maximize"}>
                                             {isPreloadFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
@@ -4174,7 +4841,7 @@
                                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1">All seven days stay visible for screenshots</div>
                                             </div>
                                         </div>
-                                        <div className={`dashboard-scroll-area overflow-auto ${isPreloadFullscreen ? 'flex-1' : ''}`}>
+                                        <div ref={preloadScreenshotRef} data-preload-screenshot-table="true" className={`dashboard-scroll-area overflow-auto ${isPreloadFullscreen ? 'flex-1' : ''}`}>
                                             <table className="w-full text-left align-middle border-collapse min-w-[850px]">
                                                 <thead>
                                                     <tr className="bg-slate-900/80 border-b border-slate-700">
@@ -4246,7 +4913,10 @@
                             <div className={`bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ${isMasterFullscreen ? 'w-full h-full rounded-none' : 'rounded-2xl w-full max-w-[98%] md:max-w-6xl max-h-[90vh]'}`}>
                                 <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
                                     <h2 className="text-lg font-black text-white flex items-center gap-2"><Settings className="w-5 h-5 text-indigo-400" /> {isAdminUser ? 'Manage Master Lists' : 'Contractor Plan'}</h2>
-                                    <div className="flex items-center gap-2">
+                                    <div data-master-screenshot-ignore="true" className="flex items-center gap-2">
+                                        <button onClick={handleDownloadMasterScreenshot} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Download Master List Screenshot">
+                                            <Camera className="w-4 h-4" />
+                                        </button>
                                         <button onClick={() => setIsMasterFullscreen(!isMasterFullscreen)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title={isMasterFullscreen ?"Restore Size" :"Maximize"}>
                                             {isMasterFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
@@ -4261,9 +4931,25 @@
                                     ))}
                                 </div>
 
-                                <div className="master-list-scroll-area p-6 overflow-y-auto flex-1">
+                                <div data-master-screenshot-scroll="true" className="master-list-scroll-area p-6 overflow-y-auto flex-1">
+                                    <div ref={masterScreenshotRef} data-master-screenshot-panel="true" className="bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl p-4">
+                                        <div className="flex items-center justify-between gap-4 mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <Settings className="w-6 h-6 text-slate-100" />
+                                                <div>
+                                                    <div className="text-sm font-black text-white tracking-wide">{isAdminUser ? 'Manage Master Lists' : 'Contractor Plan'}</div>
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{masterActiveTab} snapshot</div>
+                                                </div>
+                                            </div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{(masterLists[masterActiveTab] || []).length} Items</div>
+                                        </div>
+                                        <div data-master-screenshot-only="true" className="hidden border-y border-slate-700 bg-slate-800/50 -mx-4 px-2 mb-4">
+                                            {(isAdminUser ? [{ id: 'contractors', label: 'Contractors' }, { id: 'drivers', label: 'Drivers' }, { id: 'helpers', label: 'Helpers' }] : [{ id: 'contractors', label: 'Contractors' }]).map(tab => (
+                                                <div key={`shot-${tab.id}`} className={`px-4 py-3 text-xs font-bold tracking-widest uppercase border-b-2 ${masterActiveTab === tab.id ? 'border-slate-400 text-slate-200' : 'border-transparent text-slate-500'}`}>{tab.label}</div>
+                                            ))}
+                                        </div>
                                     {isMasterEditing && isAdminUser && (
-                                        <div className="flex flex-wrap items-end gap-3 mb-6 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                                        <div data-master-screenshot-ignore="true" className="flex flex-wrap items-end gap-3 mb-6 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                                             <div className="flex-1 min-w-[200px]">
                                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Name</label>
                                                 <input type="text" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={newMasterItem.name} onChange={e => setNewMasterItem({...newMasterItem, name: e.target.value})} onKeyDown={e => e.key === 'Enter' && addMasterListItem()} />
@@ -4321,15 +5007,15 @@
                                                                 <>
                                                                     <div className="flex flex-col w-full h-full relative z-10">
                                                                         <div className="flex justify-between items-start mb-6">
-                                                                            <div className="flex items-center gap-3 overflow-hidden pr-2">
+                                                                            <div className="flex items-center gap-3 min-w-0 pr-2">
                                                                                 <div className="shrink-0 flex items-center justify-center"><Truck className="w-8 h-8 text-slate-200" /></div>
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="font-black text-slate-100 text-sm tracking-wide truncate" title={item.name}>{item.name}</span>
+                                                                                <div className="flex flex-col min-w-0">
+                                                                                    <span className="font-black text-slate-100 text-sm tracking-wide leading-tight break-words" title={item.name}>{item.name}</span>
                                                                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Fleet Partner</span>
                                                                                 </div>
                                                                             </div>
                                                                             {isMasterEditing && canEditMasterItem && (
-                                                                                <div className="flex items-center gap-1 shrink-0 bg-slate-900/50 p-1 rounded-lg border border-slate-700/50">
+                                                                                <div data-master-screenshot-ignore="true" className="flex items-center gap-1 shrink-0 bg-slate-900/50 p-1 rounded-lg border border-slate-700/50">
                                                                                     <button onClick={() => startEditingMasterItem(item)} className="text-slate-400 hover:text-indigo-400 hover:bg-indigo-900/50 p-1.5 rounded transition-colors cursor-pointer" title="Edit"><Edit3 className="w-3 h-3" /></button>
                                                                                     {isAdminUser && <button onClick={() => removeMasterListItem(item.id)} className="text-slate-500 hover:text-rose-400 hover:bg-rose-900/50 p-1.5 rounded transition-colors cursor-pointer" title="Delete"><Trash2 className="w-3 h-3" /></button>}
                                                                                 </div>
@@ -4375,11 +5061,11 @@
                                                             ) : (
                                                                 <>
                                                                     <div className="flex items-center gap-4">
-                                                                        <span className="font-black text-slate-100 text-sm tracking-wide truncate" title={item.name}>{item.name}</span>
+                                                                        <span className="font-black text-slate-100 text-sm tracking-wide leading-tight break-words" title={item.name}>{item.name}</span>
                                                                         {item.phone && <span className="text-xs text-slate-400 font-mono bg-slate-900 px-2 py-1 rounded border border-slate-700">📞 {item.phone}</span>}
                                                                     </div>
                                                                     {isMasterEditing && (
-                                                                        <div className="flex items-center gap-1">
+                                                                        <div data-master-screenshot-ignore="true" className="flex items-center gap-1">
                                                                             <button onClick={() => startEditingMasterItem(item)} className="text-slate-400 hover:text-indigo-400 hover:bg-indigo-900/30 p-1.5 rounded transition-colors cursor-pointer" title="Edit"><Edit3 className="w-4 h-4" /></button>
                                                                             <button onClick={() => removeMasterListItem(item.id)} className="text-slate-500 hover:text-rose-400 hover:bg-rose-900/30 p-1.5 rounded transition-colors cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
                                                                         </div>
@@ -4435,6 +5121,7 @@
                                             </div>
                                         </div>
                                     )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
