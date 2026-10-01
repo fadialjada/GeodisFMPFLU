@@ -65,6 +65,24 @@
         .dashboard-top-nav::-webkit-scrollbar {
             display: none;
         }
+
+        /* Allow the dashboard itself to pan horizontally on narrow screens
+           when a view is wider than the phone. */
+        @media (max-width: 767px) {
+            html,
+            body {
+                overflow-x: auto !important;
+            }
+
+            #root {
+                overflow-x: visible !important;
+            }
+
+            .dashboard-page-shell {
+                overflow-x: auto !important;
+                touch-action: pan-x pan-y;
+            }
+        }
         html.show-dashboard-scrollbar,
         html.show-dashboard-scrollbar body,
         html.show-dashboard-scrollbar #root,
@@ -3018,7 +3036,7 @@
                 );
             }
             return (
-                <div ref={dashboardRef} className="relative min-h-screen bg-slate-900 font-sans text-slate-100 pb-20 overflow-x-hidden">
+                <div ref={dashboardRef} className="dashboard-page-shell relative min-h-screen bg-slate-900 font-sans text-slate-100 pb-20 overflow-x-hidden">
                     <header data-html2canvas-ignore="true" className={`bg-slate-800 border-b border-slate-700 relative z-30 shadow-lg ${isCapturing ? 'hidden' : 'sticky top-0'}`}>
                         <div className="max-w-7xl mx-auto px-4 h-12 flex justify-between items-center gap-3">
                             <div className="flex items-center gap-4 min-w-0 flex-1">
