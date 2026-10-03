@@ -3920,10 +3920,6 @@
                                 <button onClick={handleDownloadScreenshot} className="p-1 bg-transparent border-0 text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer" title="Download Screenshot">
                                     <Camera className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => { if (!dashboardSaveInFlightRef.current) { isEditing ? handleSave() : setIsEditing(true); } }} className={`p-1 bg-transparent border-0 transition-all flex items-center justify-center cursor-pointer ${isEditing ?"text-emerald-300" :"text-slate-300 hover:text-white"}`} title={isEditing ?"Save Changes" :"Edit Dashboard"}>
-                                    {isEditing ? <Save className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-                                </button>
-                            </div>
                             <div data-header-calendar="true" className="dashboard-header-date relative flex items-center justify-center px-2 text-slate-300 font-bold text-xs bg-[radial-gradient(ellipse_at_center,rgba(15,23,42,0.50)_0%,rgba(15,23,42,0.34)_30%,rgba(15,23,42,0)_58%)]">
                                 <button onClick={() => changeActiveDateByDays(-1)} className="px-1 py-1 bg-transparent border-0 hover:text-white transition-colors cursor-pointer leading-none" title="Previous Day">‹</button>
                                 <div className="px-1 py-1 flex items-center gap-0.5">
@@ -3975,6 +3971,11 @@
                                     );
                                 })()}
                             </div>
+                                <button onClick={() => { if (!dashboardSaveInFlightRef.current) { isEditing ? handleSave() : setIsEditing(true); } }} className={`p-1 bg-transparent border-0 transition-all flex items-center justify-center cursor-pointer ${isEditing ?"text-emerald-300" :"text-slate-300 hover:text-white"}`} title={isEditing ?"Save Changes" :"Edit Dashboard"}>
+                                    {isEditing ? <Save className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
+                                </button>
+                            </div>
+
                         </div>
                     </header>
 
@@ -6083,6 +6084,7 @@
     </script>
 </body>
 </html>
+
 
 
 
