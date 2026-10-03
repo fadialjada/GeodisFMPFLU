@@ -1071,6 +1071,9 @@
 
         const getUserNameKey = (uid) => `geodis_user_name_${uid}`;
         const getShiftNoteSeenKey = (uid, dateKey) => `geodis_shift_note_seen_${uid || 'local'}_${dateKey}`;
+        const getShiftNoteNotificationSeenKey = (uid) => `geodis_shift_note_seen_${uid || 'local'}_all`;
+        const getShiftNoteNotificationReadIdsKey = (uid) => `geodis_shift_note_read_ids_${uid || 'local'}`;
+        const getTeamChatSeenKey = (uid) => `geodis_team_chat_seen_${uid || 'local'}`;
         const PRESENCE_AWAY_AFTER_MS = 10 * 60 * 1000;
         const SCREENSHOT_BACKGROUND = '#1b1f25';
         const prepareScreenshotSurface = (surface) => {
@@ -1136,9 +1139,16 @@
             const [isCapturing, setIsCapturing] = useState(false);
             const [isLoading, setIsLoading] = useState(true);
             const [shiftNoteSeenAt, setShiftNoteSeenAt] = useState('');
+            const [shiftNoteReadIds, setShiftNoteReadIds] = useState([]);
             const [isShiftNotificationOpen, setIsShiftNotificationOpen] = useState(false);
             const [highlightedShiftNoteId, setHighlightedShiftNoteId] = useState(null);
+            const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
+            const [teamChatMessages, setTeamChatMessages] = useState([]);
+            const [teamChatDraft, setTeamChatDraft] = useState('');
+            const [teamChatError, setTeamChatError] = useState('');
+            const [teamChatSeenAt, setTeamChatSeenAt] = useState('');
             const dashboardRef = useRef(null);
+            const teamChatEndRef = useRef(null);
             const backgroundEditGestureRef = useRef(false);
             const dashboardSaveInFlightRef = useRef(false);
             const parkingScreenshotRef = useRef(null);
@@ -1287,6 +1297,7 @@
             const wasLoading = useRef(true);
             const shiftNoteNotificationSoundSignature = useRef(null);
             const shiftNoteNotificationSoundDate = useRef(null);
+            const teamChatSoundSignature = useRef(null);
 
             const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
             const [masterActiveTab, setMasterActiveTab] = useState('contractors');
@@ -2005,7 +2016,7 @@
                 try {
                     let currentUid ="local";
                     if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
-                    const dataToSave = normalizeMetricsNameData(data);
+                    const dataToSave = normalizeMetricsNameData(withAutoRouteMetrics(data));
                     setData(dataToSave);
                 
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
@@ -2337,18 +2348,54 @@
                 setTimeout(() => setPasteFeedback(''), 5000);
             };
 
+            const getCountableRouteRows = (inputData) => {
+                const d = inputData || DEFAULT_DATA;
+                return (d.routeTable || []).filter(route => ['cnt', 'door', 'serviceUnit', 'route', 'contractor', 'driver', 'helper'].some(key => String(route?.[key] || '').trim()));
+            };
+
+            const isSameDayRoute = (route) => {
+                const routeName = String(route?.route || '').toLowerCase();
+                return /\bsame[\s-]*day\b/.test(routeName) || /\bsame[\s-]*s[\s-]*d\b/.test(routeName) || /\bs[\s-]*d\b/.test(routeName);
+            };
+
+            const getAutoRouteCounts = (inputData) => {
+                const rows = getCountableRouteRows(inputData);
+                const sameDayRows = rows.filter(isSameDayRoute);
+                const normalRows = rows.filter(route => !isSameDayRoute(route));
+                return {
+                    hasRows: rows.length > 0,
+                    allRoutes: rows.length,
+                    routes: normalRows.length,
+                    sameDayRoutes: sameDayRows.length,
+                    orders: normalRows.reduce((sum, route) => sum + (Number(String(route?.stops || '').replace(/,/g, '')) || 0), 0)
+                };
+            };
+
+            const withAutoRouteMetrics = (inputData) => {
+                const cloned = JSON.parse(JSON.stringify(inputData || DEFAULT_DATA));
+                if (!cloned.loadout) cloned.loadout = {};
+                if (!Array.isArray(cloned.loadout.metrics)) cloned.loadout.metrics = [{ label:"Total Routes", value:"0" }, { label:"Number of Same Day Routes", value:"0" }];
+                while (cloned.loadout.metrics.length < 2) cloned.loadout.metrics.push({ label:"", value:"0" });
+                const autoCounts = getAutoRouteCounts(cloned);
+                cloned.loadout.metrics[0] = { ...(cloned.loadout.metrics[0] || {}), label:"Total Routes", value: String(autoCounts.routes) };
+                cloned.loadout.metrics[1] = { ...(cloned.loadout.metrics[1] || {}), label:"Number of Same Day Routes", value: String(autoCounts.sameDayRoutes) };
+                return cloned;
+            };
+
             const calculateKPIs = (inputData) => {
                 const d = inputData || DEFAULT_DATA;
-                const routes = Number(d.loadout?.metrics?.[0]?.value) || 0;
-                const orders = Number(d.loadout?.metrics?.[1]?.value) || 0;
+                const autoRouteCounts = getAutoRouteCounts(d);
+                const routes = autoRouteCounts.hasRows ? autoRouteCounts.routes : Number(d.loadout?.metrics?.[0]?.value) || 0;
+                const sameDayRoutes = autoRouteCounts.hasRows ? autoRouteCounts.sameDayRoutes : Number(d.loadout?.metrics?.[1]?.value) || 0;
+                const orders = autoRouteCounts.hasRows ? autoRouteCounts.orders : 0;
                 const pickups = Number(d.endOfDay?.risk?.[2]?.value) || 0;
                 const basicCount = Number(d.loadout?.basicDeliveryCount) || 0;
                 const thresholdCount = Number(d.loadout?.thresholdCount) || 0;
                 const whiteGloveCount = Number(d.loadout?.whiteGloveCount) || 0;
-                const uniform = Number(d.loadout?.uniformCount) || 0;
-                const offDock = Number(d.loadout?.offDockCount) || 0;
-                const eta = Number(d.loadout?.etaCount) || 0;
-                const comp = Number(d.loadout?.completedRoutesCount) || 0;
+                const uniform = Math.min(Number(d.loadout?.uniformCount) || 0, routes);
+                const offDock = Math.min(Number(d.loadout?.offDockCount) || 0, routes);
+                const eta = Math.min(Number(d.loadout?.etaCount) || 0, routes);
+                const comp = Math.min(Number(d.loadout?.completedRoutesCount) || 0, routes);
                 const missedDeliv = Number(d.midDay?.metrics?.[2]?.value) || 0;
                 const earlyViolations = Number(d.midDay?.earlyCount) || 0;
                 const missedEta = Math.max(0, routes - eta);
@@ -2377,7 +2424,7 @@
 
                 return { 
                     otd, executionScore, damageRate, offDockPerc, etaPerc, compPerc, uniformPerc, 
-                    routes, orders, pickups, basicCount, thresholdCount, whiteGloveCount, missedDeliv, earlyViolations, escPerc, podPerc, notHomePerc, claimsPerc, checkedInCount, checkedInPerc 
+                    routes, sameDayRoutes, orders, pickups, basicCount, thresholdCount, whiteGloveCount, missedDeliv, earlyViolations, escPerc, podPerc, notHomePerc, claimsPerc, checkedInCount, checkedInPerc 
                 };
             };
 
@@ -2435,7 +2482,7 @@
                     wtd: { 
                         otd: wtdAvg('otd'), executionScore: wtdAvg('executionScore'), damageRate: wtdAvg('damageRate'), 
                         offDockPerc: wtdAvg('offDockPerc'), etaPerc: wtdAvg('etaPerc'), compPerc: wtdAvg('compPerc'),
-                        uniformPerc: wtdAvg('uniformPerc'), routes: wtdAvg('routes'), orders: wtdAvg('orders'),
+                        uniformPerc: wtdAvg('uniformPerc'), routes: wtdAvg('routes'), sameDayRoutes: wtdAvg('sameDayRoutes'), orders: wtdAvg('orders'),
                         pickups: wtdAvg('pickups'), basicCount: wtdAvg('basicCount'), thresholdCount: wtdAvg('thresholdCount'),
                         whiteGloveCount: wtdAvg('whiteGloveCount'), missedDeliv: wtdAvg('missedDeliv'), earlyViolations: wtdAvg('earlyViolations'),
                         escPerc: wtdAvg('escPerc'), podPerc: wtdAvg('podPerc'), notHomePerc: wtdAvg('notHomePerc'), claimsPerc: wtdAvg('claimsPerc'), checkedInPerc: wtdAvg('checkedInPerc')
@@ -3051,17 +3098,106 @@
 
             useEffect(() => {
                 if (!user) return;
-                setShiftNoteSeenAt(localStorage.getItem(getShiftNoteSeenKey(user.uid, activeDate)) || '');
-            }, [user, activeDate]);
-
-            useEffect(() => {
-                if (activeTab === 'notes') markShiftNotesSeen();
-            }, [activeTab, activeDate, user]);
+                setShiftNoteSeenAt(localStorage.getItem(getShiftNoteNotificationSeenKey(user.uid)) || '');
+                setTeamChatSeenAt(localStorage.getItem(getTeamChatSeenKey(user.uid)) || '');
+                try {
+                    setShiftNoteReadIds(JSON.parse(localStorage.getItem(getShiftNoteNotificationReadIdsKey(user.uid)) || '[]'));
+                } catch(e) {
+                    setShiftNoteReadIds([]);
+                }
+            }, [user]);
 
             const getCurrentShiftUser = () => ({
                 uid: user?.uid || 'local',
                 name: getSavedDisplayName(user)
             });
+
+            useEffect(() => {
+                if (!user || !db) return;
+                const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
+                const unsubscribeTeamChat = onSnapshot(chatRef, (docSnap) => {
+                    const messages = docSnap.exists() && Array.isArray(docSnap.data().messages) ? docSnap.data().messages : [];
+                    setTeamChatMessages(messages.slice(-150));
+                }, (error) => {
+                    console.error('Failed to load team chat:', error);
+                    setTeamChatError('Team Chat could not load.');
+                });
+                return () => unsubscribeTeamChat();
+            }, [user]);
+
+            useEffect(() => {
+                if (!isTeamChatOpen) return;
+                setTimeout(() => teamChatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 80);
+            }, [isTeamChatOpen, teamChatMessages.length]);
+
+            const markTeamChatSeen = async () => {
+                if (!user) return;
+                const current = getCurrentShiftUser();
+                const latestMessageTime = (teamChatMessages || []).reduce((latest, message) => {
+                    const time = message?.timestamp ? new Date(message.timestamp).getTime() : 0;
+                    return Number.isFinite(time) && time > latest ? time : latest;
+                }, 0);
+                const timestamp = latestMessageTime ? new Date(latestMessageTime).toISOString() : new Date().toISOString();
+                localStorage.setItem(getTeamChatSeenKey(user.uid), timestamp);
+                setTeamChatSeenAt(timestamp);
+                if (!db || !(teamChatMessages || []).some(message => message.authorUid && message.authorUid !== current.uid)) return;
+                try {
+                    const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
+                    await runTransaction(db, async (transaction) => {
+                        const chatSnap = await transaction.get(chatRef);
+                        const existing = chatSnap.exists() && Array.isArray(chatSnap.data().messages) ? chatSnap.data().messages : [];
+                        let changed = false;
+                        const messages = existing.map(message => {
+                            if (!message?.id || message.authorUid === current.uid) return message;
+                            const seenBy = Array.isArray(message.seenBy) ? message.seenBy : [];
+                            const alreadySeen = seenBy.some(entry => entry.uid === current.uid);
+                            if (alreadySeen) return message;
+                            changed = true;
+                            return {
+                                ...message,
+                                seenBy: [...seenBy, { uid: current.uid, name: current.name, timestamp }]
+                            };
+                        }).slice(-150);
+                        if (changed) {
+                            transaction.set(chatRef, { messages, lastReadReceiptAt: timestamp }, { merge: true });
+                        }
+                    });
+                } catch (error) {
+                    console.error('Failed to update team chat read receipts:', error);
+                }
+            };
+
+            const sendTeamChatMessage = async () => {
+                const text = String(teamChatDraft || '').trim();
+                if (!text || !db) return;
+                const current = getCurrentShiftUser();
+                const message = {
+                    id: `${Date.now()}-${current.uid}`,
+                    text,
+                    author: current.name,
+                    authorUid: current.uid,
+                    timestamp: new Date().toISOString()
+                };
+                setTeamChatDraft('');
+                setTeamChatError('');
+                try {
+                    const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
+                    await runTransaction(db, async (transaction) => {
+                        const chatSnap = await transaction.get(chatRef);
+                        const existing = chatSnap.exists() && Array.isArray(chatSnap.data().messages) ? chatSnap.data().messages : [];
+                        const messages = [...existing, message].slice(-150);
+                        transaction.set(chatRef, {
+                            messages,
+                            updatedAt: message.timestamp,
+                            updatedBy: current.name
+                        }, { merge: true });
+                    });
+                } catch (error) {
+                    console.error('Failed to send team chat message:', error);
+                    setTeamChatDraft(text);
+                    setTeamChatError('Message did not send. Try again.');
+                }
+            };
 
             const toggleShiftNoteLike = async (noteId) => {
                 const current = getCurrentShiftUser();
@@ -3094,7 +3230,7 @@
             };
 
             const getShiftNoteNotificationItems = () => {
-                const seenMs = shiftNoteSeenAt ? new Date(shiftNoteSeenAt).getTime() : 0;
+                const readIds = new Set(shiftNoteReadIds || []);
                 const currentUid = user?.uid || 'local';
                 const currentName = getSavedDisplayName(user);
                 const isNoteOwner = (note) => {
@@ -3103,39 +3239,51 @@
                     return String(note.author || '').trim().toLowerCase() === String(currentName || '').trim().toLowerCase();
                 };
                 const items = [];
-                (data.shiftNotes || []).forEach(note => {
-                    if (!isNoteOwner(note)) return;
-                    const preview = getShiftNotePreview(note);
-                    (note.likes || []).forEach(like => {
-                        const ts = like.timestamp ? new Date(like.timestamp).getTime() : 0;
-                        if (ts > seenMs && like.uid !== currentUid) {
-                            const name = like.name || 'Someone';
-                            items.push({
-                                id: `like-${note.id}-${like.uid || name}-${like.timestamp || ts}`,
-                                type: 'like',
-                                noteId: note.id,
-                                name,
-                                timestamp: like.timestamp || '',
-                                message: `${name} liked your note`,
-                                preview
-                            });
-                        }
-                    });
-                    (note.replies || []).forEach(reply => {
-                        const ts = reply.timestamp ? new Date(reply.timestamp).getTime() : 0;
-                        if (ts > seenMs && reply.authorUid !== currentUid && reply.author !== currentName) {
-                            const name = reply.author || 'Someone';
-                            const replyText = String(reply.text || '').trim();
-                            items.push({
-                                id: `reply-${note.id}-${reply.id || reply.timestamp || ts}`,
-                                type: 'reply',
-                                noteId: note.id,
-                                name,
-                                timestamp: reply.timestamp || '',
-                                message: `${name} replied to your note`,
-                                preview: replyText ? (replyText.length > 90 ? `${replyText.slice(0, 90)}...` : replyText) : preview
-                            });
-                        }
+                const recapsByDate = new Map((historyData || []).map(record => [record.date, record]));
+                recapsByDate.set(activeDate, { date: activeDate, ...data });
+                Array.from(recapsByDate.values()).forEach(dayRecord => {
+                    const dateKey = dayRecord.date || activeDate;
+                    const dateLabel = new Date(`${dateKey}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    (dayRecord.shiftNotes || []).forEach(note => {
+                        if (!isNoteOwner(note)) return;
+                        const preview = getShiftNotePreview(note);
+                        (note.likes || []).forEach(like => {
+                            const ts = like.timestamp ? new Date(like.timestamp).getTime() : 0;
+                            const id = `like-${dateKey}-${note.id}-${like.uid || like.name || 'someone'}-${like.timestamp || ts}`;
+                            if (!readIds.has(id) && like.uid !== currentUid) {
+                                const name = like.name || 'Someone';
+                                items.push({
+                                    id,
+                                    type: 'like',
+                                    noteId: note.id,
+                                    dateKey,
+                                    dateLabel,
+                                    name,
+                                    timestamp: like.timestamp || '',
+                                    message: `${name} liked your note`,
+                                    preview
+                                });
+                            }
+                        });
+                        (note.replies || []).forEach(reply => {
+                            const ts = reply.timestamp ? new Date(reply.timestamp).getTime() : 0;
+                            const id = `reply-${dateKey}-${note.id}-${reply.id || reply.timestamp || ts}`;
+                            if (!readIds.has(id) && reply.authorUid !== currentUid && reply.author !== currentName) {
+                                const name = reply.author || 'Someone';
+                                const replyText = String(reply.text || '').trim();
+                                items.push({
+                                    id,
+                                    type: 'reply',
+                                    noteId: note.id,
+                                    dateKey,
+                                    dateLabel,
+                                    name,
+                                    timestamp: reply.timestamp || '',
+                                    message: `${name} replied to your note`,
+                                    preview: replyText ? (replyText.length > 90 ? `${replyText.slice(0, 90)}...` : replyText) : preview
+                                });
+                            }
+                        });
                     });
                 });
                 return items.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
@@ -3144,21 +3292,44 @@
             const markShiftNotesSeen = () => {
                 if (!user) return;
                 const timestamp = new Date().toISOString();
-                localStorage.setItem(getShiftNoteSeenKey(user.uid, activeDate), timestamp);
+                const allIds = shiftNoteNotificationItems.map(item => item.id);
+                const next = Array.from(new Set([...(shiftNoteReadIds || []), ...allIds])).slice(-1000);
+                localStorage.setItem(getShiftNoteNotificationSeenKey(user.uid), timestamp);
+                localStorage.setItem(getShiftNoteNotificationReadIdsKey(user.uid), JSON.stringify(next));
                 setShiftNoteSeenAt(timestamp);
+                setShiftNoteReadIds(next);
             };
 
-            const openShiftNoteFromNotification = (noteId) => {
+            const markShiftNotificationItemRead = (itemId) => {
+                if (!user || !itemId) return;
+                const next = Array.from(new Set([...(shiftNoteReadIds || []), itemId])).slice(-500);
+                localStorage.setItem(getShiftNoteNotificationReadIdsKey(user.uid), JSON.stringify(next));
+                setShiftNoteReadIds(next);
+            };
+
+            const openShiftNoteFromNotification = (item) => {
+                const noteId = item?.noteId;
+                const dateKey = item?.dateKey;
+                if (dateKey && dateKey !== activeDate) setDashboardActiveDate(dateKey);
                 setActiveTab('notes');
                 setIsShiftNotificationOpen(false);
                 setHighlightedShiftNoteId(noteId);
-                markShiftNotesSeen();
+                markShiftNotificationItemRead(item?.id);
                 setTimeout(() => {
                     const target = document.getElementById(`shift-note-${noteId}`);
                     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }, 150);
                 setTimeout(() => setHighlightedShiftNoteId(null), 4000);
             };
+
+            useEffect(() => {
+                if (activeTab !== 'notes' || !highlightedShiftNoteId) return;
+                const timer = setTimeout(() => {
+                    const target = document.getElementById(`shift-note-${highlightedShiftNoteId}`);
+                    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 250);
+                return () => clearTimeout(timer);
+            }, [activeTab, activeDate, highlightedShiftNoteId, data.shiftNotes]);
 
             const calculateMetricsTotals = (metricsList) => {
                 if (!metricsList || metricsList.length === 0) return null;
@@ -3229,9 +3400,45 @@
 
             const displayDateString = String(new Date(activeDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
             const nextDayString = String(new Date(new Date(activeDate + 'T12:00:00').getTime() + 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
+            const teamChatSeenMs = teamChatSeenAt ? new Date(teamChatSeenAt).getTime() : 0;
+            const teamChatUnreadCount = (teamChatMessages || []).filter(message => {
+                if (!message || message.authorUid === (user?.uid || 'local')) return false;
+                const messageMs = message.timestamp ? new Date(message.timestamp).getTime() : 0;
+                return Number.isFinite(messageMs) && (!teamChatSeenAt || messageMs > teamChatSeenMs);
+            }).length;
+            const teamChatUnreadSignature = (teamChatMessages || []).filter(message => {
+                if (!message || message.authorUid === (user?.uid || 'local')) return false;
+                const messageMs = message.timestamp ? new Date(message.timestamp).getTime() : 0;
+                return Number.isFinite(messageMs) && (!teamChatSeenAt || messageMs > teamChatSeenMs);
+            }).map(message => message.id || message.timestamp).join('|');
             const shiftNoteNotificationItems = getShiftNoteNotificationItems();
             const shiftNoteNotificationCount = shiftNoteNotificationItems.length;
             const shiftNoteNotificationSignature = shiftNoteNotificationItems.map(item => item.id).join('|');
+            useEffect(() => {
+                if (isLoading) return;
+                if (teamChatSoundSignature.current === null) {
+                    teamChatSoundSignature.current = teamChatUnreadSignature;
+                    return;
+                }
+                if (teamChatUnreadCount > 0 && teamChatUnreadSignature !== teamChatSoundSignature.current) {
+                    const playTeamChatChime = async () => {
+                        if (!window.Tone || window.Tone.context.state !== 'running') return;
+                        try {
+                            const synth = new window.Tone.PolySynth(window.Tone.Synth, {
+                                oscillator: { type: "sine" },
+                                envelope: { attack: 0.02, decay: 0.08, sustain: 0.08, release: 0.8 }
+                            }).toDestination();
+                            synth.volume.value = -14;
+                            const now = window.Tone.now();
+                            synth.triggerAttackRelease("E5", "16n", now);
+                            synth.triggerAttackRelease("B5", "16n", now + 0.12);
+                        } catch (e) {}
+                    };
+                    playTeamChatChime();
+                }
+                teamChatSoundSignature.current = teamChatUnreadSignature;
+            }, [teamChatUnreadSignature, teamChatUnreadCount, isLoading]);
+
             useEffect(() => {
                 if (isLoading) return;
                 if (shiftNoteNotificationSoundSignature.current === null || shiftNoteNotificationSoundDate.current !== activeDate) {
@@ -3437,22 +3644,74 @@
                                             </div>
                                             <div className="max-h-80 overflow-y-auto">
                                                 {shiftNoteNotificationItems.length === 0 ? (
-                                                    <div className="px-4 py-8 text-center text-xs font-bold text-slate-500">No new likes or replies.</div>
+                                                    <div className="px-4 py-8 text-center text-xs font-bold text-slate-500">
+                                                        <div>No new likes or replies.</div>
+                                                    </div>
                                                 ) : (
                                                     shiftNoteNotificationItems.map(item => (
-                                                        <button key={item.id} type="button" onClick={() => openShiftNoteFromNotification(item.noteId)} className="w-full border-b border-slate-800 px-4 py-3 text-left hover:bg-slate-900/80 transition-colors cursor-pointer last:border-b-0">
+                                                        <button key={item.id} type="button" onClick={() => openShiftNoteFromNotification(item)} className="w-full border-b border-slate-800 px-4 py-3 text-left hover:bg-slate-900/80 transition-colors cursor-pointer last:border-b-0">
                                                             <div className="flex items-start gap-3">
                                                                 <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${item.type === 'like' ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'}`}>
                                                                     {item.type === 'like' ? <ThumbsUp className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
                                                                 </span>
                                                                 <span className="min-w-0 flex-1">
                                                                     <span className="block text-xs font-black text-slate-100">{item.message}</span>
+                                                                    <span className="mt-0.5 block text-[9px] font-black uppercase tracking-widest text-slate-600">{item.dateLabel}</span>
                                                                     <span className="mt-1 block truncate text-[11px] font-semibold text-slate-500">{item.preview}</span>
                                                                 </span>
                                                             </div>
                                                         </button>
                                                     ))
                                                 )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="relative">
+                                    <button onClick={() => { setIsTeamChatOpen(prev => !prev); setIsShiftNotificationOpen(false); }} className={`p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${isTeamChatOpen ? 'text-indigo-300' : 'text-slate-300 hover:text-white'}`} title="Team Chat">
+                                        <MessageSquare className="w-4 h-4" />
+                                        {!isTeamChatOpen && teamChatUnreadCount > 0 && (
+                                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-indigo-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-indigo-950/40">{teamChatUnreadCount > 9 ? '9+' : teamChatUnreadCount}</span>
+                                        )}
+                                    </button>
+                                    {isTeamChatOpen && (
+                                        <div role="dialog" data-dashboard-edit-ignore="true" className="absolute right-0 top-8 z-[120] w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                            <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+                                                <div>
+                                                    <div className="text-xs font-black uppercase tracking-widest text-white">Team Chat</div>
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Local group chat</div>
+                                                </div>
+                                                <button type="button" onClick={() => setIsTeamChatOpen(false)} className="rounded-lg border border-slate-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">Close</button>
+                                            </div>
+                                            <div className="max-h-80 min-h-[220px] overflow-y-auto px-4 py-3 space-y-3 bg-slate-950/90">
+                                                {teamChatMessages.length === 0 ? (
+                                                    <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">No team messages yet.</div>
+                                                ) : (
+                                                    teamChatMessages.map(message => {
+                                                        const mine = message.authorUid === (user?.uid || 'local');
+                                                        const seenNames = Array.isArray(message.seenBy) ? message.seenBy.filter(entry => entry.uid !== (user?.uid || 'local')).map(entry => entry.name || 'User') : [];
+                                                        return (
+                                                            <div key={message.id || message.timestamp} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                                                                <div className={`max-w-[85%] rounded-2xl border px-3 py-2 ${mine ? 'border-indigo-500/40 bg-indigo-600/20 text-slate-100' : 'border-slate-700 bg-slate-900 text-slate-200'}`}>
+                                                                    <div className="mb-1 flex items-center justify-between gap-3">
+                                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{mine ? 'You' : String(message.author || 'Team')}</span>
+                                                                        <span className="text-[9px] font-bold text-slate-600">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>
+                                                                    </div>
+                                                                    <div className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed">{String(message.text || '')}</div>
+                                                                    {mine && seenNames.length > 0 && (
+                                                                        <div className="mt-1 text-[9px] font-bold text-indigo-200/70">Seen by {seenNames.join(', ')}</div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                                <div ref={teamChatEndRef} />
+                                            </div>
+                                            {teamChatError && <div className="border-t border-rose-900/40 bg-rose-950/30 px-4 py-2 text-[11px] font-semibold text-rose-300">{teamChatError}</div>}
+                                            <div className="flex items-end gap-2 border-t border-slate-800 bg-slate-900/80 px-3 py-3">
+                                                <textarea value={teamChatDraft} onChange={(event) => setTeamChatDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTeamChatMessage(); } }} rows="2" placeholder="Write a team message..." className="min-h-[42px] flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500" />
+                                                <button type="button" onClick={sendTeamChatMessage} disabled={!String(teamChatDraft || '').trim()} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">Send</button>
                                             </div>
                                         </div>
                                     )}
@@ -3625,28 +3884,22 @@
                                         <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md relative overflow-hidden group">
                                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none"><Truck className="w-24 h-24 text-slate-100" /></div>
                                             <span className="text-slate-400 text-[11px] font-bold uppercase tracking-widest block mb-1 relative z-10">Number of Routes</span>
-                                            {isEditing ? (
-                                                <input className="bg-slate-900 border border-slate-700 rounded px-2 text-xl font-bold w-full focus:ring-1 focus:ring-indigo-500 outline-none text-white relative z-10" value={String(data.loadout?.metrics?.[0]?.value || '0')} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.loadout.metrics[0].value = e.target.value; setData(nd); }} />
-                                            ) : (
-                                                <div className="flex items-baseline gap-3 relative z-10">
-                                                    <div className="text-3xl font-black text-white">{String(data.loadout?.metrics?.[0]?.value || '0')}</div>
-                                                    <TrendIndicator current={Number(data.loadout?.metrics?.[0]?.value || '0')} previous={trends.yesterday.routes} isPercent={false} />
-                                                </div>
-                                            )}
+                                            <div className="flex items-baseline gap-3 relative z-10">
+                                                <div className="text-3xl font-black text-white">{String(currentKPI.routes || 0)}</div>
+                                                <TrendIndicator current={Number(currentKPI.routes || 0)} previous={trends.yesterday.routes} isPercent={false} />
+                                            </div>
+                                            {isEditing && <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-slate-500 relative z-10">Auto from Routes tab</div>}
                                         </div>
 
                                         <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md relative overflow-hidden group transition-all">
                                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none text-slate-100"><Package className="w-24 h-24" /></div>
                                             <div className="relative z-10">
                                                 <span className="text-slate-400 text-[11px] font-bold uppercase tracking-widest block mb-1">Number of Same Day Routes</span>
-                                                {isEditing ? (
-                                                    <input className="bg-slate-900 border border-slate-700 rounded px-2 text-xl font-bold w-full focus:ring-1 focus:ring-indigo-500 outline-none text-white relative z-10" value={String(data.loadout?.metrics?.[1]?.value || '0')} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.loadout.metrics[1].value = e.target.value; setData(nd); }} />
-                                                ) : (
-                                                    <div className="flex items-baseline gap-3 relative z-10">
-                                                        <div className="text-3xl font-black text-white">{String(data.loadout?.metrics?.[1]?.value || '0')}</div>
-                                                        <TrendIndicator current={Number(data.loadout?.metrics?.[1]?.value || '0')} previous={trends.yesterday.orders} isPercent={false} />
-                                                    </div>
-                                                )}
+                                                <div className="flex items-baseline gap-3 relative z-10">
+                                                    <div className="text-3xl font-black text-white">{String(currentKPI.sameDayRoutes || 0)}</div>
+                                                    <TrendIndicator current={Number(currentKPI.sameDayRoutes || 0)} previous={trends.yesterday.sameDayRoutes} isPercent={false} />
+                                                </div>
+                                                {isEditing && <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-slate-500 relative z-10">Auto from Same Day routes</div>}
                                             </div>
                                         </div>
                                     </div>
@@ -3683,7 +3936,7 @@
                                                         <TrendIndicator current={item.perc} previous={item.prev} inverse={item.inverse} isPercent={!item.isException} />
                                                     </div>
                                                     {isEditing ? (
-                                                        <input className="w-full bg-slate-900 text-xl font-bold p-1 rounded focus:ring-1 focus:ring-indigo-500 outline-none border border-slate-600 text-white" value={String(item.count)} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd[item.section][item.key] = e.target.value; setData(nd); }} />
+                                                        <input className="w-full bg-slate-900 text-xl font-bold p-1 rounded focus:ring-1 focus:ring-indigo-500 outline-none border border-slate-600 text-white placeholder-slate-500" inputMode="numeric" pattern="[0-9]*" placeholder="0" value={String(item.count) === '0' ? '' : String(item.count)} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const digits = String(e.target.value).replace(/\D/g, ''); const rawVal = digits === '' ? 0 : Math.max(0, Number(digits) || 0); nd[item.section][item.key] = item.isException ? String(rawVal) : String(Math.min(rawVal, Number(item.total || 0))); setData(nd); }} />
                                                     ) : (
                                                         <div className="w-full bg-slate-900 rounded-full h-1.5">
                                                             <div className={`h-1.5 rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Number(item.perc || 0)}%` }}></div>
