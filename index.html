@@ -507,6 +507,7 @@
                 transform: translateY(1px) rotate(0.4deg) scale(1.002);
             }
         }
+        @media (hover: none) { .chat-message-edit { opacity: 1 !important; } }
         .metric-ring-value {
             display: inline-block;
             opacity: 0.58;
@@ -1147,6 +1148,9 @@
             const [teamChatDraft, setTeamChatDraft] = useState('');
             const [teamChatError, setTeamChatError] = useState('');
             const [teamChatSeenAt, setTeamChatSeenAt] = useState('');
+            const [editingChatId, setEditingChatId] = useState(null);
+            const [editingChatText, setEditingChatText] = useState('');
+            const [isSavingChatEdit, setIsSavingChatEdit] = useState(false);
             const dashboardRef = useRef(null);
             const teamChatEndRef = useRef(null);
             const backgroundEditGestureRef = useRef(false);
@@ -3140,6 +3144,7 @@
                 const timestamp = latestMessageTime ? new Date(latestMessageTime).toISOString() : new Date().toISOString();
                 localStorage.setItem(getTeamChatSeenKey(user.uid), timestamp);
                 setTeamChatSeenAt(timestamp);
+                const visibleIds = new Set(teamChatMessages.map(message => message.id));
                 if (!db || !(teamChatMessages || []).some(message => message.authorUid && message.authorUid !== current.uid)) return;
                 try {
                     const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
@@ -3148,7 +3153,7 @@
                         const existing = chatSnap.exists() && Array.isArray(chatSnap.data().messages) ? chatSnap.data().messages : [];
                         let changed = false;
                         const messages = existing.map(message => {
-                            if (!message?.id || message.authorUid === current.uid) return message;
+                            if (!message?.id || !visibleIds.has(message.id) || message.authorUid === current.uid) return message;
                             const seenBy = Array.isArray(message.seenBy) ? message.seenBy : [];
                             const alreadySeen = seenBy.some(entry => entry.uid === current.uid);
                             if (alreadySeen) return message;
@@ -3164,6 +3169,34 @@
                     });
                 } catch (error) {
                     console.error('Failed to update team chat read receipts:', error);
+                }
+            };
+
+            useEffect(() => {
+                if (isTeamChatOpen && user && teamChatMessages.length) markTeamChatSeen();
+            }, [isTeamChatOpen, user?.uid, teamChatMessages]);
+
+            const saveTeamChatEdit = async () => {
+                const text = editingChatText.trim();
+                if (!text || !db || !user || isSavingChatEdit) return;
+                setIsSavingChatEdit(true);
+                setTeamChatError('');
+                try {
+                    const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
+                    await runTransaction(db, async transaction => {
+                        const snapshot = await transaction.get(chatRef);
+                        const messages = snapshot.exists() ? snapshot.data().messages || [] : [];
+                        const target = messages.find(message => message.id === editingChatId);
+                        if (!target || target.authorUid !== user.uid) throw new Error('Message unavailable');
+                        transaction.set(chatRef, { messages: messages.map(message => message.id === editingChatId
+                            ? { ...message, text, editedAt: new Date().toISOString() } : message) }, { merge: true });
+                    });
+                    setEditingChatId(null);
+                    setEditingChatText('');
+                } catch (error) {
+                    setTeamChatError('Your edit could not be saved. Please try again.');
+                } finally {
+                    setIsSavingChatEdit(false);
                 }
             };
 
@@ -3671,7 +3704,7 @@
                                     <button onClick={() => { setIsTeamChatOpen(prev => !prev); setIsShiftNotificationOpen(false); }} className={`p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${isTeamChatOpen ? 'text-indigo-300' : 'text-slate-300 hover:text-white'}`} title="Team Chat">
                                         <MessageSquare className="w-4 h-4" />
                                         {!isTeamChatOpen && teamChatUnreadCount > 0 && (
-                                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-indigo-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-indigo-950/40">{teamChatUnreadCount > 9 ? '9+' : teamChatUnreadCount}</span>
+                                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{teamChatUnreadCount > 9 ? '9+' : teamChatUnreadCount}</span>
                                         )}
                                     </button>
                                     {isTeamChatOpen && (
@@ -3692,12 +3725,26 @@
                                                         const seenNames = Array.isArray(message.seenBy) ? message.seenBy.filter(entry => entry.uid !== (user?.uid || 'local')).map(entry => entry.name || 'User') : [];
                                                         return (
                                                             <div key={message.id || message.timestamp} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                                                                <div className={`max-w-[85%] rounded-2xl border px-3 py-2 ${mine ? 'border-indigo-500/40 bg-indigo-600/20 text-slate-100' : 'border-slate-700 bg-slate-900 text-slate-200'}`}>
+                                                                <div className={`group max-w-[85%] rounded-2xl border px-3 py-2 ${mine ? 'border-indigo-500/40 bg-indigo-600/20 text-slate-100' : 'border-slate-700 bg-slate-900 text-slate-200'}`}>
                                                                     <div className="mb-1 flex items-center justify-between gap-3">
                                                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{mine ? 'You' : String(message.author || 'Team')}</span>
                                                                         <span className="text-[9px] font-bold text-slate-600">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>
                                                                     </div>
-                                                                    <div className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed">{String(message.text || '')}</div>
+                                                                    {editingChatId === message.id ? (
+                                                                        <div>
+                                                                            <textarea aria-label="Edit message" value={editingChatText} onChange={event => setEditingChatText(event.target.value)} disabled={isSavingChatEdit} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3" />
+                                                                            <div className="flex gap-3 mt-2">
+                                                                                <button type="button" disabled={isSavingChatEdit || !editingChatText.trim()} onClick={saveTeamChatEdit} className="text-xs text-emerald-300 disabled:opacity-40">Save</button>
+                                                                                <button type="button" disabled={isSavingChatEdit} onClick={() => setEditingChatId(null)} className="text-xs text-slate-300">Cancel</button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div>
+                                                                            <div className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed">{String(message.text || '')}</div>
+                                                                            {message.editedAt && <span className="text-[9px] text-slate-400">Edited</span>}
+                                                                            {mine && <button type="button" onClick={() => { setEditingChatId(message.id); setEditingChatText(message.text || ''); }} className="chat-message-edit ml-2 text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Edit your message">Edit</button>}
+                                                                        </div>
+                                                                    )}
                                                                     {mine && seenNames.length > 0 && (
                                                                         <div className="mt-1 text-[9px] font-bold text-indigo-200/70">Seen by {seenNames.join(', ')}</div>
                                                                     )}
@@ -3953,11 +4000,11 @@
                                         const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
                                         
                                         const yesterdayData = historyData.find(h => h.date === yesterdayStr) || null;
-                                        const yesterdayMtdTotals = yesterdayData?.metricsTracker?.mtdTotals || { surveyCnt: 0, surveyAvg: 0, onTime: 0, completion: 0, exchange: 0 };
+                                        const yesterdayMtdTotals = yesterdayData?.metricsTracker?.mtdTotals || calculateMetricsTotals(yesterdayData?.metricsTracker?.mtd) || { surveyCnt: 0, surveyAvg: 0, onTime: 0, completion: 0, exchange: 0 };
                                         
-                                        const mtdTotals = data.metricsTracker?.mtdTotals || { surveyCnt: 0, surveyAvg: 0, onTime: 0, completion: 0, exchange: 0 };
+                                        const mtdTotals = data.metricsTracker?.mtdTotals || calculateMetricsTotals(data.metricsTracker?.mtd) || { surveyCnt: 0, surveyAvg: 0, onTime: 0, completion: 0, exchange: 0 };
                                         const mtdTargetCnt = 800;
-                                        const wtdTotals = data.metricsTracker?.wtdTotals || { surveyCnt: 0, surveyAvg: 0, onTime: 0, completion: 0, exchange: 0 };
+                                        const wtdTotals = data.metricsTracker?.wtdTotals || calculateMetricsTotals(data.metricsTracker?.wtd) || { surveyCnt: 0, surveyAvg: 0, onTime: 0, completion: 0, exchange: 0 };
 
                                         const getScoreColor = (type, val) => {
                                             const num = Number(val);
