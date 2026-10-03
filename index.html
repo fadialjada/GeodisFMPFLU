@@ -80,7 +80,26 @@
 
             .dashboard-page-shell {
                 overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
                 touch-action: pan-x pan-y;
+            }
+
+            .dashboard-page-shell .overflow-x-auto,
+            .dashboard-page-shell .dashboard-scroll-area {
+                max-width: calc(100vw - 1rem) !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior-x: contain;
+                touch-action: pan-x pan-y;
+            }
+
+            .dashboard-page-shell table {
+                table-layout: auto;
+            }
+
+            .dashboard-page-shell table th,
+            .dashboard-page-shell table td {
+                white-space: nowrap;
             }
         }
         html.show-dashboard-scrollbar,
@@ -444,33 +463,13 @@
             }
         }
         @keyframes metricRingHeartbeat {
-            0%, 42%, 100% {
+            0%, 30%, 100% {
                 opacity: 0.38;
-                filter: brightness(0.86);
+                filter: brightness(0.86) drop-shadow(0 0 0 currentColor);
             }
-            50% {
-                opacity: 0.88;
-                filter: brightness(1.12);
-            }
-            58% {
-                opacity: 0.42;
-                filter: brightness(0.88);
-            }
-            66% {
-                opacity: 0.84;
-                filter: brightness(1.1);
-            }
-            74% {
-                opacity: 0.42;
-                filter: brightness(0.88);
-            }
-            82% {
-                opacity: 0.8;
-                filter: brightness(1.08);
-            }
-            90% {
-                opacity: 0.38;
-                filter: brightness(0.86);
+            65% {
+                opacity: 0.72;
+                filter: brightness(1.04) drop-shadow(0 0 2px currentColor) drop-shadow(0 0 4px currentColor);
             }
         }
         @keyframes metricRingExpandDisappear {
@@ -483,6 +482,29 @@
                 opacity: 0;
                 filter: brightness(1.04);
                 transform: scale(1.82);
+            }
+        }
+        @keyframes metricRingHourlyDance {
+            0%, 1.25%, 100% {
+                transform: translateY(0) rotate(0deg) scale(1);
+            }
+            0.16% {
+                transform: translateY(-3px) rotate(-1.2deg) scale(1.025);
+            }
+            0.32% {
+                transform: translateY(2px) rotate(1.1deg) scale(0.995);
+            }
+            0.48% {
+                transform: translateY(-2px) rotate(0.8deg) scale(1.018);
+            }
+            0.64% {
+                transform: translateY(1px) rotate(-0.7deg) scale(1.004);
+            }
+            0.8% {
+                transform: translateY(-2px) rotate(-0.4deg) scale(1.015);
+            }
+            0.96% {
+                transform: translateY(1px) rotate(0.4deg) scale(1.002);
             }
         }
         .metric-ring-value {
@@ -498,6 +520,9 @@
         }
         .metric-ring-card svg {
             overflow: visible;
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: metricRingHourlyDance 3600s ease-in-out infinite;
         }
         .metric-ring-stroke {
             opacity: 0.38;
@@ -561,7 +586,7 @@
             Camera, Activity, AlertTriangle, ArrowUp, Minus, Target, Download, 
             Table as TableIcon, Trash2, Route, Settings, ClipboardPaste, Award, DollarSign,
             PlusCircle, X, Loader2, ActivitySquare, MessageSquare, User, Share2,
-            FileText, History, Maximize, Minimize
+            FileText, History, Maximize, Minimize, Bell, ThumbsUp
         } from 'lucide-react';
 
         let firebaseConfig = {
@@ -1045,6 +1070,7 @@
         };
 
         const getUserNameKey = (uid) => `geodis_user_name_${uid}`;
+        const getShiftNoteSeenKey = (uid, dateKey) => `geodis_shift_note_seen_${uid || 'local'}_${dateKey}`;
         const PRESENCE_AWAY_AFTER_MS = 10 * 60 * 1000;
         const SCREENSHOT_BACKGROUND = '#1b1f25';
         const prepareScreenshotSurface = (surface) => {
@@ -1109,7 +1135,12 @@
             const [activeTab, setActiveTab] = useState('overview');
             const [isCapturing, setIsCapturing] = useState(false);
             const [isLoading, setIsLoading] = useState(true);
+            const [shiftNoteSeenAt, setShiftNoteSeenAt] = useState('');
+            const [isShiftNotificationOpen, setIsShiftNotificationOpen] = useState(false);
+            const [highlightedShiftNoteId, setHighlightedShiftNoteId] = useState(null);
             const dashboardRef = useRef(null);
+            const backgroundEditGestureRef = useRef(false);
+            const dashboardSaveInFlightRef = useRef(false);
             const parkingScreenshotRef = useRef(null);
             const preloadScreenshotRef = useRef(null);
             const masterScreenshotRef = useRef(null);
@@ -1177,6 +1208,26 @@
                 };
             };
             const getComplianceAckKey = (alertId, dateKey = getChicagoDateKey()) => `geodis_compliance_ack_${dateKey}_${alertId}`;
+            const getPreloadArrivalConfirmKey = (dateKey = getChicagoDateKey()) => `geodis_preload_arrival_confirmed_${dateKey}`;
+            const getPreloadArrivalSnoozeKey = (dateKey = getChicagoDateKey()) => `geodis_preload_arrival_snooze_until_${dateKey}`;
+            const timeToMinutes = (value = '') => {
+                const [hour = '0', minute = '0'] = String(value).split(':');
+                return (Number(hour) || 0) * 60 + (Number(minute) || 0);
+            };
+            const formatReminderClock = (value = '') => {
+                const [hour = '0', minute = '0'] = String(value).split(':');
+                const date = new Date();
+                date.setHours(Number(hour) || 0, Number(minute) || 0, 0, 0);
+                return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            };
+            const getNextPreloadArrivalSnooze = () => {
+                const { hours, mins } = getChicagoTimeParts();
+                const nowMinutes = hours * 60 + mins;
+                if (nowMinutes < timeToMinutes('17:30')) return { value: '17:30', label: '5:30 PM' };
+                if (nowMinutes < timeToMinutes('18:00')) return { value: '18:00', label: '6:00 PM' };
+                if (nowMinutes < timeToMinutes('18:30')) return { value: '18:30', label: '6:30 PM' };
+                return null;
+            };
             const getAssignmentAckStorageKey = (alertKey) => `geodis_assignment_ack_${alertKey}`;
 
             // Alerts State
@@ -1184,9 +1235,21 @@
             const [isAcknowledgingPreload, setIsAcknowledgingPreload] = useState(false);
             const [preloadAckError, setPreloadAckError] = useState('');
             const preloadAckInFlight = useRef(false);
+            const [showPreloadArrivalAlert, setShowPreloadArrivalAlert] = useState(false);
+            const [isConfirmingPreloadArrival, setIsConfirmingPreloadArrival] = useState(false);
+            const [preloadArrivalError, setPreloadArrivalError] = useState('');
+            const preloadArrivalConfirmInFlight = useRef(false);
             const [preloadDismissed, setPreloadDismissed] = useState(() => {
                 const todayKey = getChicagoDateKey();
                 return localStorage.getItem(`geodis_preload_ack_${todayKey}`) === 'true';
+            });
+            const [preloadArrivalConfirmed, setPreloadArrivalConfirmed] = useState(() => {
+                const todayKey = getChicagoDateKey();
+                return localStorage.getItem(getPreloadArrivalConfirmKey(todayKey)) === 'true';
+            });
+            const [preloadArrivalSnoozedUntil, setPreloadArrivalSnoozedUntil] = useState(() => {
+                const todayKey = getChicagoDateKey();
+                return localStorage.getItem(getPreloadArrivalSnoozeKey(todayKey)) || '';
             });
             const [timeAlerts, setTimeAlerts] = useState({ show12: false, show17: false, show19: false });
             const [dismissedAlerts, setDismissedAlerts] = useState(() => {
@@ -1219,9 +1282,11 @@
             };
 
             const [masterLists, setMasterLists] = useState(DEFAULT_MASTER_LISTS);
-            const playedAlerts = useRef({ 12: false, 1230: false, 17: false, 19: false });
+            const playedAlerts = useRef({ 12: false, 1230: false, 1730: false, 17: false, 19: false });
             const urgentNoteCount = useRef(0);
             const wasLoading = useRef(true);
+            const shiftNoteNotificationSoundSignature = useRef(null);
+            const shiftNoteNotificationSoundDate = useRef(null);
 
             const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
             const [masterActiveTab, setMasterActiveTab] = useState('contractors');
@@ -1231,7 +1296,7 @@
             const [isBonusFullscreen, setIsBonusFullscreen] = useState(false);
             const [newMasterItem, setNewMasterItem] = useState({ name: '', phone: '', total: '', planned: '' });
             const [editingMasterId, setEditingMasterId] = useState(null);
-            const [editMasterValues, setEditMasterValues] = useState({ name: '', phone: '', total: '', planned: '' });
+            const [editMasterValues, setEditMasterValues] = useState({ name: '', phone: '', owner: '', total: '', planned: '' });
 
             const NOTE_CATEGORIES = ["URGENT","Follow-up","Incident","Driver Calls","Driver Issue","Damage/Loss","Facility","Safety","General"];
             const getDriverCallPeople = () => Array.from(new Set([
@@ -1256,17 +1321,19 @@
                     setDriverCallError('Enter the route, stop number, driver, customer name, SO / RMA number, and call notes before adding the entry.');
                     return;
                 }
-                const acknowledgedBy = cleanFirstName(userName || getDefaultUserName(auth?.currentUser));
+                const current = getCurrentShiftUser();
+                const acknowledgedBy = cleanFirstName(current.name);
                 const timestamp = new Date().toISOString();
                 const newId = Math.max(0, ...(data.shiftNotes || []).map(n => Number(n.id) || 0)) + 1;
                 const driverCall = { route, stopNumber, driver, customerName, soRma, note: noteText };
                 const nd = JSON.parse(JSON.stringify(data));
                 if (!nd.shiftNotes) nd.shiftNotes = [];
-                nd.shiftNotes.push({
+                nd.shiftNotes.unshift({
                     id: newId,
                     text: formatDriverCallText(driverCall),
                     category: 'Driver Calls',
                     author: acknowledgedBy,
+                    authorUid: current.uid,
                     timestamp,
                     noteType: 'driver-call',
                     driverCall,
@@ -1299,6 +1366,14 @@
                     } else {
                         setShowPreloadAlert(false);
                     }
+                    const nowMinutes = hours * 60 + mins;
+                    const arrivalStartsAt = timeToMinutes('17:00');
+                    const arrivalSnoozeUntil = localStorage.getItem(getPreloadArrivalSnoozeKey(todayKey)) || '';
+                    const isArrivalConfirmed = localStorage.getItem(getPreloadArrivalConfirmKey(todayKey)) === 'true';
+                    const isArrivalSnoozed = arrivalSnoozeUntil && nowMinutes < timeToMinutes(arrivalSnoozeUntil);
+                    setPreloadArrivalSnoozedUntil(arrivalSnoozeUntil);
+                    setPreloadArrivalConfirmed(isArrivalConfirmed);
+                    setShowPreloadArrivalAlert(nowMinutes >= arrivalStartsAt && !isArrivalConfirmed && !isArrivalSnoozed);
 
                     // Route Update Alerts trigger at 12 PM, 5 PM (17), and 7 PM (19)
                     setTimeAlerts({ show12: hours >= 12, show17: hours >= 17, show19: hours >= 19 });
@@ -1371,6 +1446,93 @@
                     preloadAckInFlight.current = false;
                     setIsAcknowledgingPreload(false);
                 }
+            };
+
+            const confirmPreloadArrival = async () => {
+                const todayKey = getChicagoDateKey();
+                if (activeDate !== todayKey || isLoading || preloadArrivalConfirmInFlight.current) return;
+                preloadArrivalConfirmInFlight.current = true;
+                setIsConfirmingPreloadArrival(true);
+                setPreloadArrivalError('');
+                const currentUser = auth?.currentUser || user;
+                const currentUid = currentUser?.uid || 'local';
+                const confirmedBy = cleanFirstName((masterLists.nameOverrides || {})[currentUid] || userName || getDefaultUserName(currentUser));
+                const confirmedAt = new Date();
+                const timestamp = confirmedAt.toISOString();
+                const timeLabel = confirmedAt.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' });
+                const addConfirmationNote = (notes = []) => {
+                    const existingNote = notes.find(n => n.system && n.preloadArrivalDate === todayKey && n.preloadArrivalConfirmed === true);
+                    const note = existingNote || {
+                        id: Math.max(0, ...notes.map(n => Number(n.id) || 0)) + 1,
+                        text: `Preload arrival 5:00 PM was confirmed by ${confirmedBy} at ${timeLabel} Central.`,
+                        category: 'General',
+                        author: confirmedBy,
+                        authorUid: currentUid,
+                        timestamp,
+                        system: true,
+                        preloadArrivalConfirmed: true,
+                        preloadArrivalDate: todayKey,
+                        replies: []
+                    };
+                    return { note, notes: existingNote ? notes : [...notes, note] };
+                };
+                try {
+                    if (db) {
+                        const recapRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', todayKey);
+                        const preloadRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', todayKey);
+                        await runTransaction(db, async transaction => {
+                            const recapSnap = await transaction.get(recapRef);
+                            const preloadSnap = await transaction.get(preloadRef);
+                            const recap = recapSnap.exists() ? recapSnap.data() : {};
+                            const preloadSchedule = preloadSnap.exists() ? preloadSnap.data() : {};
+                            const { notes } = addConfirmationNote(recap.shiftNotes || []);
+                            transaction.set(recapRef, {
+                                shiftNotes: notes,
+                                lastUpdatedBy: confirmedBy,
+                                lastUpdatedAt: timestamp
+                            }, { merge: true });
+                            transaction.set(preloadRef, {
+                                ...preloadSchedule,
+                                status: 'Completed',
+                                lastUpdatedBy: confirmedBy,
+                                lastUpdatedAt: timestamp
+                            }, { merge: true });
+                        });
+                    } else {
+                        const { notes } = addConfirmationNote(data.shiftNotes || []);
+                        setData(prev => ({ ...prev, shiftNotes: notes }));
+                    }
+                    setAllPreloadSchedules(prev => ({
+                        ...prev,
+                        [todayKey]: {
+                            ...(prev[todayKey] || { contractor: '', door: '' }),
+                            status: 'Completed',
+                            lastUpdatedBy: confirmedBy,
+                            lastUpdatedAt: timestamp
+                        }
+                    }));
+                    localStorage.setItem(getPreloadArrivalConfirmKey(todayKey), 'true');
+                    localStorage.removeItem(getPreloadArrivalSnoozeKey(todayKey));
+                    setPreloadArrivalConfirmed(true);
+                    setPreloadArrivalSnoozedUntil('');
+                    setShowPreloadArrivalAlert(false);
+                } catch(e) {
+                    console.error("Failed to sync preload arrival confirmation:", e);
+                    setPreloadArrivalError('Could not save the arrival confirmation. Please try again.');
+                } finally {
+                    preloadArrivalConfirmInFlight.current = false;
+                    setIsConfirmingPreloadArrival(false);
+                }
+            };
+
+            const snoozePreloadArrivalReminder = () => {
+                const todayKey = getChicagoDateKey();
+                const nextSnooze = getNextPreloadArrivalSnooze();
+                if (!nextSnooze) return;
+                localStorage.setItem(getPreloadArrivalSnoozeKey(todayKey), nextSnooze.value);
+                setPreloadArrivalSnoozedUntil(nextSnooze.value);
+                setShowPreloadArrivalAlert(false);
+                playedAlerts.current[1730] = false;
             };
 
             const acknowledgeComplianceReminder = async (alertId, label, timeStr) => {
@@ -1483,10 +1645,12 @@
                 if (isViewingToday && timeAlerts.show17 && !playedAlerts.current[17]) { playStandardChime(); playedAlerts.current[17] = true; }
                 if (isViewingToday && timeAlerts.show19 && !playedAlerts.current[19]) { playStandardChime(); playedAlerts.current[19] = true; }
                 if (isViewingToday && showPreloadAlert && !playedAlerts.current[1230]) { playStandardChime(); playedAlerts.current[1230] = true; }
+                if (!showPreloadArrivalAlert) playedAlerts.current[1730] = false;
+                if (isViewingToday && showPreloadArrivalAlert && !playedAlerts.current[1730]) { playStandardChime(); playedAlerts.current[1730] = true; }
 
                 const h = getChicagoTimeParts().hours;
-                if (h < 12) { playedAlerts.current = { 12: false, 1230: false, 17: false, 19: false }; }
-            }, [timeAlerts, showPreloadAlert, activeDate]);
+                if (h < 12) { playedAlerts.current = { 12: false, 1230: false, 1730: false, 17: false, 19: false }; }
+            }, [timeAlerts, showPreloadAlert, showPreloadArrivalAlert, activeDate]);
 
             // Sound Trigger: Urgent Notes
             useEffect(() => {
@@ -1744,7 +1908,7 @@
                         lastPresenceWrite = now;
                         await setDoc(presenceRef, {
                             uid: currentUser.uid,
-                            name: cleanFirstName(userName || getDefaultUserName(currentUser)),
+                            name: getSavedDisplayName(currentUser),
                             lastActive: lastInteraction,
                             lastInteraction,
                             lastSeen: now,
@@ -1800,17 +1964,50 @@
                     activityEvents.forEach(eventName => window.removeEventListener(eventName, markUserActivity, true));
                     document.removeEventListener('visibilitychange', handleVisibilityChange);
                 };
-            }, [user, userName]);
+            }, [user, userName, masterLists.nameOverrides]);
+
+            const isDashboardBackgroundEvent = (event, allowDoubleClickSelection = false) => {
+                if (!user || isLoading || isCapturing || dashboardSaveInFlightRef.current || event.defaultPrevented) return false;
+                if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+                if (isPreloadModalOpen || isParkingModalOpen || isMasterModalOpen || recordToDelete || isCreatingDriverCall || isHeaderCalendarOpen) return false;
+                if (!allowDoubleClickSelection && window.getSelection()?.toString().trim()) return false;
+
+                const target = event.target;
+                if (!(target instanceof Element)) return false;
+                const controls = 'button, a, input, select, textarea, label, summary, video, audio, [contenteditable]:not([contenteditable="false"]), [role="button"], [role="link"], [role="dialog"], [tabindex], .cursor-pointer, [data-dashboard-edit-ignore], header, nav, footer';
+                return !target.closest(controls);
+            };
+
+            const handleDashboardBackgroundClick = (event) => {
+                // Follow-up clicks in the same gesture must not save just
+                // after entering edit mode, or reopen editing after a save.
+                if (event.detail > 1) return;
+                backgroundEditGestureRef.current = false;
+                if (!isDashboardBackgroundEvent(event)) return;
+                backgroundEditGestureRef.current = !isEditing;
+                if (isEditing) handleSave();
+            };
+
+            const handleDashboardBackgroundDoubleClick = (event) => {
+                const startedWhileViewing = backgroundEditGestureRef.current;
+                backgroundEditGestureRef.current = false;
+                if (!startedWhileViewing || isEditing || !isDashboardBackgroundEvent(event, true)) return;
+                event.preventDefault();
+                window.getSelection()?.removeAllRanges();
+                setIsEditing(true);
+            };
 
             const handleSave = async () => {
+                if (dashboardSaveInFlightRef.current) return;
                 setIsEditing(false);
                 if (!db) return; // local mode bypass
-                let currentUid ="local";
-                if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
-                const dataToSave = normalizeMetricsNameData(data);
-                setData(dataToSave);
-                
+                dashboardSaveInFlightRef.current = true;
                 try {
+                    let currentUid ="local";
+                    if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
+                    const dataToSave = normalizeMetricsNameData(data);
+                    setData(dataToSave);
+                
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
                     await setDoc(docRef, { ...dataToSave, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
 
@@ -1925,6 +2122,8 @@
                     if (isOfficeSave) setIsOfficeOneTimeChange(false);
                 } catch (e) {
                     console.error("Save failed:", e);
+                } finally {
+                    dashboardSaveInFlightRef.current = false;
                 }
             };
 
@@ -2546,6 +2745,19 @@
             const isAdminUser = Boolean(user && (String(user.email || '').toLowerCase().includes('fadi') || cleanFirstName(userName) === 'Fadi'));
             const canOpenMasterLists = Boolean(user);
             const canEditMasterItem = isAdminUser || masterActiveTab === 'contractors';
+            const getSavedDisplayName = (currentUser) => cleanFirstName((masterLists.nameOverrides || {})[currentUser?.uid] || userName || getDefaultUserName(currentUser));
+            const getRoutePersonPhoneTitle = (col, name) => {
+                if (!name || (col.key !== 'driver' && col.key !== 'helper')) return undefined;
+                const targetName = normalizeAssignmentName(name).toLowerCase();
+                const person = (masterLists[col.list] || []).find(item => normalizeAssignmentName(item.name).toLowerCase() === targetName);
+                return person?.phone ? `${person.name}: ${person.phone}` : undefined;
+            };
+            const getRouteContractorOwnerTitle = (col, name) => {
+                if (!name || col.key !== 'contractor') return undefined;
+                const targetName = normalizeContractorNameKey(name);
+                const contractor = (masterLists.contractors || []).find(item => normalizeContractorNameKey(item.name) === targetName);
+                return contractor?.owner ? `${contractor.name} owner: ${contractor.owner}` : undefined;
+            };
             const getOnlineDisplayName = (onlineUser) => cleanFirstName((masterLists.nameOverrides || {})[onlineUser.uid] || onlineUser.name || 'Teammate');
             const getPresenceStatus = (onlineUser) => {
                 if (!onlineUser) return 'active';
@@ -2566,9 +2778,14 @@
                 const cleaned = cleanFirstName(onlineNameDraft);
                 const newLists = { ...masterLists, nameOverrides: { ...(masterLists.nameOverrides || {}), [uid]: cleaned } };
                 setMasterLists(newLists);
+                setActiveUsers(prev => prev.map(onlineUser => onlineUser.uid === uid ? { ...onlineUser, name: cleaned } : onlineUser));
                 setEditingOnlineUserId(null);
                 setOnlineNameDraft('');
                 await saveMasterLists(newLists);
+                if (db) {
+                    const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', uid);
+                    await setDoc(presenceRef, { name: cleaned }, { merge: true }).catch(() => {});
+                }
             };
 
             const getParkingAssignments = () => resolveParkingAssigneeNames(masterLists.parkingAssignments || DEFAULT_MASTER_LISTS.parkingAssignments, masterLists.contractors || DEFAULT_MASTER_LISTS.contractors);
@@ -2603,11 +2820,12 @@
                     id: Date.now().toString(), 
                     name: newMasterItem.name, 
                     phone: newMasterItem.phone || '',
+                    owner: newMasterItem.owner || '',
                     total: parseInt(newMasterItem.total) || 0,
                     planned: parseInt(newMasterItem.planned) || 0
                 });
                 saveMasterLists(newLists);
-                setNewMasterItem({ name: '', phone: '', total: 0, planned: 0 });
+                setNewMasterItem({ name: '', phone: '', owner: '', total: 0, planned: 0 });
             };
 
             const removeMasterListItem = (id) => {
@@ -2619,7 +2837,7 @@
 
             const startEditingMasterItem = (item) => {
                 setEditingMasterId(item.id);
-                setEditMasterValues({ name: item.name, phone: item.phone || '', total: item.total || 0, planned: item.planned || 0 });
+                setEditMasterValues({ name: item.name, phone: item.phone || '', owner: item.owner || '', total: item.total || 0, planned: item.planned || 0 });
             };
 
             const saveEditMasterItem = (id) => {
@@ -2632,6 +2850,7 @@
                             ...newLists[masterActiveTab][listIndex], 
                             name: editMasterValues.name.trim(), 
                             phone: editMasterValues.phone.trim(),
+                            owner: editMasterValues.owner.trim(),
                             total: parseInt(editMasterValues.total) || 0,
                             planned: parseInt(editMasterValues.planned) || 0
                         };
@@ -2805,12 +3024,14 @@
                 const nIdx = nd.shiftNotes.findIndex(n => n.id === noteId);
                 if (nIdx < 0) return;
 
-                const firstName = cleanFirstName(userName || getDefaultUserName(auth?.currentUser));
+                const current = getCurrentShiftUser();
+                const firstName = cleanFirstName(current.name);
                 if (!nd.shiftNotes[nIdx].replies) nd.shiftNotes[nIdx].replies = [];
                 nd.shiftNotes[nIdx].replies.push({
                     id: Date.now(),
                     text: `${firstName} acknowledged and removed the high priority alert.`,
                     author: firstName,
+                    authorUid: current.uid,
                     timestamp: new Date().toISOString(),
                     system: true
                 });
@@ -2826,6 +3047,117 @@
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
                     await setDoc(docRef, { ...nd, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
                 } catch(e) { console.error("Failed to acknowledge urgent note:", e); }
+            };
+
+            useEffect(() => {
+                if (!user) return;
+                setShiftNoteSeenAt(localStorage.getItem(getShiftNoteSeenKey(user.uid, activeDate)) || '');
+            }, [user, activeDate]);
+
+            useEffect(() => {
+                if (activeTab === 'notes') markShiftNotesSeen();
+            }, [activeTab, activeDate, user]);
+
+            const getCurrentShiftUser = () => ({
+                uid: user?.uid || 'local',
+                name: getSavedDisplayName(user)
+            });
+
+            const toggleShiftNoteLike = async (noteId) => {
+                const current = getCurrentShiftUser();
+                const nd = JSON.parse(JSON.stringify(data));
+                const nIdx = nd.shiftNotes.findIndex(n => n.id === noteId);
+                if (nIdx < 0) return;
+                if (!Array.isArray(nd.shiftNotes[nIdx].likes)) nd.shiftNotes[nIdx].likes = [];
+                const likeIdx = nd.shiftNotes[nIdx].likes.findIndex(like => like.uid === current.uid);
+                if (likeIdx >= 0) {
+                    nd.shiftNotes[nIdx].likes.splice(likeIdx, 1);
+                } else {
+                    nd.shiftNotes[nIdx].likes.push({ uid: current.uid, name: current.name, timestamp: new Date().toISOString() });
+                }
+                setData(nd);
+                if (db) {
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
+                        await setDoc(docRef, { ...nd, lastUpdatedBy: current.name, lastUpdatedAt: new Date().toISOString() });
+                    } catch(e) {
+                        console.error('Failed to save shift note like:', e);
+                    }
+                }
+            };
+
+            const getShiftNotePreview = (note) => {
+                const rawText = note?.noteType === 'driver-call' && note?.driverCall ? note.driverCall.note : note?.text;
+                const text = String(rawText || '').trim();
+                if (!text) return 'your note';
+                return text.length > 90 ? `${text.slice(0, 90)}...` : text;
+            };
+
+            const getShiftNoteNotificationItems = () => {
+                const seenMs = shiftNoteSeenAt ? new Date(shiftNoteSeenAt).getTime() : 0;
+                const currentUid = user?.uid || 'local';
+                const currentName = getSavedDisplayName(user);
+                const isNoteOwner = (note) => {
+                    if (!note) return false;
+                    if (note.authorUid) return note.authorUid === currentUid;
+                    return String(note.author || '').trim().toLowerCase() === String(currentName || '').trim().toLowerCase();
+                };
+                const items = [];
+                (data.shiftNotes || []).forEach(note => {
+                    if (!isNoteOwner(note)) return;
+                    const preview = getShiftNotePreview(note);
+                    (note.likes || []).forEach(like => {
+                        const ts = like.timestamp ? new Date(like.timestamp).getTime() : 0;
+                        if (ts > seenMs && like.uid !== currentUid) {
+                            const name = like.name || 'Someone';
+                            items.push({
+                                id: `like-${note.id}-${like.uid || name}-${like.timestamp || ts}`,
+                                type: 'like',
+                                noteId: note.id,
+                                name,
+                                timestamp: like.timestamp || '',
+                                message: `${name} liked your note`,
+                                preview
+                            });
+                        }
+                    });
+                    (note.replies || []).forEach(reply => {
+                        const ts = reply.timestamp ? new Date(reply.timestamp).getTime() : 0;
+                        if (ts > seenMs && reply.authorUid !== currentUid && reply.author !== currentName) {
+                            const name = reply.author || 'Someone';
+                            const replyText = String(reply.text || '').trim();
+                            items.push({
+                                id: `reply-${note.id}-${reply.id || reply.timestamp || ts}`,
+                                type: 'reply',
+                                noteId: note.id,
+                                name,
+                                timestamp: reply.timestamp || '',
+                                message: `${name} replied to your note`,
+                                preview: replyText ? (replyText.length > 90 ? `${replyText.slice(0, 90)}...` : replyText) : preview
+                            });
+                        }
+                    });
+                });
+                return items.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+            };
+
+            const markShiftNotesSeen = () => {
+                if (!user) return;
+                const timestamp = new Date().toISOString();
+                localStorage.setItem(getShiftNoteSeenKey(user.uid, activeDate), timestamp);
+                setShiftNoteSeenAt(timestamp);
+            };
+
+            const openShiftNoteFromNotification = (noteId) => {
+                setActiveTab('notes');
+                setIsShiftNotificationOpen(false);
+                setHighlightedShiftNoteId(noteId);
+                markShiftNotesSeen();
+                setTimeout(() => {
+                    const target = document.getElementById(`shift-note-${noteId}`);
+                    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 150);
+                setTimeout(() => setHighlightedShiftNoteId(null), 4000);
             };
 
             const calculateMetricsTotals = (metricsList) => {
@@ -2897,6 +3229,35 @@
 
             const displayDateString = String(new Date(activeDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
             const nextDayString = String(new Date(new Date(activeDate + 'T12:00:00').getTime() + 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
+            const shiftNoteNotificationItems = getShiftNoteNotificationItems();
+            const shiftNoteNotificationCount = shiftNoteNotificationItems.length;
+            const shiftNoteNotificationSignature = shiftNoteNotificationItems.map(item => item.id).join('|');
+            useEffect(() => {
+                if (isLoading) return;
+                if (shiftNoteNotificationSoundSignature.current === null || shiftNoteNotificationSoundDate.current !== activeDate) {
+                    shiftNoteNotificationSoundSignature.current = shiftNoteNotificationSignature;
+                    shiftNoteNotificationSoundDate.current = activeDate;
+                    return;
+                }
+                if (shiftNoteNotificationCount > 0 && shiftNoteNotificationSignature !== shiftNoteNotificationSoundSignature.current) {
+                    const playShiftNoteChime = async () => {
+                        if (!window.Tone || window.Tone.context.state !== 'running') return;
+                        try {
+                            const synth = new window.Tone.PolySynth(window.Tone.Synth, {
+                                oscillator: { type: "sine" },
+                                envelope: { attack: 0.02, decay: 0.08, sustain: 0.08, release: 0.8 }
+                            }).toDestination();
+                            synth.volume.value = -14;
+                            const now = window.Tone.now();
+                            synth.triggerAttackRelease("G5", "16n", now);
+                            synth.triggerAttackRelease("C6", "16n", now + 0.12);
+                        } catch (e) {}
+                    };
+                    playShiftNoteChime();
+                }
+                shiftNoteNotificationSoundSignature.current = shiftNoteNotificationSignature;
+                shiftNoteNotificationSoundDate.current = activeDate;
+            }, [shiftNoteNotificationSignature, shiftNoteNotificationCount, isLoading, activeDate]);
             const toFixedSafe = (val, dec = 1) => { const num = Number(val); return isNaN(num) ? '0.0' : num.toFixed(dec); };
             const driverAssignmentWarnings = calculateDriverAssignmentWarnings(data, historyData, activeDate);
             const preloadAssignmentWarnings = calculatePreloadAssignmentWarnings(allPreloadSchedules, getOfficeWeekBoundaries(preloadActiveDate).days);
@@ -3036,13 +3397,15 @@
                 );
             }
             return (
-                <div ref={dashboardRef} className="dashboard-page-shell relative min-h-screen bg-slate-900 font-sans text-slate-100 pb-20 overflow-x-hidden">
+                <div ref={dashboardRef} onClick={handleDashboardBackgroundClick} onDoubleClick={handleDashboardBackgroundDoubleClick} className="dashboard-page-shell relative min-h-screen bg-slate-900 font-sans text-slate-100 pb-20 overflow-x-hidden">
                     <header data-html2canvas-ignore="true" className={`bg-slate-800 border-b border-slate-700 relative z-30 shadow-lg ${isCapturing ? 'hidden' : 'sticky top-0'}`}>
-                        <div className="max-w-7xl mx-auto px-4 h-12 flex justify-between items-center gap-3">
-                            <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <div className="w-full px-4 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+                            <div className="flex items-center gap-3 min-w-0 justify-start">
                                 <LayoutDashboard className="w-7 h-7 shrink-0 text-slate-100 drop-shadow-lg" />
                                 <h1 className="text-lg font-bold text-white tracking-tight shrink-0 whitespace-nowrap">Geodis Final Mile</h1>
-                                <nav aria-label="Dashboard sections" className="dashboard-top-nav ml-5 min-w-0 flex items-center overflow-x-auto whitespace-nowrap [&>button]:shrink-0 bg-slate-900/50 p-1 rounded-xl border border-slate-700">
+                            </div>
+                            <div className="min-w-0 flex justify-center">
+                                <nav aria-label="Dashboard sections" className="dashboard-top-nav max-w-full min-w-0 flex items-center overflow-x-auto whitespace-nowrap [&>button]:shrink-0 bg-slate-900/50 p-1 rounded-xl border border-slate-700">
                                     <button onClick={() => setActiveTab('overview')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'overview' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}>OVERVIEW</button>
                                     <button onClick={() => setActiveTab('routes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'routes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Route className="w-3 h-3" /> ROUTES</button>
                                     <button onClick={() => setActiveTab('driver-hub')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'driver-hub' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Truck className="w-3 h-3" /> DRIVER HUB</button>
@@ -3053,11 +3416,51 @@
                                     <button onClick={() => setActiveTab('office')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'office' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Users className="w-3 h-3" /> OFFICE</button>
                                 </nav>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center justify-end gap-2 shrink-0">
+                                <div className="relative">
+                                    <button onClick={() => setIsShiftNotificationOpen(prev => !prev)} className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${shiftNoteNotificationCount > 0 ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`} title="Shift Notes Notifications">
+                                        <Bell className="w-4 h-4" />
+                                        {shiftNoteNotificationCount > 0 && (
+                                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{shiftNoteNotificationCount > 9 ? '9+' : shiftNoteNotificationCount}</span>
+                                        )}
+                                    </button>
+                                    {isShiftNotificationOpen && (
+                                        <div className="absolute right-0 top-8 z-[120] w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                            <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+                                                <div>
+                                                    <div className="text-xs font-black uppercase tracking-widest text-white">Notifications</div>
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Shift Notes</div>
+                                                </div>
+                                                {shiftNoteNotificationCount > 0 && (
+                                                    <button type="button" onClick={markShiftNotesSeen} className="rounded-lg border border-slate-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">Mark Read</button>
+                                                )}
+                                            </div>
+                                            <div className="max-h-80 overflow-y-auto">
+                                                {shiftNoteNotificationItems.length === 0 ? (
+                                                    <div className="px-4 py-8 text-center text-xs font-bold text-slate-500">No new likes or replies.</div>
+                                                ) : (
+                                                    shiftNoteNotificationItems.map(item => (
+                                                        <button key={item.id} type="button" onClick={() => openShiftNoteFromNotification(item.noteId)} className="w-full border-b border-slate-800 px-4 py-3 text-left hover:bg-slate-900/80 transition-colors cursor-pointer last:border-b-0">
+                                                            <div className="flex items-start gap-3">
+                                                                <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${item.type === 'like' ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'}`}>
+                                                                    {item.type === 'like' ? <ThumbsUp className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                                                                </span>
+                                                                <span className="min-w-0 flex-1">
+                                                                    <span className="block text-xs font-black text-slate-100">{item.message}</span>
+                                                                    <span className="mt-1 block truncate text-[11px] font-semibold text-slate-500">{item.preview}</span>
+                                                                </span>
+                                                            </div>
+                                                        </button>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 <button onClick={handleDownloadScreenshot} className="p-1 bg-transparent border-0 text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer" title="Download Screenshot">
                                     <Camera className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => isEditing ? handleSave() : setIsEditing(true)} className={`p-1 bg-transparent border-0 transition-all flex items-center justify-center cursor-pointer ${isEditing ?"text-emerald-300" :"text-slate-300 hover:text-white"}`} title={isEditing ?"Save Changes" :"Edit Dashboard"}>
+                                <button onClick={() => { if (!dashboardSaveInFlightRef.current) { isEditing ? handleSave() : setIsEditing(true); } }} className={`p-1 bg-transparent border-0 transition-all flex items-center justify-center cursor-pointer ${isEditing ?"text-emerald-300" :"text-slate-300 hover:text-white"}`} title={isEditing ?"Save Changes" :"Edit Dashboard"}>
                                     {isEditing ? <Save className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
                                 </button>
                                 <div data-header-calendar="true" className="relative flex items-center px-2 text-slate-300 font-bold text-xs bg-[radial-gradient(ellipse_at_center,rgba(15,23,42,0.50)_0%,rgba(15,23,42,0.34)_30%,rgba(15,23,42,0)_58%)]">
@@ -3158,6 +3561,36 @@
                                             })()}
                                         </div>
                                         <button onClick={acknowledgePreloadReminder} disabled={isAcknowledgingPreload} className="px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-100 hover:bg-amber-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer disabled:opacity-50 disabled:cursor-wait" title="Acknowledge Reminder">{isAcknowledgingPreload ? 'Saving…' : 'Acknowledge'}</button>
+                                    </div>
+                                )}
+
+                                {/* Preload Arrival Check */}
+                                {activeDate === getChicagoDateKey() && showPreloadArrivalAlert && !preloadArrivalConfirmed && !(data.shiftNotes || []).some(n => n.system && n.preloadArrivalConfirmed === true && n.preloadArrivalDate === activeDate) && allPreloadSchedules[getChicagoDateKey()]?.status !== 'Completed' && (
+                                    <div className="mb-6 bg-emerald-500/15 border border-emerald-500/45 text-emerald-200 p-4 rounded-xl flex items-center gap-4 shadow-[0_0_15px_rgba(16,185,129,0.16)] animate-in slide-in-from-top-2 relative">
+                                        <div className="bg-emerald-500/20 p-2 rounded-lg animate-pulse"><Clock className="w-6 h-6" /></div>
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="font-black tracking-widest text-xs uppercase mb-0.5">Preload Arrival Check: 5:00 PM</h3>
+                                            <span className="font-medium text-sm">Confirm the preload team has arrived. If they have not arrived yet, snooze to the next check.</span>
+                                            {preloadArrivalError && <p role="alert" className="mt-2 text-sm font-semibold text-rose-300">{preloadArrivalError}</p>}
+                                            {preloadArrivalSnoozedUntil && (
+                                                <p className="mt-1 text-[11px] font-bold text-emerald-300/80 uppercase tracking-wider">Next check: {formatReminderClock(preloadArrivalSnoozedUntil)}</p>
+                                            )}
+                                            {(() => {
+                                                const todayPreload = allPreloadSchedules[getChicagoDateKey()] || { contractor: '', status: 'Pending', door: '' };
+                                                return todayPreload.contractor ? (
+                                                    <div className="mt-1.5 font-black text-indigo-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                                        <Truck className="w-3 h-3" /> Today's Preload: {todayPreload.contractor} {todayPreload.door ? `(Door ${todayPreload.door})` : ''}
+                                                    </div>
+                                                ) : null;
+                                            })()}
+                                        </div>
+                                        {(() => {
+                                            const nextSnooze = getNextPreloadArrivalSnooze();
+                                            return nextSnooze ? (
+                                                <button onClick={snoozePreloadArrivalReminder} className="px-3 py-1.5 rounded-lg bg-slate-500/15 border border-slate-300/25 text-slate-100 hover:bg-slate-500/25 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer" title={`Remind again at ${nextSnooze.label}`}>Not Yet</button>
+                                            ) : null;
+                                        })()}
+                                        <button onClick={confirmPreloadArrival} disabled={isConfirmingPreloadArrival} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer disabled:opacity-50 disabled:cursor-wait" title="Confirm the preload team arrived">{isConfirmingPreloadArrival ? 'Saving…' : 'Confirm Arrived'}</button>
                                     </div>
                                 )}
 
@@ -3567,6 +4000,7 @@
                                                                 const val = row[col.key];
                                                                 const listItems = masterLists[col.list] || [];
                                                                 const isNotInList = val && !listItems.find(i => i.name === val);
+                                                                const hoverTitle = getRoutePersonPhoneTitle(col, val) || getRouteContractorOwnerTitle(col, val);
 
                                                                 return (
                                                                     <td key={colIdx} className={`px-2 py-1 text-[10px] border-r border-slate-700/30 last:border-r-0 align-middle text-center ${col.width} ${col.noWrap ? 'whitespace-nowrap' : 'break-words'}`} style={{ padding: '4px 8px', borderBottom: '1px solid #334155', borderRight: colIdx === ROUTE_COLUMNS.length - 1 ? 'none' : '1px solid #334155', color: '#e2e8f0', whiteSpace: col.noWrap ? 'nowrap' : 'normal' }}>
@@ -3583,7 +4017,7 @@
                                                                             ) : col.type === 'time' ? (
                                                                                 <span className="font-medium text-slate-300">{formatTime(val) || '-'}</span>
                                                                             ) : (
-                                                                                <span className={`font-medium ${val ? 'text-slate-200' : 'text-slate-600'}`}>{val || '-'}</span>
+                                                                                <span title={hoverTitle} className={`font-medium ${hoverTitle ? 'cursor-help decoration-dotted underline-offset-2 hover:underline' : ''} ${val ? 'text-slate-200' : 'text-slate-600'}`}>{val || '-'}</span>
                                                                             )
                                                                         ) : (
                                                                             col.type === 'select' ? (
@@ -3907,6 +4341,7 @@
                                                                 <td className="px-3 py-2 text-[10px] font-bold text-indigo-400 whitespace-nowrap border-r border-slate-700/30">{h.date}</td>
                                                                 {ROUTE_COLUMNS.map((col, colIdx) => {
                                                                     const val = row[col.key];
+                                                                    const hoverTitle = getRoutePersonPhoneTitle(col, val) || getRouteContractorOwnerTitle(col, val);
                                                                     return (
                                                                         <td key={colIdx} className={`px-2 py-1 text-[10px] border-r border-slate-700/30 last:border-r-0 align-middle text-center ${col.noWrap ? 'whitespace-nowrap' : 'break-words'}`}>
                                                                             {col.type === 'checkbox' ? (
@@ -3916,7 +4351,7 @@
                                                                             ) : col.type === 'time' ? (
                                                                                 <span className="text-slate-300 font-medium">{formatTime(val) || '-'}</span>
                                                                             ) : (
-                                                                                <span className={val ? 'text-slate-200 font-medium' : 'text-slate-600'}>{val || '-'}</span>
+                                                                                <span title={hoverTitle} className={`${hoverTitle ? 'cursor-help decoration-dotted underline-offset-2 hover:underline' : ''} ${val ? 'text-slate-200 font-medium' : 'text-slate-600'}`}>{val || '-'}</span>
                                                                             )}
                                                                         </td>
                                                                     );
@@ -3984,7 +4419,7 @@
                                         <div className="flex items-center gap-3"><MessageSquare className="w-8 h-8 text-slate-100" /><h2 className="text-xl font-black text-white italic">Shift Notes</h2></div>
                                         {isEditing && <div className="flex items-center gap-2">
                                             <button onClick={beginDriverCall} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/30 cursor-pointer"><Truck className="w-4 h-4" /> DRIVER CALL</button>
-                                            <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newId = nd.shiftNotes.length > 0 ? Math.max(...nd.shiftNotes.map(n => Number(n.id) || 0)) + 1 : 1; const firstName = cleanFirstName(userName || getDefaultUserName(auth?.currentUser)); nd.shiftNotes.push({ id: newId, text:"", category:"Follow-up", author: firstName, timestamp: new Date().toISOString(), replies: [] }); setData(nd); }} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/40 cursor-pointer"><PlusCircle className="w-4 h-4" /> NEW ENTRY</button>
+                                            <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newId = nd.shiftNotes.length > 0 ? Math.max(...nd.shiftNotes.map(n => Number(n.id) || 0)) + 1 : 1; const current = getCurrentShiftUser(); const firstName = cleanFirstName(current.name); nd.shiftNotes.unshift({ id: newId, text:"", category:"Follow-up", author: firstName, authorUid: current.uid, timestamp: new Date().toISOString(), replies: [] }); setData(nd); }} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/40 cursor-pointer"><PlusCircle className="w-4 h-4" /> NEW ENTRY</button>
                                         </div>}
                                     </div>
                                     <div className="p-8 space-y-4">
@@ -4034,7 +4469,7 @@
                                             </div>
                                         )}
                                         {(data.shiftNotes || []).length === 0 ? <div className="text-center py-20 text-slate-600 font-black uppercase tracking-[0.2em] italic">No shift entries found.</div> : (data.shiftNotes || []).map((note) => (
-                                            <div key={note.id} className="bg-slate-900/30 rounded-2xl border border-slate-700 p-6 transition-all hover:bg-slate-900/50 relative group">
+                                            <div id={`shift-note-${note.id}`} key={note.id} className={`bg-slate-900/30 rounded-2xl border p-6 transition-all hover:bg-slate-900/50 relative group ${highlightedShiftNoteId === note.id ? 'border-amber-300 shadow-[0_0_24px_rgba(251,191,36,0.35)] bg-amber-950/20' : 'border-slate-700'}`}>
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div className="flex flex-col gap-2">
                                                         {isEditing ? (
@@ -4093,6 +4528,23 @@
                                                     )
                                                 )}
 
+                                                <div className="mt-4 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-widest">
+                                                    {(() => {
+                                                        const likes = note.likes || [];
+                                                        const currentUid = user?.uid || 'local';
+                                                        const likedByMe = likes.some(like => like.uid === currentUid);
+                                                        const likeNames = likes.map(like => like.name).filter(Boolean).join(', ');
+                                                        return (
+                                                            <>
+                                                                <button type="button" onClick={() => toggleShiftNoteLike(note.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition-colors cursor-pointer ${likedByMe ? 'bg-sky-500/20 border-sky-400/40 text-sky-200' : 'bg-slate-800/70 border-slate-700 text-slate-400 hover:text-slate-100 hover:border-slate-500'}`} title={likeNames || 'Like this note'}>
+                                                                    <ThumbsUp className="w-3.5 h-3.5" /> Like {likes.length > 0 ? `(${likes.length})` : ''}
+                                                                </button>
+                                                                {likes.length > 0 && <span className="normal-case tracking-normal text-slate-500 font-semibold">Liked by {likeNames}</span>}
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+
                                                 {((note.replies && note.replies.length > 0) || isEditing) && (
                                                     <div className="mt-5 space-y-3 pl-4 md:pl-6 border-l-2 border-slate-700/50 relative">
                                                         {(note.replies || []).map(reply => (
@@ -4137,8 +4589,8 @@
                                                                 const nIdx = nd.shiftNotes.findIndex(n => n.id === note.id);
                                                                 if(nIdx > -1) {
                                                                     if(!nd.shiftNotes[nIdx].replies) nd.shiftNotes[nIdx].replies = [];
-                                                                    const firstName = userName ? userName.split(' ')[0] : 'User';
-                                                                    nd.shiftNotes[nIdx].replies.push({ id: Date.now(), text:"", author: firstName, timestamp: new Date().toISOString() });
+                                                                    const current = getCurrentShiftUser();
+                                                                    nd.shiftNotes[nIdx].replies.push({ id: Date.now(), text:"", author: current.name, authorUid: current.uid, timestamp: new Date().toISOString() });
                                                                     setData(nd);
                                                                 }
                                                             }} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-2 rounded-lg transition-colors cursor-pointer w-max">
@@ -4659,7 +5111,7 @@
                                         </div>
                                     ) : (
                                         <button onClick={() => setIsEditingName(true)} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[9px] font-black transition-all cursor-pointer ${currentUserIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400 hover:border-slate-500' : currentUserIsIdle ? 'bg-amber-900/30 border-amber-500/30 text-amber-200 hover:border-amber-400' : 'bg-indigo-900/40 border-indigo-500/40 text-indigo-200 hover:border-indigo-400'}`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${currentUserIsAway ? 'bg-slate-500' : currentUserIsIdle ? 'bg-amber-400' : 'bg-emerald-500'}`} /> YOU: {cleanFirstName((masterLists.nameOverrides || {})[user?.uid] || userName)} {currentUserIsAway ? <span className="text-[8px] normal-case tracking-normal font-semibold text-slate-400">Away</span> : currentUserIsIdle ? <span className="text-[8px] normal-case tracking-normal font-semibold text-amber-300/75">Idle</span> : null} <Edit3 className="w-2.5 h-2.5 opacity-50" />
+                                            <div className={`w-1.5 h-1.5 rounded-full ${currentUserIsAway ? 'bg-slate-500' : currentUserIsIdle ? 'bg-amber-400' : 'bg-emerald-500'}`} /> YOU: {getSavedDisplayName(user)} {currentUserIsAway ? <span className="text-[8px] normal-case tracking-normal font-semibold text-slate-400">Away</span> : currentUserIsIdle ? <span className="text-[8px] normal-case tracking-normal font-semibold text-amber-300/75">Idle</span> : null} <Edit3 className="w-2.5 h-2.5 opacity-50" />
                                         </button>
                                     )}
                                 </div>
@@ -4974,6 +5426,10 @@
                                             </div>
                                             {masterActiveTab === 'contractors' ? (
                                                 <>
+                                                    <div className="min-w-[180px] flex-1">
+                                                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Owner</label>
+                                                        <input type="text" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={newMasterItem.owner || ''} onChange={e => setNewMasterItem({...newMasterItem, owner: e.target.value})} />
+                                                    </div>
                                                     <div className="w-24">
                                                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Total</label>
                                                         <input type="number" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={newMasterItem.total || ''} onChange={e => setNewMasterItem({...newMasterItem, total: e.target.value})} />
@@ -5007,9 +5463,14 @@
                                                                 <div className="w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 font-bold">{editMasterValues.name}</div>
                                                             )}
                                                             {masterActiveTab === 'contractors' ? (
-                                                                <div className="flex gap-2">
+                                                                <div className="flex flex-col gap-2">
+                                                                    {isAdminUser && (
+                                                                        <div><span className="text-[9px] text-slate-400 uppercase font-bold pl-1 block mb-0.5">Owner</span><input type="text" className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={editMasterValues.owner || ''} onChange={(e) => setEditMasterValues({ ...editMasterValues, owner: e.target.value })} /></div>
+                                                                    )}
+                                                                    <div className="flex gap-2">
                                                                     <div className="flex-1"><span className="text-[9px] text-slate-400 uppercase font-bold pl-1 block mb-0.5">Total</span><input type="number" disabled={!isAdminUser} className={`w-full rounded px-3 py-1.5 text-sm outline-none ${isAdminUser ? 'bg-slate-950 border border-indigo-500/50 text-white focus:ring-1 focus:ring-indigo-500' : 'bg-slate-950/40 border border-slate-700 text-slate-500 cursor-not-allowed'}`} value={editMasterValues.total} onChange={(e) => isAdminUser && setEditMasterValues({ ...editMasterValues, total: e.target.value })} /></div>
                                                                     <div className="flex-1"><span className="text-[9px] text-slate-400 uppercase font-bold pl-1 block mb-0.5">Planned</span><input type="number" autoFocus={!isAdminUser} className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={editMasterValues.planned} onChange={(e) => setEditMasterValues({ ...editMasterValues, planned: e.target.value })} /></div>
+                                                                    </div>
                                                                 </div>
                                                             ) : (
                                                                 <input type="text" className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" placeholder="Phone" value={editMasterValues.phone} onChange={(e) => setEditMasterValues({ ...editMasterValues, phone: e.target.value })} />
@@ -5030,6 +5491,7 @@
                                                                                 <div className="flex flex-col min-w-0">
                                                                                     <span className="font-black text-slate-100 text-sm tracking-wide leading-tight break-words" title={item.name}>{item.name}</span>
                                                                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Fleet Partner</span>
+                                                                                    {item.owner && <span className="text-[10px] font-bold text-slate-400 mt-1 leading-tight">Owner: {item.owner}</span>}
                                                                                 </div>
                                                                             </div>
                                                                             {isMasterEditing && canEditMasterItem && (
