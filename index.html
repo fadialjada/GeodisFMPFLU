@@ -1232,6 +1232,7 @@
             const bonusScreenshotRef = useRef(null);
             const lastUserActivityRef = useRef(Date.now());
             const presenceHiddenSinceRef = useRef(null);
+            const presenceSessionIdRef = useRef(null);
 
             const [openDates, setOpenDates] = useState([new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })]);
             const [activeDate, setActiveDate] = useState(openDates[0]);
@@ -1986,6 +1987,18 @@
                 if (!currentUser) return;
                 const offlineAfterMs = 15 * 60 * 1000;
                 let lastPresenceWrite = 0;
+                if (!presenceSessionIdRef.current) {
+                    try {
+                        const sessionKey = `geodis_presence_session_${currentUser.uid}`;
+                        const existingSession = sessionStorage.getItem(sessionKey);
+                        presenceSessionIdRef.current = existingSession || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+                        sessionStorage.setItem(sessionKey, presenceSessionIdRef.current);
+                    } catch (e) {
+                        presenceSessionIdRef.current = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+                    }
+                }
+                const presenceSessionId = presenceSessionIdRef.current;
+                const presenceDocId = `${currentUser.uid}_${presenceSessionId}`;
 
                 const updatePresence = async () => {
                     try {
@@ -1996,10 +2009,11 @@
                         const hiddenSince = presenceHiddenSinceRef.current;
                         const hiddenForMs = hiddenSince ? now - hiddenSince : 0;
                         const status = !document.hidden ? 'active' : hiddenForMs >= PRESENCE_AWAY_AFTER_MS ? 'away' : 'idle';
-                        const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', currentUser.uid);
+                        const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', presenceDocId);
                         lastPresenceWrite = now;
                         await setDoc(presenceRef, {
                             uid: currentUser.uid,
+                            sessionId: presenceSessionId,
                             name: getSavedDisplayName(currentUser),
                             lastActive: lastInteraction,
                             lastInteraction,
@@ -2031,7 +2045,7 @@
                 const intervalId = setInterval(updatePresence, 20000);
                 const presenceCol = collection(db, 'artifacts', appId, 'public', 'data', 'presence');
                 const unsubscribePresence = onSnapshot(presenceCol, (snapshot) => {
-                    const active = [];
+                    const byUser = new Map();
                     const now = Date.now();
                     const threshold = now - offlineAfterMs; 
                     snapshot.forEach(doc => { 
@@ -2042,19 +2056,39 @@
                             const inferredStatus = hiddenSince
                                 ? (now - hiddenSince >= PRESENCE_AWAY_AFTER_MS ? 'away' : 'idle')
                                 : 'active';
-                            active.push({
+                            const sessionPresence = {
                                 ...presence,
                                 status: presence.hiddenSince ? inferredStatus : (presence.status || inferredStatus)
-                            });
+                            };
+                            const uid = sessionPresence.uid || doc.id;
+                            const existing = byUser.get(uid);
+                            const rank = { active: 3, idle: 2, away: 1 };
+                            const existingStatusRank = existing ? rank[existing.status] || 0 : 0;
+                            const sessionStatusRank = rank[sessionPresence.status] || 0;
+                            if (!existing || sessionStatusRank > existingStatusRank || (sessionStatusRank === existingStatusRank && lastSeen > Number(existing.lastSeen || 0))) {
+                                byUser.set(uid, {
+                                    ...existing,
+                                    ...sessionPresence,
+                                    uid,
+                                    lastSeen: Math.max(lastSeen, Number(existing?.lastSeen || 0)),
+                                    hiddenSince: sessionPresence.status === 'active' ? null : (sessionPresence.hiddenSince || existing?.hiddenSince || null)
+                                });
+                            } else if (existing) {
+                                byUser.set(uid, {
+                                    ...existing,
+                                    lastSeen: Math.max(lastSeen, Number(existing.lastSeen || 0))
+                                });
+                            }
                         }
                     });
-                    setActiveUsers(active);
+                    setActiveUsers(Array.from(byUser.values()));
                 }, (err) => console.error(err));
                 return () => {
                     clearInterval(intervalId);
                     unsubscribePresence();
                     activityEvents.forEach(eventName => window.removeEventListener(eventName, markUserActivity, true));
                     document.removeEventListener('visibilitychange', handleVisibilityChange);
+                    deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'presence', presenceDocId)).catch(() => {});
                 };
             }, [user, userName, masterLists.nameOverrides]);
 
@@ -3920,6 +3954,9 @@
                                 <button onClick={handleDownloadScreenshot} className="p-1 bg-transparent border-0 text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer" title="Download Screenshot">
                                     <Camera className="w-4 h-4" />
                                 </button>
+                                <button onClick={() => { if (!dashboardSaveInFlightRef.current) { isEditing ? handleSave() : setIsEditing(true); } }} className={`p-1 bg-transparent border-0 transition-all flex items-center justify-center cursor-pointer ${isEditing ?"text-emerald-300" :"text-slate-300 hover:text-white"}`} title={isEditing ?"Save Changes" :"Edit Dashboard"}>
+                                    {isEditing ? <Save className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
+                                </button>
                             <div data-header-calendar="true" className="dashboard-header-date relative flex items-center justify-center px-2 text-slate-300 font-bold text-xs bg-[radial-gradient(ellipse_at_center,rgba(15,23,42,0.50)_0%,rgba(15,23,42,0.34)_30%,rgba(15,23,42,0)_58%)]">
                                 <button onClick={() => changeActiveDateByDays(-1)} className="px-1 py-1 bg-transparent border-0 hover:text-white transition-colors cursor-pointer leading-none" title="Previous Day">‹</button>
                                 <div className="px-1 py-1 flex items-center gap-0.5">
@@ -3971,9 +4008,7 @@
                                     );
                                 })()}
                             </div>
-                                <button onClick={() => { if (!dashboardSaveInFlightRef.current) { isEditing ? handleSave() : setIsEditing(true); } }} className={`p-1 bg-transparent border-0 transition-all flex items-center justify-center cursor-pointer ${isEditing ?"text-emerald-300" :"text-slate-300 hover:text-white"}`} title={isEditing ?"Save Changes" :"Edit Dashboard"}>
-                                    {isEditing ? <Save className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-                                </button>
+
                             </div>
 
                         </div>
@@ -6084,6 +6119,7 @@
     </script>
 </body>
 </html>
+
 
 
 
