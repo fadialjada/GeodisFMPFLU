@@ -66,6 +66,11 @@
             display: none;
         }
 
+        /* Keep desktop sticky headers attached to the document, not a
+           full-height overflow container. Tables keep their own scrollers. */
+        body { overflow-x: clip !important; overflow-y: visible !important; }
+        .dashboard-page-shell { overflow-x: clip; overflow-y: visible; }
+
         /* Phone layout: the document owns vertical scrolling; wide tables
            and navigation own horizontal scrolling. Do not trap page swipes. */
         @media (max-width: 767px), (max-width: 1023px) and (pointer: coarse) {
@@ -867,7 +872,7 @@
         import { createRoot } from 'react-dom/client';
         import { initializeApp } from 'firebase/app';
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc, runTransaction } from 'firebase/firestore';
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, deleteDoc, runTransaction, arrayUnion } from 'firebase/firestore';
         import { 
             Truck, Package, Clock, CheckCircle2, AlertCircle, Navigation, ShieldCheck, 
             Calendar, LayoutDashboard, Info, Edit3, Save, Check, Users, UserCheck, 
@@ -1362,6 +1367,64 @@
         const getShiftNoteNotificationSeenKey = (uid) => `geodis_shift_note_seen_${uid || 'local'}_all`;
         const getShiftNoteNotificationReadIdsKey = (uid) => `geodis_shift_note_read_ids_${uid || 'local'}`;
         const getTeamChatSeenKey = (uid) => `geodis_team_chat_seen_${uid || 'local'}`;
+        const getTeamChatReadIdsKey = (uid) => `geodis_team_chat_read_ids_${uid || 'local'}`;
+        const teamMessageKey = message => String(message?.id || message?.timestamp || '');
+        const hasSeenTeamMessage = (message, uid, readIds) => !message || message.authorUid === uid
+            || readIds.includes(teamMessageKey(message))
+            || (message.seenBy || []).some(entry => entry?.uid === uid);
+
+        // Apply only this editor's changes to the latest saved record. Identified
+        // rows merge individually so concurrent replies/likes are not discarded.
+        const mergeConcurrentEdits = (base, local, remote) => {
+            if (JSON.stringify(local) === JSON.stringify(base)) return remote;
+            if (Array.isArray(base) && Array.isArray(local) && Array.isArray(remote)) {
+                const key = item => item && (item.id ?? item.uid);
+                if ([...base, ...local, ...remote].every(item => key(item) !== undefined && key(item) !== null)) {
+                    const before = new Map(base.map(item => [String(key(item)), item]));
+                    const mine = new Map(local.map(item => [String(key(item)), item]));
+                    const theirs = new Map(remote.map(item => [String(key(item)), item]));
+                    const result = remote.filter(item => !before.has(String(key(item))) || mine.has(String(key(item))))
+                        .map(item => mine.has(String(key(item)))
+                            ? mergeConcurrentEdits(before.get(String(key(item))), mine.get(String(key(item))), item) : item);
+                    local.forEach(item => { if (!theirs.has(String(key(item))) && !before.has(String(key(item)))) result.push(item); });
+                    return result;
+                }
+                return local;
+            }
+            if (local && base && remote && typeof local === 'object' && typeof base === 'object'
+                && typeof remote === 'object' && !Array.isArray(local) && !Array.isArray(base) && !Array.isArray(remote)) {
+                const result = { ...remote };
+                new Set([...Object.keys(base), ...Object.keys(local)]).forEach(key => {
+                    if (!(key in local)) { if (key in base) delete result[key]; }
+                    else {
+                        const merged = mergeConcurrentEdits(base[key], local[key], remote[key]);
+                        if (merged === undefined) delete result[key];
+                        else result[key] = merged;
+                    }
+                });
+                return result;
+            }
+            return local;
+        };
+
+        let pendingNotificationChime = null;
+        const playNotificationChime = async (notes) => {
+            if (!window.Tone || window.Tone.context.state !== 'running') {
+                pendingNotificationChime = notes;
+                return;
+            }
+            pendingNotificationChime = null;
+            try {
+                const synth = new window.Tone.PolySynth(window.Tone.Synth, {
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.02, decay: 0.08, sustain: 0.08, release: 0.8 }
+                }).toDestination();
+                synth.volume.value = -14;
+                const now = window.Tone.now();
+                notes.forEach((note, index) => synth.triggerAttackRelease(note, '16n', now + index * 0.12));
+                setTimeout(() => synth.dispose(), 2000);
+            } catch (error) { console.error('Notification sound failed:', error); }
+        };
         const PRESENCE_AWAY_AFTER_MS = 10 * 60 * 1000;
         const SCREENSHOT_BACKGROUND = '#1b1f25';
         const prepareScreenshotSurface = (surface) => {
@@ -1438,6 +1501,16 @@
             const [teamChatDraft, setTeamChatDraft] = useState('');
             const [teamChatError, setTeamChatError] = useState('');
             const [teamChatSeenAt, setTeamChatSeenAt] = useState('');
+            const [teamChatReadIds, setTeamChatReadIds] = useState([]);
+            const [teamChatLoaded, setTeamChatLoaded] = useState(false);
+            const [teamChatReadVersion, setTeamChatReadVersion] = useState(0);
+            const [isDashboardVisible, setIsDashboardVisible] = useState(() => !document.hidden && document.hasFocus());
+            const dailySnapshotRef = useRef({ date: null, data: null });
+            const dailyEditingRef = useRef(false);
+            dailyEditingRef.current = isEditing;
+            const shiftReadIdsRef = useRef([]);
+            const pendingShiftActionsRef = useRef(new Set());
+            const chatReadMigrationRef = useRef(null);
             const [editingChatId, setEditingChatId] = useState(null);
             const [editingChatText, setEditingChatText] = useState('');
             const [isSavingChatEdit, setIsSavingChatEdit] = useState(false);
@@ -1902,16 +1975,21 @@
                     document.body.appendChild(script);
                 }
 
-                // Unlock browser audio context on first interaction
+                // Retry on later gestures if audio loaded late or was suspended.
                 const handleInteraction = async () => {
                     if (window.Tone && window.Tone.context.state !== 'running') {
                         try { await window.Tone.start(); } catch(e) {}
                     }
+                    if (window.Tone?.context.state === 'running' && pendingNotificationChime) {
+                        await playNotificationChime(pendingNotificationChime);
+                    }
                 };
-                window.addEventListener('click', handleInteraction, { once: true });
-                window.addEventListener('keydown', handleInteraction, { once: true });
+                window.addEventListener('pointerdown', handleInteraction);
+                window.addEventListener('click', handleInteraction);
+                window.addEventListener('keydown', handleInteraction);
                 
                 return () => {
+                    window.removeEventListener('pointerdown', handleInteraction);
                     window.removeEventListener('click', handleInteraction);
                     window.removeEventListener('keydown', handleInteraction);
                 };
@@ -2096,7 +2174,11 @@
                         });
                         dbData.midDay.status = newMidDayStatus;
 
-                        setData(normalizeMetricsNameData(dbData));
+                        const incoming = normalizeMetricsNameData(dbData);
+                        const previous = dailySnapshotRef.current;
+                        dailySnapshotRef.current = { date: activeDate, data: incoming };
+                        setData(local => dailyEditingRef.current && previous.date === activeDate
+                            ? mergeConcurrentEdits(previous.data, local, incoming) : incoming);
                         setIsLoading(false);
                     });
 
@@ -2362,7 +2444,13 @@
                     setData(dataToSave);
                 
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
-                    await setDoc(docRef, { ...dataToSave, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                    const baseline = dailySnapshotRef.current.date === activeDate ? dailySnapshotRef.current.data : dataToSave;
+                    await runTransaction(db, async transaction => {
+                        const snapshot = await transaction.get(docRef);
+                        const latest = snapshot.exists() ? snapshot.data() : dataToSave;
+                        const merged = withAutoRouteMetrics(mergeConcurrentEdits(baseline, dataToSave, latest));
+                        transaction.set(docRef, { ...merged, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                    });
 
                     const bonusBoundaries = getBonusWeekBoundaries(activeDate);
                     const bonusDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'weeklyBonuses', bonusBoundaries.mondayStr);
@@ -3453,10 +3541,16 @@
                 setShiftNoteSeenAt(localShiftSeenAt);
                 setTeamChatSeenAt(localTeamSeenAt);
                 try {
-                    setShiftNoteReadIds(JSON.parse(localStorage.getItem(getShiftNoteNotificationReadIdsKey(user.uid)) || '[]'));
+                    shiftReadIdsRef.current = JSON.parse(localStorage.getItem(getShiftNoteNotificationReadIdsKey(user.uid)) || '[]');
+                    setShiftNoteReadIds(shiftReadIdsRef.current);
                 } catch(e) {
+                    shiftReadIdsRef.current = [];
                     setShiftNoteReadIds([]);
                 }
+                chatReadMigrationRef.current = null;
+                setTeamChatReadVersion(0);
+                try { setTeamChatReadIds(JSON.parse(localStorage.getItem(getTeamChatReadIdsKey(user.uid)) || '[]')); }
+                catch { setTeamChatReadIds([]); }
                 if (!db) {
                     setNotificationStateLoaded(true);
                     return;
@@ -3471,7 +3565,7 @@
                     const stateSnap = await transaction.get(stateRef);
                     const existing = stateSnap.exists() ? stateSnap.data() : {};
                     const existingIds = Array.isArray(existing.shiftNoteReadIds) ? existing.shiftNoteReadIds : [];
-                    const mergedReadIds = Array.from(new Set([...existingIds, ...localShiftReadIds])).slice(-1000);
+                    const mergedReadIds = Array.from(new Set([...existingIds, ...localShiftReadIds]));
                     const existingTeamSeen = existing.teamChatSeenAt || '';
                     const localTeamSeenMs = localTeamSeenAt ? Date.parse(localTeamSeenAt) : 0;
                     const existingTeamSeenMs = existingTeamSeen ? Date.parse(existingTeamSeen) : 0;
@@ -3489,10 +3583,15 @@
                     const sharedShiftSeenAt = sharedState.shiftNoteNotificationsReadAt || localShiftSeenAt || '';
                     const sharedTeamSeenAt = sharedState.teamChatSeenAt || localTeamSeenAt || '';
                     setShiftNoteSeenAt(sharedShiftSeenAt);
-                    setShiftNoteReadIds(sharedReadIds);
+                    shiftReadIdsRef.current = Array.from(new Set([...shiftReadIdsRef.current, ...sharedReadIds]));
+                    setShiftNoteReadIds(shiftReadIdsRef.current);
+                    const sharedChatReadIds = Array.isArray(sharedState.teamChatReadIds) ? sharedState.teamChatReadIds : [];
+                    setTeamChatReadIds(prev => Array.from(new Set([...prev, ...sharedChatReadIds])));
+                    setTeamChatReadVersion(sharedState.teamChatReadVersion || 0);
+                    localStorage.setItem(getTeamChatReadIdsKey(user.uid), JSON.stringify(sharedChatReadIds));
                     setTeamChatSeenAt(sharedTeamSeenAt);
                     localStorage.setItem(getShiftNoteNotificationSeenKey(user.uid), sharedShiftSeenAt);
-                    localStorage.setItem(getShiftNoteNotificationReadIdsKey(user.uid), JSON.stringify(sharedReadIds));
+                    localStorage.setItem(getShiftNoteNotificationReadIdsKey(user.uid), JSON.stringify(shiftReadIdsRef.current));
                     localStorage.setItem(getTeamChatSeenKey(user.uid), sharedTeamSeenAt);
                     setNotificationStateLoaded(true);
                 }, (error) => {
@@ -3509,10 +3608,16 @@
 
             useEffect(() => {
                 if (!user || !db) return;
+                setTeamChatLoaded(false);
+                teamChatSoundSignature.current = null;
                 const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
                 const unsubscribeTeamChat = onSnapshot(chatRef, (docSnap) => {
                     const messages = docSnap.exists() && Array.isArray(docSnap.data().messages) ? docSnap.data().messages : [];
+                    if (teamChatSoundSignature.current === null) {
+                        teamChatSoundSignature.current = new Set(messages.map(teamMessageKey));
+                    }
                     setTeamChatMessages(messages.slice(-150));
+                    setTeamChatLoaded(true);
                 }, (error) => {
                     console.error('Failed to load team chat:', error);
                     setTeamChatError('Team Chat could not load.');
@@ -3520,20 +3625,55 @@
                 return () => unsubscribeTeamChat();
             }, [user]);
 
+            useEffect(() => {
+                const updateVisibility = () => setIsDashboardVisible(!document.hidden && document.hasFocus());
+                window.addEventListener('focus', updateVisibility);
+                window.addEventListener('blur', updateVisibility);
+                document.addEventListener('visibilitychange', updateVisibility);
+                return () => {
+                    window.removeEventListener('focus', updateVisibility);
+                    window.removeEventListener('blur', updateVisibility);
+                    document.removeEventListener('visibilitychange', updateVisibility);
+                };
+            }, []);
+
+            // Convert the old timestamp once, using only the initial loaded
+            // messages. Future messages are tracked by ID, never by clock time.
+            useEffect(() => {
+                if (!user || !db || !notificationStateLoaded || !teamChatLoaded || teamChatReadVersion >= 2
+                    || chatReadMigrationRef.current === user.uid) return;
+                chatReadMigrationRef.current = user.uid;
+                const cutoff = Math.min(Date.parse(teamChatSeenAt) || 0, Date.now());
+                const ids = teamChatMessages.filter(message => Date.parse(message.timestamp) <= cutoff)
+                    .map(teamMessageKey).filter(Boolean);
+                const stateRef = doc(db, 'artifacts', appId, 'public', 'data', 'notificationStates', user.uid);
+                runTransaction(db, async transaction => {
+                    const snap = await transaction.get(stateRef);
+                    const saved = snap.exists() ? snap.data() : {};
+                    if (saved.teamChatReadVersion >= 2) return;
+                    transaction.set(stateRef, {
+                        teamChatReadVersion: 2,
+                        teamChatReadIds: Array.from(new Set([...(saved.teamChatReadIds || []), ...ids]))
+                    }, { merge: true });
+                }).catch(error => { chatReadMigrationRef.current = null; console.error('Chat read migration failed:', error); });
+            }, [user?.uid, notificationStateLoaded, teamChatLoaded, teamChatReadVersion]);
+
             const markTeamChatSeen = async () => {
-                if (!user) return;
+                if (!user || document.hidden || !document.hasFocus()) return;
                 const current = getCurrentShiftUser();
-                const latestMessageTime = (teamChatMessages || []).reduce((latest, message) => {
-                    const time = message?.timestamp ? new Date(message.timestamp).getTime() : 0;
-                    return Number.isFinite(time) && time > latest ? time : latest;
-                }, 0);
-                const timestamp = latestMessageTime ? new Date(latestMessageTime).toISOString() : new Date().toISOString();
+                const timestamp = new Date().toISOString();
+                const visibleMessageIds = teamChatMessages.map(teamMessageKey).filter(Boolean);
+                const nextReadIds = Array.from(new Set([...teamChatReadIds, ...visibleMessageIds]));
+                setTeamChatReadIds(nextReadIds);
+                localStorage.setItem(getTeamChatReadIdsKey(user.uid), JSON.stringify(nextReadIds));
                 localStorage.setItem(getTeamChatSeenKey(user.uid), timestamp);
                 setTeamChatSeenAt(timestamp);
                 if (db) {
                     setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notificationStates', user.uid), {
                         teamChatSeenAt: timestamp,
-                        updatedAt: new Date().toISOString()
+                        teamChatReadVersion: 2,
+                        ...(visibleMessageIds.length ? { teamChatReadIds: arrayUnion(...visibleMessageIds) } : {}),
+                        updatedAt: timestamp
                     }, { merge: true }).catch(error => console.error('Failed to save team chat seen state:', error));
                 }
                 const visibleIds = new Set(teamChatMessages.map(message => message.id));
@@ -3565,8 +3705,8 @@
             };
 
             useEffect(() => {
-                if (isTeamChatOpen && user && teamChatMessages.length) markTeamChatSeen();
-            }, [isTeamChatOpen, user?.uid, teamChatMessages]);
+                if (isTeamChatOpen && isDashboardVisible && notificationStateLoaded && teamChatLoaded && user && teamChatMessages.length) markTeamChatSeen();
+            }, [isTeamChatOpen, isDashboardVisible, notificationStateLoaded, teamChatLoaded, user?.uid, teamChatMessages]);
 
             const saveTeamChatEdit = async () => {
                 const text = editingChatText.trim();
@@ -3624,27 +3764,39 @@
                 }
             };
 
-            const toggleShiftNoteLike = async (noteId) => {
+            const saveShiftNoteChange = async (noteId, change) => {
                 const current = getCurrentShiftUser();
-                const nd = JSON.parse(JSON.stringify(data));
-                const nIdx = nd.shiftNotes.findIndex(n => n.id === noteId);
-                if (nIdx < 0) return;
-                if (!Array.isArray(nd.shiftNotes[nIdx].likes)) nd.shiftNotes[nIdx].likes = [];
-                const likeIdx = nd.shiftNotes[nIdx].likes.findIndex(like => like.uid === current.uid);
-                if (likeIdx >= 0) {
-                    nd.shiftNotes[nIdx].likes.splice(likeIdx, 1);
-                } else {
-                    nd.shiftNotes[nIdx].likes.push({ uid: current.uid, name: current.name, timestamp: new Date().toISOString() });
+                const dateKey = activeDate;
+                if (!db || (isEditing && !(dailySnapshotRef.current.data?.shiftNotes || []).some(note => note.id === noteId))) {
+                    setData(local => ({ ...local, shiftNotes: local.shiftNotes.map(note => note.id === noteId ? change(note) : note) }));
+                    return;
                 }
-                setData(nd);
-                if (db) {
-                    try {
-                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
-                        await setDoc(docRef, { ...nd, lastUpdatedBy: current.name, lastUpdatedAt: new Date().toISOString() });
-                    } catch(e) {
-                        console.error('Failed to save shift note like:', e);
-                    }
-                }
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', dateKey);
+                await runTransaction(db, async transaction => {
+                    const snapshot = await transaction.get(docRef);
+                    if (!snapshot.exists()) throw new Error('The note is no longer available.');
+                    const saved = snapshot.data();
+                    if (!(saved.shiftNotes || []).some(note => note.id === noteId)) throw new Error('The note is no longer available.');
+                    const shiftNotes = saved.shiftNotes.map(note => note.id === noteId ? change(note) : note);
+                    transaction.set(docRef, { shiftNotes, lastUpdatedBy: current.name, lastUpdatedAt: new Date().toISOString() }, { merge: true });
+                });
+            };
+
+            const toggleShiftNoteLike = async (noteId) => {
+                const actionKey = 'like-' + noteId;
+                if (pendingShiftActionsRef.current.has(actionKey)) return;
+                pendingShiftActionsRef.current.add(actionKey);
+                const current = getCurrentShiftUser();
+                const timestamp = new Date().toISOString();
+                try {
+                    await saveShiftNoteChange(noteId, note => {
+                        const likes = note.likes || [];
+                        return { ...note, likes: likes.some(like => like.uid === current.uid)
+                            ? likes.filter(like => like.uid !== current.uid)
+                            : [...likes, { uid: current.uid, name: current.name, timestamp }] };
+                    });
+                } catch (error) { alert('Your like could not be saved. Please try again.'); }
+                finally { pendingShiftActionsRef.current.delete(actionKey); }
             };
 
             const openShiftReplyComposer = (noteId) => {
@@ -3661,33 +3813,17 @@
 
             const saveShiftNoteReply = async (noteId) => {
                 const text = String(shiftReplyDrafts[noteId] || '').trim();
-                if (!text || savingShiftReplyId === noteId) return;
-                const current = getCurrentShiftUser();
-                const timestamp = new Date().toISOString();
-                const nd = JSON.parse(JSON.stringify(data));
-                const nIdx = nd.shiftNotes.findIndex(n => n.id === noteId);
-                if (nIdx < 0) return;
-                if (!Array.isArray(nd.shiftNotes[nIdx].replies)) nd.shiftNotes[nIdx].replies = [];
-                nd.shiftNotes[nIdx].replies.push({
-                    id: `${Date.now()}-${current.uid}`,
-                    text,
-                    author: current.name,
-                    authorUid: current.uid,
-                    timestamp
-                });
-                setData(nd);
-                closeShiftReplyComposer(noteId);
-                if (!db) return;
+                const actionKey = 'reply-' + noteId;
+                if (!text || pendingShiftActionsRef.current.has(actionKey)) return;
+                pendingShiftActionsRef.current.add(actionKey);
                 setSavingShiftReplyId(noteId);
+                const current = getCurrentShiftUser();
+                const reply = { id: crypto.randomUUID(), text, author: current.name, authorUid: current.uid, timestamp: new Date().toISOString() };
                 try {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
-                    await setDoc(docRef, { ...nd, lastUpdatedBy: current.name, lastUpdatedAt: timestamp });
-                } catch(e) {
-                    console.error('Failed to save shift note reply:', e);
-                    setShiftReplyDrafts(prev => ({ ...prev, [noteId]: text }));
-                } finally {
-                    setSavingShiftReplyId(null);
-                }
+                    await saveShiftNoteChange(noteId, note => ({ ...note, replies: [...(note.replies || []), reply] }));
+                    closeShiftReplyComposer(noteId);
+                } catch (error) { alert('Your reply could not be saved. Your text is still here; please try again.'); }
+                finally { pendingShiftActionsRef.current.delete(actionKey); setSavingShiftReplyId(null); }
             };
 
             const getShiftNotePreview = (note) => {
@@ -3772,10 +3908,11 @@
                 localStorage.setItem(getShiftNoteNotificationSeenKey(user.uid), timestamp);
                 localStorage.setItem(getShiftNoteNotificationReadIdsKey(user.uid), JSON.stringify(nextReadIds));
                 setShiftNoteSeenAt(timestamp);
+                shiftReadIdsRef.current = nextReadIds;
                 setShiftNoteReadIds(nextReadIds);
-                if (db) {
+                if (db && nextReadIds.length) {
                     setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notificationStates', user.uid), {
-                        shiftNoteReadIds: nextReadIds,
+                        shiftNoteReadIds: arrayUnion(...nextReadIds),
                         shiftNoteNotificationsReadAt: timestamp,
                         updatedAt: timestamp
                     }, { merge: true }).catch(error => console.error('Failed to save shift note read state:', error));
@@ -3786,13 +3923,13 @@
                 if (!user) return;
                 const timestamp = new Date().toISOString();
                 const allIds = shiftNoteNotificationItems.map(item => item.id);
-                const next = Array.from(new Set([...(shiftNoteReadIds || []), ...allIds])).slice(-1000);
+                const next = Array.from(new Set([...shiftReadIdsRef.current, ...allIds]));
                 saveShiftNoteReadState(next, timestamp);
             };
 
             const markShiftNotificationItemRead = (itemId) => {
                 if (!user || !itemId) return;
-                const next = Array.from(new Set([...(shiftNoteReadIds || []), itemId])).slice(-500);
+                const next = Array.from(new Set([...shiftReadIdsRef.current, itemId]));
                 saveShiftNoteReadState(next);
             };
 
@@ -3896,21 +4033,14 @@
             const nextDayRouteCounts = getAutoRouteCounts(nextDayRecord);
             const nextDayRoutesAreAuto = nextDayRouteCounts.hasRows;
             const plannedNextDayRoutes = nextDayRoutesAreAuto ? nextDayRouteCounts.routes : (Number(data.endOfDay?.nextRoutes) || 0);
-            const teamChatSeenMs = teamChatSeenAt ? new Date(teamChatSeenAt).getTime() : 0;
-            const hasCurrentUserSeenTeamMessage = (message) => {
-                if (!message || message.authorUid === (user?.uid || 'local')) return true;
-                const seenBy = Array.isArray(message.seenBy) ? message.seenBy : [];
-                if (seenBy.some(entry => entry?.uid === (user?.uid || 'local'))) return true;
-                const messageMs = message.timestamp ? new Date(message.timestamp).getTime() : 0;
-                return Number.isFinite(messageMs) && Boolean(teamChatSeenAt) && messageMs <= teamChatSeenMs;
-            };
+            const hasCurrentUserSeenTeamMessage = (message) => hasSeenTeamMessage(message, user?.uid || 'local', teamChatReadIds);
+
             const teamChatUnreadMessages = (teamChatMessages || []).filter(message => {
                 if (!message || message.authorUid === (user?.uid || 'local')) return false;
                 return !hasCurrentUserSeenTeamMessage(message);
             });
             const teamChatUnreadCount = teamChatUnreadMessages.length;
             const newestTeamChatUnreadId = teamChatUnreadMessages.length ? String(teamChatUnreadMessages[teamChatUnreadMessages.length - 1].id || teamChatUnreadMessages[teamChatUnreadMessages.length - 1].timestamp || '') : '';
-            const teamChatUnreadSignature = teamChatUnreadMessages.map(message => message.id || message.timestamp).join('|');
             useEffect(() => {
                 if (!isTeamChatOpen) return;
                 const scrollTimer = setTimeout(() => {
@@ -3919,60 +4049,29 @@
                 }, 0);
                 return () => clearTimeout(scrollTimer);
             }, [isTeamChatOpen, teamChatMessages.length, newestTeamChatUnreadId]);
+
             const shiftNoteNotificationItems = getShiftNoteNotificationItems();
             const shiftNoteNotificationCount = shiftNoteNotificationItems.length;
             const shiftNoteNotificationSignature = shiftNoteNotificationItems.map(item => item.id).join('|');
             useEffect(() => {
-                if (isLoading) return;
-                if (teamChatSoundSignature.current === null) {
-                    teamChatSoundSignature.current = teamChatUnreadSignature;
-                    return;
-                }
-                if (teamChatUnreadCount > 0 && teamChatUnreadSignature !== teamChatSoundSignature.current) {
-                    const playTeamChatChime = async () => {
-                        if (!window.Tone || window.Tone.context.state !== 'running') return;
-                        try {
-                            const synth = new window.Tone.PolySynth(window.Tone.Synth, {
-                                oscillator: { type: "sine" },
-                                envelope: { attack: 0.02, decay: 0.08, sustain: 0.08, release: 0.8 }
-                            }).toDestination();
-                            synth.volume.value = -14;
-                            const now = window.Tone.now();
-                            synth.triggerAttackRelease("E5", "16n", now);
-                            synth.triggerAttackRelease("B5", "16n", now + 0.12);
-                        } catch (e) {}
-                    };
-                    playTeamChatChime();
-                }
-                teamChatSoundSignature.current = teamChatUnreadSignature;
-            }, [teamChatUnreadSignature, teamChatUnreadCount, isLoading]);
+                if (!teamChatLoaded || teamChatSoundSignature.current === null) return;
+                const knownIds = teamChatSoundSignature.current;
+                const newIncoming = teamChatMessages.some(message => !knownIds.has(teamMessageKey(message))
+                    && message.authorUid !== user?.uid && !hasCurrentUserSeenTeamMessage(message));
+                teamChatSoundSignature.current = new Set(teamChatMessages.map(teamMessageKey));
+                if (newIncoming) playNotificationChime(['E5', 'B5']);
+            }, [teamChatMessages, teamChatLoaded, user?.uid]);
 
             useEffect(() => {
-                if (isLoading) return;
-                if (shiftNoteNotificationSoundSignature.current === null || shiftNoteNotificationSoundDate.current !== activeDate) {
-                    shiftNoteNotificationSoundSignature.current = shiftNoteNotificationSignature;
-                    shiftNoteNotificationSoundDate.current = activeDate;
-                    return;
-                }
-                if (shiftNoteNotificationCount > 0 && shiftNoteNotificationSignature !== shiftNoteNotificationSoundSignature.current) {
-                    const playShiftNoteChime = async () => {
-                        if (!window.Tone || window.Tone.context.state !== 'running') return;
-                        try {
-                            const synth = new window.Tone.PolySynth(window.Tone.Synth, {
-                                oscillator: { type: "sine" },
-                                envelope: { attack: 0.02, decay: 0.08, sustain: 0.08, release: 0.8 }
-                            }).toDestination();
-                            synth.volume.value = -14;
-                            const now = window.Tone.now();
-                            synth.triggerAttackRelease("G5", "16n", now);
-                            synth.triggerAttackRelease("C6", "16n", now + 0.12);
-                        } catch (e) {}
-                    };
-                    playShiftNoteChime();
-                }
-                shiftNoteNotificationSoundSignature.current = shiftNoteNotificationSignature;
+                if (isLoading || !notificationStateLoaded) return;
+                const ids = new Set(shiftNoteNotificationItems.map(item => item.id));
+                const previous = shiftNoteNotificationSoundSignature.current;
+                if (previous !== null && shiftNoteNotificationSoundDate.current === activeDate
+                    && [...ids].some(id => !previous.has(id))) playNotificationChime(['G5', 'C6']);
+                shiftNoteNotificationSoundSignature.current = ids;
                 shiftNoteNotificationSoundDate.current = activeDate;
-            }, [shiftNoteNotificationSignature, shiftNoteNotificationCount, isLoading, activeDate]);
+            }, [shiftNoteNotificationSignature, isLoading, notificationStateLoaded, activeDate]);
+
             const toFixedSafe = (val, dec = 1) => { const num = Number(val); return isNaN(num) ? '0.0' : num.toFixed(dec); };
             const driverAssignmentWarnings = calculateDriverAssignmentWarnings(data, historyData, activeDate);
             const preloadAssignmentWarnings = calculatePreloadAssignmentWarnings(allPreloadSchedules, getOfficeWeekBoundaries(preloadActiveDate).days);
@@ -4112,7 +4211,7 @@
                 );
             }
             return (
-                <div ref={dashboardRef} onClick={handleDashboardBackgroundClick} onDoubleClick={handleDashboardBackgroundDoubleClick} className="dashboard-page-shell relative min-h-screen bg-slate-900 font-sans text-slate-100 pb-20 overflow-x-hidden">
+                <div ref={dashboardRef} onClick={handleDashboardBackgroundClick} onDoubleClick={handleDashboardBackgroundDoubleClick} className="dashboard-page-shell relative min-h-screen bg-slate-900 font-sans text-slate-100 pb-20">
                     <header data-html2canvas-ignore="true" className={`bg-slate-800 border-b border-slate-700 relative z-30 shadow-lg ${isCapturing ? 'hidden' : 'sticky top-0'}`}>
                         <div className="dashboard-header-grid w-full px-4 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                             <div className="dashboard-header-brand flex items-center gap-3 min-w-0 justify-start">
@@ -4268,7 +4367,7 @@
                                     for (let d = 1; d <= daysInMonth; d++) cells.push(d);
                                     while (cells.length % 7 !== 0) cells.push(null);
                                     return (
-                                        <div className="dashboard-header-calendar absolute right-1/2 translate-x-1/2 top-8 z-[90] w-64 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl p-3 text-slate-200">
+                                        <div className="dashboard-header-calendar absolute right-0 top-8 z-[90] w-64 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl p-3 text-slate-200">
                                             <button type="button" onClick={() => setIsHeaderCalendarOpen(false)} aria-label="Close calendar" className="md:hidden ml-auto block p-2 text-slate-400"><X className="w-4 h-4" /></button>
                                             <div className="flex items-center justify-between mb-3">
                                                 <button type="button" onClick={() => changeHeaderCalendarMonth(-1)} className="px-2 py-1 text-slate-400 hover:text-white transition-colors cursor-pointer">‹</button>
@@ -6432,7 +6531,6 @@
     </script>
 </body>
 </html>
-
 
 
 
