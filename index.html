@@ -151,6 +151,20 @@
                 margin-top: -0.1rem;
             }
 
+            .dashboard-header-popover {
+                position: fixed !important;
+                left: max(0.75rem, env(safe-area-inset-left)) !important;
+                right: max(0.75rem, env(safe-area-inset-right)) !important;
+                top: calc(env(safe-area-inset-top) + 4.75rem) !important;
+                width: auto !important;
+                max-width: none !important;
+                max-height: calc(100dvh - 5.5rem);
+            }
+
+            .dashboard-header-popover [data-popover-scroll="true"] {
+                max-height: calc(100dvh - 13rem) !important;
+            }
+
             .dashboard-nav-wrap {
                 grid-area: nav;
                 justify-content: flex-start !important;
@@ -3909,14 +3923,14 @@
                             </div>
                             <div className="dashboard-header-actions flex items-center justify-end gap-2 shrink-0">
                                 <div className="relative">
-                                    <button onClick={() => setIsShiftNotificationOpen(prev => !prev)} className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${shiftNoteNotificationCount > 0 ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`} title="Shift Notes Notifications">
+                                    <button onClick={() => { setIsShiftNotificationOpen(prev => !prev); setIsTeamChatOpen(false); }} className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${shiftNoteNotificationCount > 0 ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`} title="Shift Notes Notifications">
                                         <Bell className="w-4 h-4" />
                                         {shiftNoteNotificationCount > 0 && (
                                             <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{shiftNoteNotificationCount > 9 ? '9+' : shiftNoteNotificationCount}</span>
                                         )}
                                     </button>
                                     {isShiftNotificationOpen && (
-                                        <div className="absolute right-0 top-8 z-[120] w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                        <div className="dashboard-header-popover absolute right-0 top-8 z-[120] w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
                                             <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
                                                 <div>
                                                     <div className="text-xs font-black uppercase tracking-widest text-white">Notifications</div>
@@ -3926,7 +3940,7 @@
                                                     <button type="button" onClick={markShiftNotesSeen} className="rounded-lg border border-slate-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">Mark Read</button>
                                                 )}
                                             </div>
-                                            <div className="max-h-80 overflow-y-auto">
+                                            <div data-popover-scroll="true" className="max-h-80 overflow-y-auto">
                                                 {shiftNoteNotificationItems.length === 0 ? (
                                                     <div className="px-4 py-8 text-center text-xs font-bold text-slate-500">
                                                         <div>No new likes or replies.</div>
@@ -3959,7 +3973,7 @@
                                         )}
                                     </button>
                                     {isTeamChatOpen && (
-                                        <div role="dialog" data-dashboard-edit-ignore="true" className="absolute right-0 top-8 z-[120] w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                        <div role="dialog" data-dashboard-edit-ignore="true" className="dashboard-header-popover absolute right-0 top-8 z-[120] w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
                                             <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
                                                 <div>
                                                     <div className="text-xs font-black uppercase tracking-widest text-white">Team Chat</div>
@@ -3967,7 +3981,7 @@
                                                 </div>
                                                 <button type="button" onClick={() => setIsTeamChatOpen(false)} className="rounded-lg border border-slate-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">Close</button>
                                             </div>
-                                            <div className="max-h-80 min-h-[220px] overflow-y-auto px-4 py-3 space-y-3 bg-slate-950/90">
+                                            <div data-popover-scroll="true" className="max-h-80 min-h-[220px] overflow-y-auto px-4 py-3 space-y-3 bg-slate-950/90">
                                                 {teamChatMessages.length === 0 ? (
                                                     <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">No team messages yet.</div>
                                                 ) : (
