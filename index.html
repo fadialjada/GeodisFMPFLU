@@ -879,7 +879,7 @@
             Camera, Activity, AlertTriangle, ArrowUp, Minus, Target, Download, 
             Table as TableIcon, Trash2, Route, Settings, ClipboardPaste, Award, DollarSign,
             PlusCircle, X, Loader2, ActivitySquare, MessageSquare, User, Share2,
-            FileText, History, Maximize, Minimize, Bell, ThumbsUp
+            FileText, History, Maximize, Minimize, Bell, ThumbsUp, Smile
         } from 'lucide-react';
 
         let firebaseConfig = {
@@ -1386,7 +1386,12 @@
                     const result = remote.filter(item => !before.has(String(key(item))) || mine.has(String(key(item))))
                         .map(item => mine.has(String(key(item)))
                             ? mergeConcurrentEdits(before.get(String(key(item))), mine.get(String(key(item))), item) : item);
-                    local.forEach(item => { if (!theirs.has(String(key(item))) && !before.has(String(key(item)))) result.push(item); });
+                    local.forEach((item, index) => {
+                        if (theirs.has(String(key(item))) || before.has(String(key(item)))) return;
+                        const nextItem = local.slice(index + 1).find(next => result.some(saved => String(key(saved)) === String(key(next))));
+                        const insertAt = nextItem ? result.findIndex(saved => String(key(saved)) === String(key(nextItem))) : result.length;
+                        result.splice(insertAt, 0, item);
+                    });
                     return result;
                 }
                 return local;
@@ -1406,6 +1411,136 @@
             }
             return local;
         };
+
+            const getCountableRouteRows = (inputData) => {
+                const d = inputData || DEFAULT_DATA;
+                return (d.routeTable || []).filter(route => ['cnt', 'door', 'serviceUnit', 'route', 'contractor', 'driver', 'helper'].some(key => String(route?.[key] || '').trim()));
+            };
+
+            const isSameDayRoute = (route) => {
+                const routeName = String(route?.route || '').toLowerCase();
+                return /\bsame[\s-]*day\b/.test(routeName) || /\bsame[\s-]*s[\s-]*d\b/.test(routeName) || /\bs[\s-]*d\b/.test(routeName);
+            };
+
+            const getAutoRouteCounts = (inputData) => {
+                const rows = getCountableRouteRows(inputData);
+                const sameDayRows = rows.filter(isSameDayRoute);
+                const normalRows = rows.filter(route => !isSameDayRoute(route));
+                return {
+                    hasRows: rows.length > 0,
+                    allRoutes: rows.length,
+                    routes: normalRows.length,
+                    sameDayRoutes: sameDayRows.length,
+                    orders: normalRows.reduce((sum, route) => sum + (Number(String(route?.stops || '').replace(/,/g, '')) || 0), 0)
+                };
+            };
+
+            const withAutoRouteMetrics = (inputData) => {
+                const cloned = JSON.parse(JSON.stringify(inputData || DEFAULT_DATA));
+                if (!cloned.loadout) cloned.loadout = {};
+                if (!Array.isArray(cloned.loadout.metrics)) cloned.loadout.metrics = [{ label:"Total Routes", value:"0" }, { label:"Number of Same Day Routes", value:"0" }];
+                while (cloned.loadout.metrics.length < 2) cloned.loadout.metrics.push({ label:"", value:"0" });
+                const autoCounts = getAutoRouteCounts(cloned);
+                cloned.loadout.metrics[0] = { ...(cloned.loadout.metrics[0] || {}), label:"Total Routes", value: String(autoCounts.routes) };
+                cloned.loadout.metrics[1] = { ...(cloned.loadout.metrics[1] || {}), label:"Number of Same Day Routes", value: String(autoCounts.sameDayRoutes) };
+                return cloned;
+            };
+
+        // Account identity is verified by Firebase Auth; names are display-only.
+        const OWNER_UID = '9BdsuIRx3nNG3QrhEi8hjdgXGXz2';
+        const TEAM_UIDS = new Set([OWNER_UID, '0lydQXs1YggMpbN7IpVUBhM2Q1C2',
+            '8LDjZnhNd0XnkE2kPeL0tXLhImh2', 'XKs6jvncmtOH1vXIRuCLnN6zihh1',
+            '79ko6RLyjbhlUClcMcw66lKmNg22', 'rlSdxiVJCIYO9fPTyzPyIFJJUEm2']);
+        const isOwnerAccount = account => Boolean(account?.uid && account.uid === OWNER_UID);
+        const requireTeamAccount = () => {
+            if (!TEAM_UIDS.has(auth.currentUser?.uid)) throw new Error('This account does not have dashboard access.');
+        };
+        const sameSavedValue = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+        // Preserve concurrent activity and save each staff note edit separately,
+        // so Firestore can prove that no existing note or author was removed.
+        const saveDailyRecapDocument = async (ref, draft, baseline) => {
+            requireTeamAccount();
+            const owner = isOwnerAccount(auth.currentUser);
+            const beforeNotes = baseline?.shiftNotes || [];
+            const notes = draft.shiftNotes || [];
+            if (!owner && beforeNotes.some(note => !notes.some(next => next.id === note.id))) {
+                throw new Error('Only Fadi can delete Shift Notes.');
+            }
+            await runTransaction(db, async transaction => {
+                const snapshot = await transaction.get(ref);
+                const latest = snapshot.exists() ? snapshot.data() : {};
+                const merged = withAutoRouteMetrics(mergeConcurrentEdits(baseline || {}, draft, latest));
+                transaction.set(ref, owner ? merged : { ...merged, shiftNotes: latest.shiftNotes || [] });
+            });
+            if (owner) return;
+            for (const note of notes) {
+                const before = beforeNotes.find(item => item.id === note.id);
+                if (sameSavedValue(before, note)) continue;
+                await runTransaction(db, async transaction => {
+                    const snapshot = await transaction.get(ref);
+                    const latestNotes = snapshot.data()?.shiftNotes || [];
+                    const index = latestNotes.findIndex(item => item.id === note.id);
+                    if (index < 0 && before) return; // An owner deleted it while this editor was open.
+                    const next = [...latestNotes];
+                    if (index < 0) next.unshift(note);
+                    else if (!before && !sameSavedValue(next[index], note)) {
+                        // Older clients allocate numeric IDs; keep both concurrent additions.
+                        next.unshift({ ...note, id: crypto.randomUUID() });
+                    } else next[index] = mergeConcurrentEdits(before || next[index], note, next[index]);
+                    transaction.set(ref, { shiftNotes: next, lastUpdatedBy: draft.lastUpdatedBy,
+                        lastUpdatedAt: draft.lastUpdatedAt }, { merge: true });
+                });
+            }
+        };
+
+        // Staff may change shifts, but the roster's names/IDs remain owner-only.
+        // A new week inherits a verified saved roster before its shifts are moved.
+        const saveOfficeScheduleDocument = async (ref, draft, baseline = null) => {
+            requireTeamAccount();
+            if (isOwnerAccount(auth.currentUser)) {
+                await runTransaction(db, async transaction => {
+                    const snapshot = await transaction.get(ref);
+                    transaction.set(ref, baseline && snapshot.exists()
+                        ? mergeConcurrentEdits(baseline, draft, snapshot.data()) : draft);
+                });
+                return;
+            }
+            await runTransaction(db, async transaction => {
+                const snapshot = await transaction.get(ref);
+                if (snapshot.exists()) return;
+                const sourceWeek = draft.officeCopiedFromWeekStart;
+                if (!sourceWeek || sourceWeek >= ref.id) throw new Error('Fadi needs to set up the office roster for this week first.');
+                const sourceRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', sourceWeek);
+                const source = await transaction.get(sourceRef);
+                if (!source.exists()) throw new Error('The source office schedule is unavailable.');
+                transaction.set(ref, { ...draft, employees: source.data().employees });
+            });
+            for (const employee of draft.employees || []) {
+                const before = baseline?.employees?.find(item => item.id === employee.id);
+                if (before && sameSavedValue(before, employee)) continue;
+                await runTransaction(db, async transaction => {
+                    const snapshot = await transaction.get(ref);
+                    const employees = [...(snapshot.data()?.employees || [])];
+                    const index = employees.findIndex(item => item.id === employee.id);
+                    if (index < 0) throw new Error('Only Fadi can change the office roster.');
+                    const current = employees[index];
+                    if (current.name !== employee.name) throw new Error('Only Fadi can rename office employees.');
+                    employees[index] = { ...current, shifts: before
+                        ? mergeConcurrentEdits(before.shifts, employee.shifts, current.shifts) : employee.shifts };
+                    transaction.set(ref, { employees }, { merge: true });
+                });
+            }
+            const { employees, ...details } = draft;
+            await runTransaction(db, async transaction => {
+                const snapshot = await transaction.get(ref);
+                const current = snapshot.data() || {};
+                const { employees: ignored, ...baseDetails } = baseline || {};
+                transaction.set(ref, baseline ? { ...mergeConcurrentEdits(baseDetails, details, current), employees: current.employees }
+                    : { ...current, ...details });
+            });
+        };
+
 
         let pendingNotificationChime = null;
         const playNotificationChime = async (notes) => {
@@ -1476,8 +1611,53 @@
             throw lastError || new Error('Unable to create screenshot.');
         };
 
+        const TEAM_CHAT_EMOJIS = [
+            ['😀', 'Grinning face'], ['😊', 'Smiling face'], ['😂', 'Laughing'], ['😎', 'Cool'],
+            ['🤔', 'Thinking'], ['😅', 'Relieved smile'], ['👍', 'Thumbs up'], ['👎', 'Thumbs down'],
+            ['👏', 'Clapping'], ['🙌', 'Celebrating'], ['🙏', 'Thank you'], ['💪', 'Strong'],
+            ['👋', 'Hello'], ['❤️', 'Heart'], ['🎉', 'Party'], ['✅', 'Done'],
+            ['💯', 'One hundred'], ['⭐', 'Star'], ['🔥', 'Fire'], ['👀', 'Looking'],
+            ['🚚', 'Truck'], ['📦', 'Package'], ['📍', 'Location'], ['⏰', 'Reminder'],
+            ['😁', 'Beaming smile'], ['😃', 'Big smile'], ['😄', 'Happy smile'], ['🤣', 'Rolling with laughter'],
+            ['🙂', 'Slight smile'], ['😉', 'Wink'], ['😍', 'Heart eyes'], ['🥰', 'Feeling loved'],
+            ['😘', 'Blowing a kiss'], ['🤩', 'Star eyes'], ['🥳', 'Party face'], ['😇', 'Innocent'],
+            ['🤗', 'Hug'], ['🤭', 'Giggle'], ['🤫', 'Quiet'], ['🫡', 'Salute'],
+            ['😴', 'Sleeping'], ['🥱', 'Yawning'], ['😕', 'Confused'], ['😟', 'Worried'],
+            ['😢', 'Sad'], ['😭', 'Crying'], ['😮', 'Surprised'], ['😱', 'Shocked'],
+            ['😤', 'Frustrated'], ['😡', 'Angry'], ['🤯', 'Mind blown'], ['🥺', 'Pleading'],
+            ['🤒', 'Feeling sick'], ['🤧', 'Sneezing'], ['😷', 'Face mask'], ['🤕', 'Injured'],
+            ['👌', 'OK hand'], ['✌️', 'Peace'], ['🤞', 'Fingers crossed'], ['🤝', 'Handshake'],
+            ['👊', 'Fist bump'], ['🤙', 'Call me'], ['🫶', 'Heart hands'], ['✋', 'Raised hand'],
+            ['👍🏻', 'Thumbs up light skin'], ['👍🏼', 'Thumbs up medium light skin'], ['👍🏽', 'Thumbs up medium skin'], ['👍🏾', 'Thumbs up medium dark skin'],
+            ['👍🏿', 'Thumbs up dark skin'], ['💙', 'Blue heart'], ['💚', 'Green heart'], ['💜', 'Purple heart'],
+            ['🧡', 'Orange heart'], ['💛', 'Yellow heart'], ['🤍', 'White heart'], ['💔', 'Broken heart'],
+            ['🎊', 'Confetti'], ['🎂', 'Birthday cake'], ['🎈', 'Balloon'], ['🎁', 'Gift'],
+            ['🏆', 'Trophy'], ['🥇', 'Gold medal'], ['✨', 'Sparkles'], ['🌟', 'Glowing star'],
+            ['☀️', 'Sun'], ['🌧️', 'Rain'], ['☕', 'Coffee'], ['🍕', 'Pizza'],
+            ['🚗', 'Car'], ['🚦', 'Traffic light'], ['⛽', 'Fuel'], ['🛠️', 'Tools'],
+            ['📞', 'Phone'], ['📝', 'Note'], ['⚠️', 'Warning'], ['❌', 'No']
+        ];
+
+        const ChatMessageText = ({ text }) => {
+            // Keep joined emoji, skin tones, flags and keycaps together when sizing them.
+            const parts = String(text || '').split(/(\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})(?:\uFE0F|\p{Emoji_Modifier})*(?:\u200D(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})(?:\uFE0F|\p{Emoji_Modifier})*)*)/gu);
+            const emojiOnly = !parts.some((part, index) => index % 2 === 0 && part.trim());
+            return <div className="chat-message-text whitespace-pre-wrap break-words text-sm font-medium leading-relaxed">
+                {parts.map((part, index) => index % 2 === 1
+                    ? <span key={index} className={`align-middle ${emojiOnly ? 'text-3xl leading-relaxed' : 'text-xl leading-normal'}`}>{part}</span>
+                    : part)}
+            </div>;
+        };
+
         const App = () => {
             const [user, setUser] = useState(null);
+            const isAdminUser = isOwnerAccount(user);
+            const [saveError, setSaveError] = useState('');
+            const officeSnapshotRef = useRef(null);
+            const officeDirtyRef = useRef(false);
+            const bonusDirtyRef = useRef(false);
+            const masterSnapshotRef = useRef(DEFAULT_MASTER_LISTS);
+            const [teamChatReaders, setTeamChatReaders] = useState([]);
             const [authReady, setAuthReady] = useState(false);
             const [loginEmail, setLoginEmail] = useState('');
             const [loginPassword, setLoginPassword] = useState('');
@@ -1499,6 +1679,10 @@
             const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
             const [teamChatMessages, setTeamChatMessages] = useState([]);
             const [teamChatDraft, setTeamChatDraft] = useState('');
+            const [isTeamEmojiOpen, setIsTeamEmojiOpen] = useState(false);
+            const teamChatInputRef = useRef(null);
+            const teamEmojiPickerRef = useRef(null);
+            const teamEmojiButtonRef = useRef(null);
             const [teamChatError, setTeamChatError] = useState('');
             const [teamChatSeenAt, setTeamChatSeenAt] = useState('');
             const [teamChatReadIds, setTeamChatReadIds] = useState([]);
@@ -1956,7 +2140,7 @@
                 if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                 try {
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', todayKey);
-                    await setDoc(docRef, { ...nd, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                    await saveDailyRecapDocument(docRef, { ...nd, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() }, dailySnapshotRef.current.data);
                 } catch(e) { console.error("Failed to sync compliance acknowledgement:", e); }
             };
 
@@ -2084,6 +2268,14 @@
 
             useEffect(() => {
                 const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+                    if (firebaseUser && !TEAM_UIDS.has(firebaseUser.uid)) {
+                        setUser(null);
+                        setAuthReady(true);
+                        setIsLoading(false);
+                        setAuthError('This account is not authorized. Please contact Fadi.');
+                        signOut(auth).catch(console.error);
+                        return;
+                    }
                     if (firebaseUser) {
                         const savedName = localStorage.getItem(getUserNameKey(firebaseUser.uid))?.trim();
                         setUserName(savedName || getDefaultUserName(firebaseUser));
@@ -2195,12 +2387,14 @@
                             const ml = docSnap.data();
                             const mergedLists = { ...DEFAULT_MASTER_LISTS, ...ml, nameOverrides: ml.nameOverrides || {} };
                             mergedLists.parkingAssignments = resolveParkingAssigneeNames(mergedLists.parkingAssignments, mergedLists.contractors);
+                            masterSnapshotRef.current = mergedLists;
                             setMasterLists(mergedLists);
                         } else {
                             const defaults = { ...DEFAULT_MASTER_LISTS, nameOverrides: {} };
                             defaults.parkingAssignments = resolveParkingAssigneeNames(defaults.parkingAssignments, defaults.contractors);
                             setMasterLists(defaults);
-                            setDoc(masterRef, defaults).catch(console.error);
+                            masterSnapshotRef.current = defaults;
+                            if (isOwnerAccount(user)) setDoc(masterRef, defaults).catch(console.error);
                         }
                     });
 
@@ -2221,6 +2415,7 @@
                     const officeBoundaries = getOfficeWeekBoundaries(officeActiveDate);
                     const officeDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', officeBoundaries.startStr);
                     const unsubscribeOffice = onSnapshot(officeDocRef, async (docSnap) => {
+                        officeSnapshotRef.current = { week: officeBoundaries.startStr, data: docSnap.exists() ? docSnap.data() : null };
                         const copyFromPreviousWeek = async (fallbackSchedule = null) => {
                             const currentWeekStart = officeBoundaries.startStr;
                             if (currentWeekStart < OFFICE_COPY_BASE_WEEK_START) {
@@ -2238,7 +2433,7 @@
                                 const prevSnap = await getDoc(prevOfficeRef);
                                 const prevOfficeData = prevSnap.exists() ? prevSnap.data() : null;
                                 if (prevOfficeData && officeScheduleHasAssignments(prevOfficeData) && prevOfficeData.officeOneTimeOverride !== true) {
-                                    return copyOfficeScheduleToWeek(prevOfficeData, officeBoundaries.days);
+                                    return { ...copyOfficeScheduleToWeek(prevOfficeData, officeBoundaries.days), officeCopiedFromWeekStart: weekStart };
                                 }
 
                                 weekToCheck.setDate(weekToCheck.getDate() - 7);
@@ -2247,7 +2442,7 @@
                             const baseOfficeRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', OFFICE_COPY_BASE_WEEK_START);
                             const baseSnap = await getDoc(baseOfficeRef);
                             if (baseSnap.exists() && officeScheduleHasAssignments(baseSnap.data())) {
-                                return copyOfficeScheduleToWeek(baseSnap.data(), officeBoundaries.days);
+                                return { ...copyOfficeScheduleToWeek(baseSnap.data(), officeBoundaries.days), officeCopiedFromWeekStart: OFFICE_COPY_BASE_WEEK_START };
                             }
 
                             return generateBaseOfficeSchedule(officeBoundaries.days);
@@ -2262,14 +2457,14 @@
                                     const copiedSchedule = await copyFromPreviousWeek(savedSchedule);
                                     setOfficeData(copiedSchedule);
                                     if (officeScheduleHasAssignments(copiedSchedule)) {
-                                        await setDoc(officeDocRef, { ...copiedSchedule, officeAutoCopied: true, officeManualOverride: false, officeOneTimeOverride: false, lastUpdatedBy: userName || user?.uid || 'system', lastUpdatedAt: new Date().toISOString() });
+                                        await saveOfficeScheduleDocument(officeDocRef, { ...copiedSchedule, officeAutoCopied: true, officeManualOverride: false, officeOneTimeOverride: false, lastUpdatedBy: userName || user?.uid || 'system', lastUpdatedAt: new Date().toISOString() });
                                     }
                                 }
                             } else {
                                 const nextSchedule = await copyFromPreviousWeek();
                                 setOfficeData(nextSchedule);
                                 if (officeScheduleHasAssignments(nextSchedule)) {
-                                    await setDoc(officeDocRef, { ...nextSchedule, officeAutoCopied: true, officeManualOverride: false, officeOneTimeOverride: false, lastUpdatedBy: userName || user?.uid || 'system', lastUpdatedAt: new Date().toISOString() });
+                                    await saveOfficeScheduleDocument(officeDocRef, { ...nextSchedule, officeAutoCopied: true, officeManualOverride: false, officeOneTimeOverride: false, lastUpdatedBy: userName || user?.uid || 'system', lastUpdatedAt: new Date().toISOString() });
                                 }
                             }
                         } catch(e) {
@@ -2293,7 +2488,7 @@
             useEffect(() => {
                 if (!auth || !db) return;
                 let currentUser = auth.currentUser;
-                if (!currentUser) return;
+                if (!currentUser || !TEAM_UIDS.has(currentUser.uid)) return;
                 const offlineAfterMs = 15 * 60 * 1000;
                 let lastPresenceWrite = 0;
                 if (!presenceSessionIdRef.current) {
@@ -2434,8 +2629,8 @@
 
             const handleSave = async () => {
                 if (dashboardSaveInFlightRef.current) return;
-                setIsEditing(false);
-                if (!db) return; // local mode bypass
+                if (!db) { setIsEditing(false); return; }
+                setSaveError('');
                 dashboardSaveInFlightRef.current = true;
                 try {
                     let currentUid ="local";
@@ -2445,20 +2640,19 @@
                 
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
                     const baseline = dailySnapshotRef.current.date === activeDate ? dailySnapshotRef.current.data : dataToSave;
-                    await runTransaction(db, async transaction => {
-                        const snapshot = await transaction.get(docRef);
-                        const latest = snapshot.exists() ? snapshot.data() : dataToSave;
-                        const merged = withAutoRouteMetrics(mergeConcurrentEdits(baseline, dataToSave, latest));
-                        transaction.set(docRef, { ...merged, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
-                    });
+                    await saveDailyRecapDocument(docRef, { ...dataToSave, lastUpdatedBy: userName || currentUid,
+                        lastUpdatedAt: new Date().toISOString() }, baseline);
 
-                    const bonusBoundaries = getBonusWeekBoundaries(activeDate);
-                    const bonusDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'weeklyBonuses', bonusBoundaries.mondayStr);
-                    await setDoc(bonusDocRef, { ...bonusData, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                    if (isAdminUser && bonusDirtyRef.current) {
+                        const bonusBoundaries = getBonusWeekBoundaries(activeDate);
+                        const bonusDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'weeklyBonuses', bonusBoundaries.mondayStr);
+                        await setDoc(bonusDocRef, { ...bonusData, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                        bonusDirtyRef.current = false;
+                    }
 
                     const officeBoundaries = getOfficeWeekBoundaries(officeActiveDate);
                     const officeDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'officeSchedules', officeBoundaries.startStr);
-                    const isOfficeSave = activeTab === 'office';
+                    const isOfficeSave = activeTab === 'office' || officeDirtyRef.current;
                     const savedOfficeSchedule = {
                         ...(officeData || generateDefaultOfficeSchedule(officeBoundaries.days)),
                         officeAutoCopied: isOfficeSave ? false : Boolean(officeData?.officeAutoCopied),
@@ -2467,7 +2661,8 @@
                         lastUpdatedBy: userName || currentUid,
                         lastUpdatedAt: new Date().toISOString()
                     };
-                    await setDoc(officeDocRef, savedOfficeSchedule);
+                    if (isOfficeSave) await saveOfficeScheduleDocument(officeDocRef, savedOfficeSchedule,
+                        officeSnapshotRef.current?.week === officeBoundaries.startStr ? officeSnapshotRef.current.data : null);
 
                     if (isOfficeSave && isOfficeOneTimeChange && officeScheduleHasAssignments(savedOfficeSchedule)) {
                         let normalSourceSchedule = null;
@@ -2511,7 +2706,7 @@
                                 continue;
                             }
 
-                            await setDoc(nextOfficeRef, {
+                            await saveOfficeScheduleDocument(nextOfficeRef, {
                                 ...copyOfficeScheduleToWeek(normalSourceSchedule, nextOfficeBoundaries.days),
                                 officeAutoCopied: true,
                                 officeManualOverride: false,
@@ -2554,14 +2749,17 @@
                                 lastUpdatedAt: new Date().toISOString()
                             };
 
-                            await setDoc(nextOfficeRef, copiedOfficeSchedule);
+                            await saveOfficeScheduleDocument(nextOfficeRef, copiedOfficeSchedule);
                             sourceSchedule = copiedOfficeSchedule;
                             sourceWeekStart = nextOfficeBoundaries.startStr;
                             targetWeekStart = nextOfficeBoundaries.startStr;
                         }
                     }
-                    if (isOfficeSave) setIsOfficeOneTimeChange(false);
+                    if (isOfficeSave) { setIsOfficeOneTimeChange(false); officeDirtyRef.current = false; }
+                    setIsEditing(false);
                 } catch (e) {
+                    setIsEditing(true);
+                    setSaveError('Some changes could not be saved. Your edit stays open. ' + (e?.code === 'permission-denied' ? 'Your account does not have permission for that change.' : (e.message || 'Please try again.')));
                     console.error("Save failed:", e);
                 } finally {
                     dashboardSaveInFlightRef.current = false;
@@ -2776,40 +2974,6 @@
                     setPasteFeedback(`❌ Could not detect metrics data. Check format.`);
                 }
                 setTimeout(() => setPasteFeedback(''), 5000);
-            };
-
-            const getCountableRouteRows = (inputData) => {
-                const d = inputData || DEFAULT_DATA;
-                return (d.routeTable || []).filter(route => ['cnt', 'door', 'serviceUnit', 'route', 'contractor', 'driver', 'helper'].some(key => String(route?.[key] || '').trim()));
-            };
-
-            const isSameDayRoute = (route) => {
-                const routeName = String(route?.route || '').toLowerCase();
-                return /\bsame[\s-]*day\b/.test(routeName) || /\bsame[\s-]*s[\s-]*d\b/.test(routeName) || /\bs[\s-]*d\b/.test(routeName);
-            };
-
-            const getAutoRouteCounts = (inputData) => {
-                const rows = getCountableRouteRows(inputData);
-                const sameDayRows = rows.filter(isSameDayRoute);
-                const normalRows = rows.filter(route => !isSameDayRoute(route));
-                return {
-                    hasRows: rows.length > 0,
-                    allRoutes: rows.length,
-                    routes: normalRows.length,
-                    sameDayRoutes: sameDayRows.length,
-                    orders: normalRows.reduce((sum, route) => sum + (Number(String(route?.stops || '').replace(/,/g, '')) || 0), 0)
-                };
-            };
-
-            const withAutoRouteMetrics = (inputData) => {
-                const cloned = JSON.parse(JSON.stringify(inputData || DEFAULT_DATA));
-                if (!cloned.loadout) cloned.loadout = {};
-                if (!Array.isArray(cloned.loadout.metrics)) cloned.loadout.metrics = [{ label:"Total Routes", value:"0" }, { label:"Number of Same Day Routes", value:"0" }];
-                while (cloned.loadout.metrics.length < 2) cloned.loadout.metrics.push({ label:"", value:"0" });
-                const autoCounts = getAutoRouteCounts(cloned);
-                cloned.loadout.metrics[0] = { ...(cloned.loadout.metrics[0] || {}), label:"Total Routes", value: String(autoCounts.routes) };
-                cloned.loadout.metrics[1] = { ...(cloned.loadout.metrics[1] || {}), label:"Number of Same Day Routes", value: String(autoCounts.sameDayRoutes) };
-                return cloned;
             };
 
             const calculateKPIs = (inputData) => {
@@ -3221,11 +3385,23 @@
                 if (!db) return;
                 try {
                     const masterRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
-                    await setDoc(masterRef, newLists);
-                } catch (error) {}
+                    requireTeamAccount();
+                    const baseline = masterSnapshotRef.current;
+                    await runTransaction(db, async transaction => {
+                        const snapshot = await transaction.get(masterRef);
+                        const latest = snapshot.exists() ? snapshot.data() : {};
+                        const next = mergeConcurrentEdits(baseline, newLists, latest);
+                        transaction.set(masterRef, next);
+                    });
+                    setSaveError('');
+                    return true;
+                } catch (error) {
+                    setMasterLists(masterSnapshotRef.current);
+                    setSaveError('The master-list change could not be saved. Check your access and try again.');
+                    return false;
+                }
             };
 
-            const isAdminUser = Boolean(user && (String(user.email || '').toLowerCase().includes('fadi') || cleanFirstName(userName) === 'Fadi'));
             const canOpenMasterLists = Boolean(user);
             const canEditMasterItem = isAdminUser || masterActiveTab === 'contractors';
             const getSavedDisplayName = (currentUser) => cleanFirstName((masterLists.nameOverrides || {})[currentUser?.uid] || userName || getDefaultUserName(currentUser));
@@ -3254,10 +3430,12 @@
             const currentUserIsIdle = isPresenceIdle(currentPresence);
             const currentUserIsAway = isPresenceAway(currentPresence);
             const startEditingOnlineName = (onlineUser) => {
+                if (!isAdminUser) return;
                 setEditingOnlineUserId(onlineUser.uid);
                 setOnlineNameDraft(getOnlineDisplayName(onlineUser));
             };
             const saveOnlineNameOverride = async (uid) => {
+                if (!isAdminUser) return;
                 const cleaned = cleanFirstName(onlineNameDraft);
                 const newLists = { ...masterLists, nameOverrides: { ...(masterLists.nameOverrides || {}), [uid]: cleaned } };
                 setMasterLists(newLists);
@@ -3265,10 +3443,7 @@
                 setEditingOnlineUserId(null);
                 setOnlineNameDraft('');
                 await saveMasterLists(newLists);
-                if (db) {
-                    const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', uid);
-                    await setDoc(presenceRef, { name: cleaned }, { merge: true }).catch(() => {});
-                }
+
             };
 
             const getParkingAssignments = () => resolveParkingAssigneeNames(masterLists.parkingAssignments || DEFAULT_MASTER_LISTS.parkingAssignments, masterLists.contractors || DEFAULT_MASTER_LISTS.contractors);
@@ -3284,6 +3459,7 @@
             };
 
             const saveParkingAssignments = async () => {
+                if (!isAdminUser) return;
                 const cleanedAssignments = resolveParkingAssigneeNames(parkingDraft.map(item => ({
                     ...item,
                     spot: String(item.spot || '').trim(),
@@ -3291,13 +3467,12 @@
                 })), masterLists.contractors || DEFAULT_MASTER_LISTS.contractors);
                 const newLists = { ...masterLists, parkingAssignments: cleanedAssignments };
                 setMasterLists(newLists);
-                await saveMasterLists(newLists);
-                setIsParkingEditing(false);
+                if (await saveMasterLists(newLists)) setIsParkingEditing(false);
             };
 
             const addMasterListItem = () => {
                 if (!isAdminUser || !newMasterItem.name.trim()) return;
-                const newLists = { ...masterLists };
+                const newLists = JSON.parse(JSON.stringify(masterLists));
                 if (!newLists[masterActiveTab]) newLists[masterActiveTab] = [];
                 newLists[masterActiveTab].push({ 
                     id: Date.now().toString(), 
@@ -3323,8 +3498,8 @@
                 setEditMasterValues({ name: item.name, phone: item.phone || '', owner: item.owner || '', total: item.total || 0, planned: item.planned || 0 });
             };
 
-            const saveEditMasterItem = (id) => {
-                const newLists = { ...masterLists };
+            const saveEditMasterItem = async (id) => {
+                const newLists = JSON.parse(JSON.stringify(masterLists));
                 const listIndex = newLists[masterActiveTab]?.findIndex(i => i.id === id);
                 if (listIndex >= 0) {
                     if (isAdminUser) {
@@ -3345,7 +3520,7 @@
                     } else {
                         return;
                     }
-                    saveMasterLists(newLists);
+                    if (!await saveMasterLists(newLists)) return;
                 }
                 setEditingMasterId(null);
             };
@@ -3357,6 +3532,7 @@
             };
 
             const updatePreloadDay = async (dateStr, field, value) => {
+                if (!isAdminUser && !['door', 'status'].includes(field)) return;
                 const existing = allPreloadSchedules[dateStr] || { contractor: '', door: '', status: 'Pending' };
                 const updated = { ...existing, [field]: value };
                 
@@ -3373,6 +3549,7 @@
             };
 
             const savePreloadDay = async (dateStr, updated) => {
+                if (!isAdminUser) return;
                 setAllPreloadSchedules(prev => ({ ...prev, [dateStr]: updated }));
 
                 if (!db) return;
@@ -3387,6 +3564,7 @@
             const isPreloadArrivedStatus = (status) => ['arrived', 'completed', 'compliant'].includes(String(status || '').trim().toLowerCase());
 
             const copyPreviousPreloadWeek = async () => {
+                if (!isAdminUser) return;
                 const currentDays = getOfficeWeekBoundaries(preloadActiveDate).days;
                 const updates = currentDays.map((d) => {
                     const prevDate = new Date(d + 'T12:00:00');
@@ -3416,6 +3594,7 @@
             };
 
             const autoRotateContractors = async () => {
+                if (!isAdminUser) return;
                 const contractors = (masterLists.contractors || []).map(c => c.name).filter(Boolean);
                 if (contractors.length === 0) return;
                 const currentDays = getOfficeWeekBoundaries(preloadActiveDate).days;
@@ -3457,6 +3636,7 @@
             };
 
             const changeOfficeWeek = (offset) => {
+                officeDirtyRef.current = false;
                 const d = new Date(officeActiveDate + 'T12:00:00');
                 d.setDate(d.getDate() + (offset * 7));
                 setOfficeActiveDate(d.toISOString().split('T')[0]);
@@ -3464,12 +3644,15 @@
             };
 
             const updateOfficeEmployeeName = (empId, newName) => {
+                if (!isAdminUser) return;
+                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 const emp = nd.employees.find(e => e.id === empId);
                 if (emp) { emp.name = newName; setOfficeData(nd); }
             };
 
             const updateOfficeShift = (empId, dayStr, field, value) => {
+                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 const emp = nd.employees.find(e => e.id === empId);
                 if (emp) {
@@ -3480,6 +3663,8 @@
             };
 
             const addOfficeEmployee = () => {
+                if (!isAdminUser) return;
+                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 const newId = `e${Date.now()}`;
                 const newEmp = { id: newId, name: '', shifts: {} };
@@ -3491,12 +3676,15 @@
             };
 
             const removeOfficeEmployee = (empId) => {
+                if (!isAdminUser) return;
+                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 nd.employees = nd.employees.filter(e => e.id !== empId);
                 setOfficeData(nd);
             };
 
             const updateAfterHours = (dayStr, field, value) => {
+                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 if (!nd.afterHours) nd.afterHours = {};
                 if (!nd.afterHours[dayStr]) nd.afterHours[dayStr] = { person1: '', person2: '' };
@@ -3530,7 +3718,7 @@
                 if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                 try {
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
-                    await setDoc(docRef, { ...nd, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() });
+                    await saveDailyRecapDocument(docRef, { ...nd, lastUpdatedBy: userName || currentUid, lastUpdatedAt: new Date().toISOString() }, dailySnapshotRef.current.data);
                 } catch(e) { console.error("Failed to acknowledge urgent note:", e); }
             };
 
@@ -3676,29 +3864,11 @@
                         updatedAt: timestamp
                     }, { merge: true }).catch(error => console.error('Failed to save team chat seen state:', error));
                 }
-                const visibleIds = new Set(teamChatMessages.map(message => message.id));
-                if (!db || !(teamChatMessages || []).some(message => message.authorUid && message.authorUid !== current.uid)) return;
+                if (!db || !visibleMessageIds.length) return;
                 try {
-                    const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
-                    await runTransaction(db, async (transaction) => {
-                        const chatSnap = await transaction.get(chatRef);
-                        const existing = chatSnap.exists() && Array.isArray(chatSnap.data().messages) ? chatSnap.data().messages : [];
-                        let changed = false;
-                        const messages = existing.map(message => {
-                            if (!message?.id || !visibleIds.has(message.id) || message.authorUid === current.uid) return message;
-                            const seenBy = Array.isArray(message.seenBy) ? message.seenBy : [];
-                            const alreadySeen = seenBy.some(entry => entry.uid === current.uid);
-                            if (alreadySeen) return message;
-                            changed = true;
-                            return {
-                                ...message,
-                                seenBy: [...seenBy, { uid: current.uid, name: current.name, timestamp }]
-                            };
-                        }).slice(-150);
-                        if (changed) {
-                            transaction.set(chatRef, { messages, lastReadReceiptAt: timestamp }, { merge: true });
-                        }
-                    });
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teamChatReaders', current.uid), {
+                        name: current.name, readIds: arrayUnion(...visibleMessageIds), updatedAt: timestamp
+                    }, { merge: true });
                 } catch (error) {
                     console.error('Failed to update team chat read receipts:', error);
                 }
@@ -3707,6 +3877,15 @@
             useEffect(() => {
                 if (isTeamChatOpen && isDashboardVisible && notificationStateLoaded && teamChatLoaded && user && teamChatMessages.length) markTeamChatSeen();
             }, [isTeamChatOpen, isDashboardVisible, notificationStateLoaded, teamChatLoaded, user?.uid, teamChatMessages]);
+
+            useEffect(() => {
+                if (!user || !db) { setTeamChatReaders([]); return; }
+                return onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'teamChatReaders'), snapshot => {
+                    const readers = [];
+                    snapshot.forEach(item => readers.push({ ...item.data(), uid: item.id }));
+                    setTeamChatReaders(readers);
+                }, error => console.error('Chat read receipts unavailable:', error));
+            }, [user?.uid]);
 
             const saveTeamChatEdit = async () => {
                 const text = editingChatText.trim();
@@ -3732,6 +3911,44 @@
                 }
             };
 
+            useEffect(() => {
+                if (!isTeamChatOpen) setIsTeamEmojiOpen(false);
+            }, [isTeamChatOpen]);
+
+            useEffect(() => {
+                if (!isTeamEmojiOpen) return;
+                const closeOnOutsideClick = event => {
+                    if (!teamEmojiPickerRef.current?.contains(event.target) && !teamEmojiButtonRef.current?.contains(event.target)) {
+                        setIsTeamEmojiOpen(false);
+                    }
+                };
+                const closeOnEscape = event => {
+                    if (event.key === 'Escape') {
+                        setIsTeamEmojiOpen(false);
+                        teamEmojiButtonRef.current?.focus({ preventScroll: true });
+                    }
+                };
+                document.addEventListener('pointerdown', closeOnOutsideClick);
+                document.addEventListener('keydown', closeOnEscape);
+                return () => {
+                    document.removeEventListener('pointerdown', closeOnOutsideClick);
+                    document.removeEventListener('keydown', closeOnEscape);
+                };
+            }, [isTeamEmojiOpen]);
+
+            const insertTeamChatEmoji = emoji => {
+                const input = teamChatInputRef.current;
+                const start = input?.selectionStart ?? teamChatDraft.length;
+                const end = input?.selectionEnd ?? start;
+                setTeamChatDraft(teamChatDraft.slice(0, start) + emoji + teamChatDraft.slice(end));
+                setIsTeamEmojiOpen(false);
+                requestAnimationFrame(() => {
+                    if (!input?.isConnected) return;
+                    input.focus({ preventScroll: true });
+                    input.setSelectionRange(start + emoji.length, start + emoji.length);
+                });
+            };
+
             const sendTeamChatMessage = async () => {
                 const text = String(teamChatDraft || '').trim();
                 if (!text || !db) return;
@@ -3744,6 +3961,7 @@
                     timestamp: new Date().toISOString()
                 };
                 setTeamChatDraft('');
+                setIsTeamEmojiOpen(false);
                 setTeamChatError('');
                 try {
                     const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
@@ -4299,13 +4517,20 @@
                                                         const mine = message.authorUid === (user?.uid || 'local');
                                                         const messageKey = String(message.id || message.timestamp || '');
                                                         const isNewestUnread = Boolean(newestTeamChatUnreadId && messageKey === newestTeamChatUnreadId);
-                                                        const seenNames = Array.isArray(message.seenBy) ? message.seenBy.filter(entry => entry.uid !== (user?.uid || 'local')).map(entry => entry.name || 'User') : [];
+                                                        const readersByUid = new Map((message.seenBy || []).map(entry => [entry.uid, entry]));
+                                                        teamChatReaders.filter(entry => (entry.readIds || []).includes(teamMessageKey(message)))
+                                                            .forEach(entry => readersByUid.set(entry.uid, entry));
+                                                        const seenNames = [...readersByUid.values()].filter(entry => entry.uid !== user?.uid)
+                                                            .map(entry => masterLists.nameOverrides?.[entry.uid] || entry.name || 'User');
                                                         return (
-                                                            <div key={message.id || message.timestamp} ref={isNewestUnread ? teamChatUnreadTargetRef : null} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                                                                <div className={`group max-w-[85%] rounded-2xl border px-3 py-2 ${mine ? 'border-indigo-500/40 bg-indigo-600/20 text-slate-100' : 'border-slate-700 bg-slate-900 text-slate-200'}`}>
-                                                                    <div className="mb-1 flex items-center justify-between gap-3">
+                                                            <div key={message.id || message.timestamp} ref={isNewestUnread ? teamChatUnreadTargetRef : null} data-chat-message-owner={mine ? 'self' : 'other'} className={`flex min-w-0 ${mine ? 'justify-end' : 'justify-start'}`}>
+                                                                <div className={`group min-w-0 max-w-[90%] py-1 text-slate-100 ${mine ? 'text-right' : 'text-left'} ${editingChatId === message.id ? 'w-full' : ''}`}>
+                                                                    <div className={`mb-1 flex items-center justify-between gap-3 ${mine ? 'flex-row-reverse' : ''}`}>
                                                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{mine ? 'You' : String(message.author || 'Team')}</span>
-                                                                        <span className="text-[9px] font-bold text-slate-600">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            {mine && editingChatId !== message.id && <button type="button" onClick={() => { setEditingChatId(message.id); setEditingChatText(message.text || ''); }} className="chat-message-edit text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Edit your message">Edit</button>}
+                                                                            <span className="text-[9px] font-bold text-slate-500">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>
+                                                                        </div>
                                                                     </div>
                                                                     {editingChatId === message.id ? (
                                                                         <div>
@@ -4317,9 +4542,8 @@
                                                                         </div>
                                                                     ) : (
                                                                         <div>
-                                                                            <div className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed">{String(message.text || '')}</div>
+                                                                            <ChatMessageText text={message.text} />
                                                                             {message.editedAt && <span className="text-[9px] text-slate-400">Edited</span>}
-                                                                            {mine && <button type="button" onClick={() => { setEditingChatId(message.id); setEditingChatText(message.text || ''); }} className="chat-message-edit ml-2 text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Edit your message">Edit</button>}
                                                                         </div>
                                                                     )}
                                                                     {mine && seenNames.length > 0 && (
@@ -4333,8 +4557,18 @@
                                                 <div ref={teamChatEndRef} />
                                             </div>
                                             {teamChatError && <div className="border-t border-rose-900/40 bg-rose-950/30 px-4 py-2 text-[11px] font-semibold text-rose-300">{teamChatError}</div>}
-                                            <div className="flex items-end gap-2 border-t border-slate-800 bg-slate-900/80 px-3 py-3">
-                                                <textarea value={teamChatDraft} onChange={(event) => setTeamChatDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTeamChatMessage(); } }} rows="2" placeholder="Write a team message..." className="min-h-[42px] flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500" />
+                                            <div className="relative flex items-end gap-2 border-t border-slate-800 bg-slate-900/80 px-3 py-3">
+                                                {isTeamEmojiOpen && (
+                                                    <div ref={teamEmojiPickerRef} id="team-chat-emoji-picker" role="group" aria-label="Choose an emoji" className="absolute bottom-full left-3 right-3 z-10 mb-1 max-h-[min(12rem,35dvh)] overflow-y-auto overscroll-contain rounded-xl border border-slate-600 bg-slate-900 p-2 shadow-xl">
+                                                        <div className="grid grid-cols-6 gap-1">
+                                                            {TEAM_CHAT_EMOJIS.map(([emoji, label]) => (
+                                                                <button key={label} type="button" aria-label={label} title={label} onClick={() => insertTeamChatEmoji(emoji)} className="flex min-h-[40px] items-center justify-center rounded-lg text-2xl leading-none transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300">{emoji}</button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <button ref={teamEmojiButtonRef} type="button" aria-label="Add emoji" title="Add emoji" aria-expanded={isTeamEmojiOpen} aria-controls="team-chat-emoji-picker" onClick={() => setIsTeamEmojiOpen(open => !open)} className={`flex h-10 w-9 shrink-0 items-center justify-center rounded-lg transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300 ${isTeamEmojiOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:text-white'}`}><Smile className="h-5 w-5" /></button>
+                                                <textarea ref={teamChatInputRef} aria-label="Team message" value={teamChatDraft} onChange={(event) => setTeamChatDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); sendTeamChatMessage(); } }} rows="2" placeholder="Write a team message..." className="min-h-[42px] min-w-0 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500" />
                                                 <button type="button" onClick={sendTeamChatMessage} disabled={!String(teamChatDraft || '').trim()} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">Send</button>
                                             </div>
                                         </div>
@@ -4405,6 +4639,9 @@
                     </header>
 
                     <main className="dashboard-main-content max-w-7xl mx-auto px-4 py-8">
+                        {saveError && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-700 bg-slate-900 p-4 text-sm text-rose-200">
+                            <span>{saveError}</span><button type="button" onClick={() => setSaveError('')} aria-label="Dismiss save error"><X className="h-4 w-4" /></button>
+                        </div>}
                         {isLoading ? <div className="h-[50vh] flex flex-col items-center justify-center text-slate-500"><Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-500" /><p className="font-bold uppercase text-[10px]">Syncing Logistics Database...</p></div> : activeTab === 'overview' ? (
                             
                             <div className="animate-in fade-in duration-500">
@@ -5528,7 +5765,7 @@
                                             {isBonusFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
                                         {isEditing && isAdminUser && (bonusData.hiddenDrivers || []).length > 0 && (
-                                            <button onClick={() => { const nd = JSON.parse(JSON.stringify(bonusData)); nd.hiddenDrivers = []; setBonusData(nd); }} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition-all border border-slate-600 cursor-pointer">
+                                            <button onClick={() => { const nd = JSON.parse(JSON.stringify(bonusData)); nd.hiddenDrivers = []; bonusDirtyRef.current = true; setBonusData(nd); }} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition-all border border-slate-600 cursor-pointer">
                                                 <User className="w-4 h-4" /> Restore {bonusData.hiddenDrivers.length} Hidden
                                             </button>
                                         )}
@@ -5756,7 +5993,7 @@
                                                                 return (
                                                                     <td key={dayIdx} className="px-2 py-1.5 border-r border-slate-700/50">
                                                                         {isEditing && isAdminUser ? (
-                                                                            <input type="text" className={`w-full min-w-[70px] text-center text-xs px-2 py-1.5 outline-none focus:ring-1 focus:ring-indigo-500 border border-slate-700 rounded transition-colors placeholder-slate-600 ${bgClass} ${textClass}`} value={manualVal || ''} onChange={(e) => { const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.drivers) nd.drivers = {}; if (!nd.drivers[driverKey]) nd.drivers[driverKey] = {}; nd.drivers[driverKey][dayIdx] = e.target.value; setBonusData(nd); }} placeholder={defaultStr} />
+                                                                            <input type="text" className={`w-full min-w-[70px] text-center text-xs px-2 py-1.5 outline-none focus:ring-1 focus:ring-indigo-500 border border-slate-700 rounded transition-colors placeholder-slate-600 ${bgClass} ${textClass}`} value={manualVal || ''} onChange={(e) => { const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.drivers) nd.drivers = {}; if (!nd.drivers[driverKey]) nd.drivers[driverKey] = {}; nd.drivers[driverKey][dayIdx] = e.target.value; bonusDirtyRef.current = true; setBonusData(nd); }} placeholder={defaultStr} />
                                                                         ) : (
                                                                             <div className={`w-full min-w-[70px] text-center text-xs px-2 py-1.5 border border-slate-700/50 rounded ${bgClass} ${textClass} whitespace-nowrap overflow-hidden text-ellipsis`} title={val}>{isNum && !val.includes('$') ? `$${val}` : (val || '-')}</div>
                                                                         )}
@@ -5796,14 +6033,14 @@
                                                                                             if (k === driverKey) return { firstName: editBonusName.firstName, lastName: editBonusName.lastName };
                                                                                             return md;
                                                                                         });
-                                                                                        setBonusData(nd);
+                                                                                        bonusDirtyRef.current = true; setBonusData(nd);
                                                                                     }
                                                                                     setEditingBonusDriver(null);
                                                                                 }} className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors shadow-lg cursor-pointer"><Check className="w-3 h-3" /></button>
                                                                             ) : (
                                                                                 <button onClick={() => { setEditingBonusDriver(driverKey); setEditBonusName({ firstName: driver.firstName || '', lastName: driver.lastName || '' }); }} className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-900/30 rounded transition-colors cursor-pointer"><Edit3 className="w-3 h-3" /></button>
                                                                             )}
-                                                                            <button onClick={() => { const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.hiddenDrivers) nd.hiddenDrivers = []; if (!nd.hiddenDrivers.includes(driverKey)) nd.hiddenDrivers.push(driverKey); setBonusData(nd); }} className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors cursor-pointer"><Trash2 className="w-3 h-3" /></button>
+                                                                            <button onClick={() => { const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.hiddenDrivers) nd.hiddenDrivers = []; if (!nd.hiddenDrivers.includes(driverKey)) nd.hiddenDrivers.push(driverKey); bonusDirtyRef.current = true; setBonusData(nd); }} className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors cursor-pointer"><Trash2 className="w-3 h-3" /></button>
                                                                         </div>
                                                                     </td>
                                                                     )}
@@ -5814,9 +6051,9 @@
                                                     {isEditing && isAdminUser && (
                                                         <tr data-panel-screenshot-ignore="true" className="bg-slate-900/30">
                                                             <td className="px-2 py-1.5 border-r border-slate-700"><input type="text" placeholder="First Name" className="w-full bg-slate-950 border border-emerald-500/50 rounded px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-emerald-500" value={newBonusDriver.firstName} onChange={(e) => setNewBonusDriver({...newBonusDriver, firstName: e.target.value})} /></td>
-                                                            <td className="px-2 py-1.5 border-r border-slate-700"><input type="text" placeholder="Last Name" className="w-full bg-slate-950 border border-emerald-500/50 rounded px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-emerald-500" value={newBonusDriver.lastName} onChange={(e) => setNewBonusDriver({...newBonusDriver, lastName: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && (() => { if (!newBonusDriver.firstName.trim()) return; const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.manualDrivers) nd.manualDrivers = []; nd.manualDrivers.push({ firstName: newBonusDriver.firstName.trim(), lastName: newBonusDriver.lastName.trim() }); setBonusData(nd); setNewBonusDriver({ firstName: '', lastName: '' }); })()} /></td>
+                                                            <td className="px-2 py-1.5 border-r border-slate-700"><input type="text" placeholder="Last Name" className="w-full bg-slate-950 border border-emerald-500/50 rounded px-2 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-emerald-500" value={newBonusDriver.lastName} onChange={(e) => setNewBonusDriver({...newBonusDriver, lastName: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && (() => { if (!newBonusDriver.firstName.trim()) return; const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.manualDrivers) nd.manualDrivers = []; nd.manualDrivers.push({ firstName: newBonusDriver.firstName.trim(), lastName: newBonusDriver.lastName.trim() }); bonusDirtyRef.current = true; setBonusData(nd); setNewBonusDriver({ firstName: '', lastName: '' }); })()} /></td>
                                                             <td colSpan={10} className="px-4 py-2 border-l border-slate-700 text-left shadow-inner">
-                                                                <button onClick={() => { if (!newBonusDriver.firstName.trim()) return; const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.manualDrivers) nd.manualDrivers = []; nd.manualDrivers.push({ firstName: newBonusDriver.firstName.trim(), lastName: newBonusDriver.lastName.trim() }); setBonusData(nd); setNewBonusDriver({ firstName: '', lastName: '' }); }} disabled={!newBonusDriver.firstName.trim()} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs font-bold transition-all shadow-lg cursor-pointer"><PlusCircle className="w-3 h-3" /> Add Driver</button>
+                                                                <button onClick={() => { if (!newBonusDriver.firstName.trim()) return; const nd = JSON.parse(JSON.stringify(bonusData)); if (!nd.manualDrivers) nd.manualDrivers = []; nd.manualDrivers.push({ firstName: newBonusDriver.firstName.trim(), lastName: newBonusDriver.lastName.trim() }); bonusDirtyRef.current = true; setBonusData(nd); setNewBonusDriver({ firstName: '', lastName: '' }); }} disabled={!newBonusDriver.firstName.trim()} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs font-bold transition-all shadow-lg cursor-pointer"><PlusCircle className="w-3 h-3" /> Add Driver</button>
                                                             </td>
                                                         </tr>
                                                     )}
@@ -5945,7 +6182,7 @@
                                                 {isEditing && (
                                                     <tr>
                                                         <td colSpan={getOfficeWeekBoundaries(officeActiveDate).days.length + 2} className="px-4 py-3 bg-slate-900/30 text-left shadow-inner">
-                                                            <button onClick={addOfficeEmployee} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg cursor-pointer"><PlusCircle className="w-4 h-4" /> Add Employee</button>
+                                                            {isAdminUser && <button onClick={addOfficeEmployee} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg cursor-pointer"><PlusCircle className="w-4 h-4" /> Add Employee</button>}
                                                         </td>
                                                     </tr>
                                                 )}
@@ -6517,7 +6754,7 @@
                                 <p className="text-sm text-slate-300 mb-6">Are you sure you want to delete the data for <span className="font-bold text-white">{recordToDelete}</span>? This action cannot be undone.</p>
                                 <div className="flex gap-3 justify-end">
                                     <button onClick={() => setRecordToDelete(null)} className="px-4 py-2 rounded-lg font-bold text-sm bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer">Cancel</button>
-                                    <button onClick={async () => { if(!db) return; await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', recordToDelete)); setRecordToDelete(null); if(activeDate === recordToDelete) setData(DEFAULT_DATA); }} className="px-4 py-2 rounded-lg font-bold text-sm bg-rose-600 text-white hover:bg-rose-500 transition-colors shadow-lg shadow-rose-900/40 cursor-pointer">Delete Record</button>
+                                    <button onClick={async () => { if(!db || !isAdminUser) return; await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', recordToDelete)); setRecordToDelete(null); if(activeDate === recordToDelete) setData(DEFAULT_DATA); }} className="px-4 py-2 rounded-lg font-bold text-sm bg-rose-600 text-white hover:bg-rose-500 transition-colors shadow-lg shadow-rose-900/40 cursor-pointer">Delete Record</button>
                                 </div>
                             </div>
                         </div>
@@ -6531,11 +6768,6 @@
     </script>
 </body>
 </html>
-
-
-
-
-
 
 
 
