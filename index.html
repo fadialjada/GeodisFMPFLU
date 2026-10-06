@@ -1560,7 +1560,13 @@
         const sectionNameForRecord = (kind, id) => ({ dailyRecaps: 'Daily dashboard', weeklyBonuses: 'Bonus',
             officeSchedules: 'Office', preloadSchedules: 'Preload', config: 'Master lists', teamChat: 'Team Chat', accessProfiles: 'Users & Permissions', teamTasks: 'Team Tasks' })[kind] || kind;
         const TEAM_TASK_STATUSES = { open: 'Open', 'in-progress': 'In Progress', completed: 'Completed' };
-        const TEAM_TASK_FIELDS = ['id', 'title', 'instructions', 'assignedUid', 'assignedName', 'dueAt', 'status', 'createdAt', 'createdByUid', 'createdBy', 'updatedAt', 'updatedByUid', 'updatedBy', 'events', '_auditId'];
+        const MAX_TASK_ASSIGNEES = 8;
+        const getTaskAssignedUids = task => Array.isArray(task?.assignedUids) ? task.assignedUids : task?.assignedUid ? [task.assignedUid] : [];
+        const isTaskAssignedTo = (task, uid) => Boolean(uid && getTaskAssignedUids(task).includes(uid));
+        const getTaskAssignedName = (task, uid, accounts = []) => accounts.find(account => account.uid === uid)?.name || task.assignedNames?.[uid] || (task.assignedUid === uid ? task.assignedName : 'Team member');
+        const getTaskRecipientUids = (task, actorUid) => actorUid === OWNER_UID ? getTaskAssignedUids(task) : [OWNER_UID, ...getTaskAssignedUids(task).filter(uid => uid !== actorUid && uid !== OWNER_UID)];
+        const getTaskEventRecipients = event => Array.isArray(event.recipientUids) ? event.recipientUids : [event.recipientUid];
+        const TEAM_TASK_FIELDS = ['id', 'title', 'instructions', 'assignedUid', 'assignedName', 'assignedUids', 'assignedNames', 'dueAt', 'status', 'createdAt', 'createdByUid', 'createdBy', 'updatedAt', 'updatedByUid', 'updatedBy', 'events', '_auditId'];
         const validateTeamTaskWrite = (before, after, operation, account = auth.currentUser) => {
             const owner = isOwnerAccount(account);
             if (operation === 'delete') { if (!owner) throw new Error('Only Fadi can delete tasks.'); return; }
@@ -1571,35 +1577,46 @@
                 || !TEAM_TASK_STATUSES[after.status] || !Number.isFinite(Date.parse(after.dueAt))
                 || !Array.isArray(after.events) || after.events.length > 500
                 || after.createdByUid !== OWNER_UID || after.updatedByUid !== account?.uid) throw new Error('The task has invalid details.');
+            if ('assignedUids' in after || 'assignedNames' in after) {
+                const ids = after.assignedUids, names = after.assignedNames;
+                if (!Array.isArray(ids) || !ids.length || ids.length > MAX_TASK_ASSIGNEES || new Set(ids).size !== ids.length
+                    || !names || Array.isArray(names) || typeof names !== 'object' || Object.keys(names).length !== ids.length
+                    || ids.some(uid => !validString(uid, 128) || !validString(names[uid], 100))
+                    || Object.keys(names).some(uid => !ids.includes(uid)) || after.assignedUid !== ids[0] || after.assignedName !== names[ids[0]]) throw new Error('Choose one to eight team members.');
+            }
             if (operation === 'create') {
                 if (!owner || after.status !== 'open' || after.events.length !== 1 || after.events[0]?.type !== 'assigned') throw new Error('Only Fadi can create and assign tasks.');
             } else {
                 if (['id', 'createdAt', 'createdByUid', 'createdBy'].some(key => !sameSavedValue(before[key], after[key]))) throw new Error('The original task record must be preserved.');
-                if (!owner && (before.assignedUid !== account?.uid || ['title', 'instructions', 'assignedUid', 'assignedName', 'dueAt'].some(key => !sameSavedValue(before[key], after[key])))) throw new Error('Only Fadi can change task assignments and details.');
+                if (!owner && (!isTaskAssignedTo(before, account?.uid) || ['title', 'instructions', 'assignedUid', 'assignedName', 'assignedUids', 'assignedNames', 'dueAt'].some(key => !sameSavedValue(before[key], after[key])))) throw new Error('Only Fadi can change task assignments and details.');
             }
             const previous = before?.events || [], event = after.events.at(-1);
             if (after.events.length !== previous.length + 1 || !previous.every((item, index) => sameSavedValue(item, after.events[index]))
-                || !event || Object.keys(event).some(key => !['id', 'type', 'text', 'status', 'authorUid', 'author', 'timestamp', 'recipientUid'].includes(key))
+                || !event || Object.keys(event).some(key => !['id', 'type', 'text', 'status', 'authorUid', 'author', 'timestamp', 'recipientUid', 'recipientUids'].includes(key))
                 || !validString(event.id, 128) || previous.some(item => item.id === event.id) || !validString(event.text, 2000, false)
                 || !validString(event.author, 100) || event.authorUid !== account?.uid || event.status !== after.status
                 || event.timestamp !== after.updatedAt || !Number.isFinite(Date.parse(event.timestamp))
                 || !['assigned', 'edited', 'status', 'update-request', 'update'].includes(event.type)
-                || event.recipientUid !== (owner ? after.assignedUid : OWNER_UID)) throw new Error('The task update is invalid.');
+                || !sameSavedValue(getTaskEventRecipients(event), getTaskRecipientUids(after, account?.uid))
+                || event.recipientUid !== getTaskRecipientUids(after, account?.uid)[0]) throw new Error('The task update is invalid.');
             if (!owner && !['status', 'update'].includes(event.type)) throw new Error('Only Fadi can request updates or assign tasks.');
             if (event.type !== 'status' && operation !== 'create' && before.status !== after.status) throw new Error('Choose a status action to change progress.');
             if (['update-request', 'update'].includes(event.type) && !event.text.trim()) throw new Error('Enter your update message.');
         };
         const getTeamTaskNotifications = (tasks, uid, readIds = []) => {
             const read = new Set(readIds);
-            return tasks.flatMap(task => (task.events || []).filter(event => (uid === OWNER_UID || task.assignedUid === uid) && event.recipientUid === uid && event.authorUid !== uid && !read.has(event.id))
+            return tasks.flatMap(task => (task.events || []).filter(event => (uid === OWNER_UID || isTaskAssignedTo(task, uid)) && getTaskEventRecipients(event).includes(uid) && event.authorUid !== uid && !read.has(event.id))
                 .map(event => ({ ...event, taskId: task.id, title: task.title }))).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
         };
-        const taskNeedsUpdate = task => {
-            if (task.status === 'completed') return false;
+        const getTaskWaitingUids = task => {
+            if (task.status === 'completed') return [];
             const events = task.events || [];
-            const lastRequest = events.findLastIndex(event => event.type === 'update-request' && event.recipientUid === task.assignedUid);
-            return lastRequest >= 0 && !events.slice(lastRequest + 1).some(event => event.authorUid === task.assignedUid && ['status', 'update'].includes(event.type));
+            return getTaskAssignedUids(task).filter(uid => {
+                const lastRequest = events.findLastIndex(event => event.type === 'update-request' && getTaskEventRecipients(event).includes(uid));
+                return lastRequest >= 0 && !events.slice(lastRequest + 1).some(event => event.authorUid === uid && ['status', 'update'].includes(event.type));
+            });
         };
+        const taskNeedsUpdate = task => getTaskWaitingUids(task).length > 0;
         // Store deadlines as UTC; enter and display them in the dashboard's Central time.
         const taskDueInput = iso => iso ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso)).replace(' ', 'T') : '';
         const taskDueFromInput = value => {
@@ -2120,7 +2137,8 @@
 
         const TeamTasksWindow = ({ dialogRef, close, owner, uid, loaded, busy, error, message, tasks, assignees, notifications, readAlert,
             filter, setFilter, person, setPerson, selectedId, selectTask, draft, setDraft, startDraft, commit, updates, setUpdates, requests, setRequests }) => {
-            const filtered = owner ? tasks.filter(task => (filter === 'all' || (filter === 'active' ? task.status !== 'completed' : task.status === filter)) && (!person || task.assignedUid === person)) : tasks.filter(task => task.id === selectedId && task.assignedUid === uid);
+            const filtered = owner ? tasks.filter(task => (filter === 'all' || (filter === 'active' ? task.status !== 'completed' : task.status === filter)) && (!person || isTaskAssignedTo(task, person))) : tasks.filter(task => task.id === selectedId && isTaskAssignedTo(task, uid));
+            const draftAccounts = draft ? [...assignees, ...(draft.assignedUids || []).filter(id => !assignees.some(account => account.uid === id)).map(id => ({ uid: id, name: getTaskAssignedName(draft.baseline || {}, id), inactive: true }))] : [];
             const fieldClass = 'w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-400';
             const eventLabels = { assigned: 'Assignment', edited: 'Details updated', status: 'Progress', 'update-request': 'Update requested', update: 'Update' };
             const statusClass = status => status === 'completed' ? 'text-emerald-300' : status === 'in-progress' ? 'text-amber-300' : 'text-slate-300';
@@ -2143,7 +2161,7 @@
                         {owner && <div className="flex flex-wrap items-end justify-between gap-3">
                             <div className="flex flex-wrap gap-3 min-w-0">
                                 <label className="text-xs font-semibold text-slate-300">Show<select aria-label="Task status filter" value={filter} onChange={event => setFilter(event.target.value)} className={fieldClass + ' mt-1'}><option value="active">Active tasks</option><option value="open">Open</option><option value="in-progress">In Progress</option><option value="completed">Completed</option><option value="all">All tasks</option></select></label>
-                                <label className="text-xs font-semibold text-slate-300">Assigned to<select aria-label="Task person filter" value={person} onChange={event => setPerson(event.target.value)} className={fieldClass + ' mt-1'}><option value="">Everyone</option>{[...new Map([...assignees, ...tasks.map(task => ({ uid: task.assignedUid, name: task.assignedName }))].map(account => [account.uid, account])).values()].map(account => <option key={account.uid} value={account.uid}>{account.name}</option>)}</select></label>
+                                <label className="text-xs font-semibold text-slate-300">Assigned to<select aria-label="Task person filter" value={person} onChange={event => setPerson(event.target.value)} className={fieldClass + ' mt-1'}><option value="">Everyone</option>{[...new Map([...assignees, ...tasks.flatMap(task => getTaskAssignedUids(task).map(id => ({ uid: id, name: getTaskAssignedName(task, id) })))].map(account => [account.uid, account])).values()].map(account => <option key={account.uid} value={account.uid}>{account.name}</option>)}</select></label>
                             </div>
                             {owner && <button type="button" onClick={() => startDraft(null)} disabled={!loaded || busy || Boolean(draft)} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-40"><PlusCircle className="h-4 w-4" />New Task</button>}
                         </div>}
@@ -2152,22 +2170,24 @@
                             <label className="block text-xs font-semibold text-slate-300">Task title<input autoFocus aria-label="Task title" required maxLength={160} value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} className={fieldClass + ' mt-1'} placeholder="Truck Inspection Audit" /></label>
                             <label className="block text-xs font-semibold text-slate-300">Instructions<textarea aria-label="Task instructions" rows={3} maxLength={4000} value={draft.instructions} onChange={event => setDraft({ ...draft, instructions: event.target.value })} className={fieldClass + ' mt-1'} placeholder="Describe what needs to be done." /></label>
                             <div className="grid gap-3 sm:grid-cols-2">
-                                <label className="block min-w-0 text-xs font-semibold text-slate-300">Assigned to<select aria-label="Assign task to" required value={draft.assignedUid} onChange={event => setDraft({ ...draft, assignedUid: event.target.value })} className={fieldClass + ' mt-1'}><option value="">Choose a team member</option>{assignees.map(account => <option key={account.uid} value={account.uid}>{account.name}</option>)}</select></label>
+                                <fieldset className="min-w-0 rounded-lg border border-slate-600 p-3"><legend className="px-1 text-xs font-semibold text-slate-300">Assigned to</legend><p className="text-xs text-slate-400 mb-2">Choose one or more people · {draft.assignedUids.length} selected</p><div className="max-h-44 overflow-y-auto space-y-1">{draftAccounts.map(account => <label key={account.uid} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-100 hover:bg-slate-700/40"><input type="checkbox" aria-label={'Assign task to ' + account.name} checked={draft.assignedUids.includes(account.uid)} disabled={busy || (!draft.assignedUids.includes(account.uid) && (account.inactive || draft.assignedUids.length >= MAX_TASK_ASSIGNEES))} onChange={event => setDraft({ ...draft, assignedUids: event.target.checked ? [...draft.assignedUids, account.uid] : draft.assignedUids.filter(id => id !== account.uid) })} className="h-4 w-4 shrink-0 accent-indigo-500" /><span className="break-words min-w-0">{account.name}{account.inactive ? ' (inactive)' : ''}</span></label>)}</div><p className="mt-2 text-xs text-slate-400">Up to {MAX_TASK_ASSIGNEES} people share this task and its progress.</p></fieldset>
                                 <label className="block min-w-0 text-xs font-semibold text-slate-300">Deadline (Central time)<input aria-label="Task deadline in Central time" type="datetime-local" required value={draft.due} onChange={event => setDraft({ ...draft, due: event.target.value })} className={fieldClass + ' mt-1'} /></label>
                             </div>
-                            <div className="flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setDraft(null)} className="px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300">Cancel</button><button type="submit" disabled={busy || !loaded} className="px-3 py-2 rounded-lg bg-indigo-600 text-sm font-bold text-white disabled:opacity-40">{busy ? 'Saving…' : draft.id ? 'Save Task' : 'Assign Task'}</button></div>
+                            <div className="flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setDraft(null)} className="px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300">Cancel</button><button type="submit" disabled={busy || !loaded || !draft.assignedUids.length} className="px-3 py-2 rounded-lg bg-indigo-600 text-sm font-bold text-white disabled:opacity-40">{busy ? 'Saving…' : draft.id ? 'Save Task' : 'Assign Task'}</button></div>
                         </form>}
                         {loaded && !filtered.length && <p className="text-sm text-slate-400 py-4">No tasks in this view.</p>}
                         {filtered.map(task => {
-                            const canUpdate = owner || task.assignedUid === uid, selected = task.id === selectedId;
+                            const canUpdate = owner || isTaskAssignedTo(task, uid), selected = task.id === selectedId;
+                            const assignedNames = getTaskAssignedUids(task).map(id => getTaskAssignedName(task, id, assignees)).join(', ');
+                            const waitingNames = getTaskWaitingUids(task).map(id => getTaskAssignedName(task, id, assignees)).join(', ');
                             const overdue = task.status !== 'completed' && Date.parse(task.dueAt) < Date.now();
                             return <article key={task.id} id={'team-task-' + task.id} data-task-status={task.status} className={`min-w-0 rounded-xl border p-4 space-y-3 ${selected ? 'border-indigo-400/60 bg-slate-800/60' : 'border-slate-700 bg-slate-800/30'}`}>
                                 <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div className="min-w-0 flex-1"><h3 className="text-base font-bold text-slate-100 break-words">{task.title}</h3><p className="text-sm text-slate-400 mt-1">Assigned to <span className="font-semibold text-slate-200">{assignees.find(account => account.uid === task.assignedUid)?.name || task.assignedName}</span></p><p className={`text-xs mt-1 ${overdue ? 'text-rose-300' : 'text-slate-400'}`}>{overdue ? 'Overdue · ' : 'Due · '}{formatTaskTime(task.dueAt)}</p></div>
+                                    <div className="min-w-0 flex-1"><h3 className="text-base font-bold text-slate-100 break-words">{task.title}</h3><p className="text-sm text-slate-400 mt-1 break-words">Assigned to <span className="font-semibold text-slate-200">{assignedNames}</span></p><p className={`text-xs mt-1 ${overdue ? 'text-rose-300' : 'text-slate-400'}`}>{overdue ? 'Overdue · ' : 'Due · '}{formatTaskTime(task.dueAt)}</p></div>
                                     <span className={`text-sm font-bold ${statusClass(task.status)}`}>{TEAM_TASK_STATUSES[task.status]}</span>
                                 </div>
                                 {task.instructions && <p className="text-sm text-slate-300 whitespace-pre-wrap break-words">{task.instructions}</p>}
-                                {taskNeedsUpdate(task) && <p className="text-xs font-semibold text-amber-300">Update requested — waiting for {task.assignedName}.</p>}
+                                {waitingNames && <p className="text-xs font-semibold text-amber-300">Update requested — waiting for {waitingNames}.</p>}
                                 <div className="flex flex-wrap items-center gap-2">
                                     {owner && <button type="button" onClick={() => selectTask(selected ? null : task.id)} aria-expanded={selected} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white">{selected ? 'Hide details' : 'View task'}</button>}
                                     {canUpdate && <label className="text-xs text-slate-300">Progress<select aria-label={'Progress for ' + task.title} disabled={busy || !loaded} value={task.status} onChange={event => commit(task.id, 'status', { status: event.target.value })} className="ml-2 max-w-full rounded-lg border border-slate-600 bg-slate-950 px-2 py-2 text-sm text-slate-100">{Object.entries(TEAM_TASK_STATUSES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>}
@@ -2175,8 +2195,8 @@
                                 </div>
                                 {selected && <div className="space-y-3 border-t border-slate-700 pt-3">
                                     <details><summary className="text-xs font-semibold text-slate-300 cursor-pointer">Activity ({task.events.length})</summary><div className="space-y-3 mt-3">{task.events.slice().reverse().map(event => <div key={event.id} className="border-l-2 border-slate-600 pl-3"><p className="text-xs font-semibold text-slate-200">{event.author} · {eventLabels[event.type]}</p><p className="text-sm text-slate-400 whitespace-pre-wrap break-words mt-1">{event.text}</p><p className="text-xs text-slate-500 mt-1">{formatTaskTime(event.timestamp)}</p></div>)}</div></details>
-                                    {canUpdate && <form onSubmit={event => { event.preventDefault(); commit(task.id, 'update', { text: updates[task.id] }); }} className="space-y-2"><label className="block text-xs font-semibold text-slate-300">{taskNeedsUpdate(task) && task.assignedUid === uid ? 'Reply to the update request' : 'Progress or completion note'}<textarea aria-label={'Update for ' + task.title} maxLength={2000} required rows={2} value={updates[task.id] || ''} onChange={event => setUpdates(previous => ({ ...previous, [task.id]: event.target.value }))} className={fieldClass + ' mt-1'} placeholder="Share progress, a delay, or what was completed." /></label><div className="text-right"><button type="submit" disabled={busy || !String(updates[task.id] || '').trim()} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">Send Update</button></div></form>}
-                                    {owner && task.status !== 'completed' && <form onSubmit={event => { event.preventDefault(); commit(task.id, 'request', { text: requests[task.id] }); }} className="space-y-2 rounded-lg border border-amber-500/25 p-3"><label className="block text-xs font-semibold text-amber-200">Ask {task.assignedName} for an update<input aria-label={'Update request for ' + task.title} maxLength={2000} value={requests[task.id] || ''} onChange={event => setRequests(previous => ({ ...previous, [task.id]: event.target.value }))} className={fieldClass + ' mt-1'} placeholder="Please share a progress update on this task." /></label><div className="text-right"><button type="submit" disabled={busy} className="rounded-lg border border-amber-500/30 px-3 py-2 text-xs font-bold text-amber-200 hover:bg-amber-950/30 disabled:opacity-40">Request Update</button></div></form>}
+                                    {canUpdate && <form onSubmit={event => { event.preventDefault(); commit(task.id, 'update', { text: updates[task.id] }); }} className="space-y-2"><label className="block text-xs font-semibold text-slate-300">{getTaskWaitingUids(task).includes(uid) ? 'Reply to the update request' : 'Progress or completion note'}<textarea aria-label={'Update for ' + task.title} maxLength={2000} required rows={2} value={updates[task.id] || ''} onChange={event => setUpdates(previous => ({ ...previous, [task.id]: event.target.value }))} className={fieldClass + ' mt-1'} placeholder="Share progress, a delay, or what was completed." /></label><div className="text-right"><button type="submit" disabled={busy || !String(updates[task.id] || '').trim()} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">Send Update</button></div></form>}
+                                    {owner && task.status !== 'completed' && <form onSubmit={event => { event.preventDefault(); commit(task.id, 'request', { text: requests[task.id] }); }} className="space-y-2 rounded-lg border border-amber-500/25 p-3"><label className="block text-xs font-semibold text-amber-200">Ask {assignedNames} for an update<input aria-label={'Update request for ' + task.title} maxLength={2000} value={requests[task.id] || ''} onChange={event => setRequests(previous => ({ ...previous, [task.id]: event.target.value }))} className={fieldClass + ' mt-1'} placeholder="Please share a progress update on this task." /></label><div className="text-right"><button type="submit" disabled={busy} className="rounded-lg border border-amber-500/30 px-3 py-2 text-xs font-bold text-amber-200 hover:bg-amber-950/30 disabled:opacity-40">Request Update</button></div></form>}
                                 </div>}
                             </article>;
                         })}
@@ -4090,12 +4110,12 @@
             };
             const openTaskAssignment = taskId => {
                 const task = teamTasks.find(item => item.id === taskId);
-                if (!task || (!isAdminUser && task.assignedUid !== user?.uid)) return;
+                if (!task || (!isAdminUser && !isTaskAssignedTo(task, user?.uid))) return;
                 setSelectedTaskId(taskId); setTaskFilter('all'); setTaskAssigneeFilter('');
                 setIsShiftNotificationOpen(false); setIsTeamChatOpen(false); setIsHeaderCalendarOpen(false);
                 setTeamTaskMessage(''); setIsTeamTasksOpen(true);
             };
-            const ownActiveTasks = isAdminUser ? [] : teamTasks.filter(task => task.assignedUid === user?.uid && task.status !== 'completed');
+            const ownActiveTasks = isAdminUser ? [] : teamTasks.filter(task => isTaskAssignedTo(task, user?.uid) && task.status !== 'completed');
             const markTaskAlertsRead = async ids => {
                 if (!user || !db || !ids.length) return;
                 try {
@@ -4109,19 +4129,28 @@
                 setTeamTaskError(''); setTeamTaskMessage('');
                 if (!user || !db) return;
                 const taskCollection = collection(db, 'artifacts', appId, 'public', 'data', 'teamTasks');
-                const taskSource = isAdminUser ? taskCollection : query(taskCollection, where('assignedUid', '==', user.uid));
-                return onSnapshot(taskSource, snapshot => {
-                    const tasks = []; snapshot.forEach(item => {
-                        const task = { ...item.data(), id: item.id };
-                        if (isAdminUser || task.assignedUid === user.uid) tasks.push(task);
-                    });
+                // Keep existing single-person records without a data migration.
+                const taskSources = isAdminUser ? [taskCollection] : [query(taskCollection, where('assignedUid', '==', user.uid)), query(taskCollection, where('assignedUids', 'array-contains', user.uid))];
+                const snapshots = new Map(); let active = true, failed = false;
+                const unsubscribers = taskSources.map((source, index) => onSnapshot(source, snapshot => {
+                    if (!active || failed) return;
+                    const rows = []; snapshot.forEach(item => rows.push({ ...item.data(), id: item.id }));
+                    snapshots.set(index, rows);
+                    if (snapshots.size !== taskSources.length) return;
+                    const merged = new Map();
+                    snapshots.forEach(items => items.forEach(task => {
+                        const previous = merged.get(task.id);
+                        if (!previous || task.updatedAt >= previous.updatedAt) merged.set(task.id, task);
+                    }));
+                    const tasks = [...merged.values()].filter(task => isAdminUser || isTaskAssignedTo(task, user.uid));
                     if (taskSoundKnownRef.current === null) taskSoundKnownRef.current = new Set(tasks.flatMap(task => (task.events || []).map(event => event.id)));
                     setTeamTasks(tasks.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))); setTeamTasksLoaded(true);
-                }, error => { setTeamTasksLoaded(false); setTeamTaskError(error.code === 'permission-denied' ? 'Team Tasks is waiting for its database access rules to be activated.' : 'Team Tasks could not connect. Check your connection and refresh the dashboard.'); });
+                }, error => { if (!active) return; failed = true; setTeamTasks([]); setTeamTasksLoaded(false); setTeamTaskError(error.code === 'permission-denied' ? 'Team Tasks is waiting for its database access rules to be activated.' : 'Team Tasks could not connect. Check your connection and refresh the dashboard.'); }));
+                return () => { active = false; unsubscribers.forEach(unsubscribe => unsubscribe()); };
             }, [user?.uid, isAdminUser]);
             useEffect(() => {
                 if (isAdminUser || !isTeamTasksOpen || !teamTasksLoaded) return;
-                if (!teamTasks.some(task => task.id === selectedTaskId && task.assignedUid === user?.uid)) {
+                if (!teamTasks.some(task => task.id === selectedTaskId && isTaskAssignedTo(task, user?.uid))) {
                     setIsTeamTasksOpen(false); setSelectedTaskId(null); setTaskUpdateDrafts({});
                 }
             }, [teamTasks, teamTasksLoaded, isAdminUser, isTeamTasksOpen, selectedTaskId, user?.uid]);
@@ -4161,8 +4190,8 @@
             }, [isTeamTasksOpen, selectedTaskId, taskFilter, taskAssigneeFilter]);
             const startTaskDraft = task => {
                 if (!isAdminUser || !teamTasksLoaded || taskPendingRef.current) return;
-                setTaskDraft(task ? { id: task.id, title: task.title, instructions: task.instructions, assignedUid: task.assignedUid, due: taskDueInput(task.dueAt), baseline: task }
-                    : { id: '', title: '', instructions: '', assignedUid: '', due: '', baseline: null });
+                setTaskDraft(task ? { id: task.id, title: task.title, instructions: task.instructions, assignedUids: getTaskAssignedUids(task).slice(), due: taskDueInput(task.dueAt), baseline: task }
+                    : { id: '', title: '', instructions: '', assignedUids: [], due: '', baseline: null });
                 setTeamTaskMessage(''); setTeamTaskError('');
             };
             const commitTeamTaskAction = async (taskId, action, details = {}) => {
@@ -4177,19 +4206,24 @@
                         if (action === 'create') {
                             if (!isAdminUser || previous) throw new Error('Only Fadi can create tasks.');
                         } else if (!previous) throw new Error('This task was removed.');
-                        if (!isAdminUser && previous?.assignedUid !== user.uid) throw new Error('Only the assigned person or Fadi can update this task.');
+                        if (!isAdminUser && !isTaskAssignedTo(previous, user.uid)) throw new Error('Only an assigned person or Fadi can update this task.');
                         if (['create', 'edit', 'request', 'delete'].includes(action) && !isAdminUser) throw new Error('Only Fadi can manage assignments and request updates.');
                         if (action === 'delete') { transaction.delete(ref); return; }
                         let next = previous ? { ...previous } : { id, status: 'open', createdByUid: user.uid, createdBy: getSavedDisplayName(user), createdAt: timestamp, events: [] };
                         let type, text = String(details.text || '').trim();
                         if (action === 'create' || action === 'edit') {
-                            if (action === 'edit' && ['title', 'instructions', 'assignedUid', 'dueAt'].some(key => !sameSavedValue(previous[key], details.baseline?.[key]))) throw new Error('Task details changed on another device. Cancel editing and reopen the task.');
-                            const account = taskAssignees.find(item => item.uid === details.assignedUid);
-                            if (!account) throw new Error('Choose an active team member.');
-                            const accountSnapshot = await transaction.get(doc(db, 'artifacts', appId, 'public', 'data', 'accessProfiles', account.uid));
-                            if (!normalizeAccessProfile(account.uid, accountSnapshot.exists() ? accountSnapshot.data() : null).enabled) throw new Error('This account no longer has dashboard access. Choose another person.');
-                            next = { ...next, title: String(details.title || '').trim(), instructions: String(details.instructions || '').trim(), assignedUid: account.uid, assignedName: account.name, dueAt: taskDueFromInput(details.due) };
-                            type = action === 'create' || previous.assignedUid !== next.assignedUid ? 'assigned' : 'edited';
+                            if (action === 'edit' && (['title', 'instructions', 'dueAt'].some(key => !sameSavedValue(previous[key], details.baseline?.[key])) || !sameSavedValue(getTaskAssignedUids(previous), getTaskAssignedUids(details.baseline)))) throw new Error('Task details changed on another device. Cancel editing and reopen the task.');
+                            const ids = details.assignedUids;
+                            if (!Array.isArray(ids) || !ids.length || ids.length > MAX_TASK_ASSIGNEES || new Set(ids).size !== ids.length) throw new Error('Choose one to eight active team members.');
+                            const accounts = ids.map(uid => taskAssignees.find(item => item.uid === uid));
+                            if (accounts.some(account => !account)) throw new Error('Choose active team members.');
+                            for (const account of accounts) {
+                                const accountSnapshot = await transaction.get(doc(db, 'artifacts', appId, 'public', 'data', 'accessProfiles', account.uid));
+                                if (!normalizeAccessProfile(account.uid, accountSnapshot.exists() ? accountSnapshot.data() : null).enabled) throw new Error(account.name + ' no longer has dashboard access. Choose another person.');
+                            }
+                            const assignedNames = Object.fromEntries(accounts.map(account => [account.uid, account.name]));
+                            next = { ...next, title: String(details.title || '').trim(), instructions: String(details.instructions || '').trim(), assignedUids: ids.slice(), assignedNames, assignedUid: ids[0], assignedName: assignedNames[ids[0]], dueAt: taskDueFromInput(details.due) };
+                            type = action === 'create' || !sameSavedValue(getTaskAssignedUids(previous), ids) ? 'assigned' : 'edited';
                             text = type === 'assigned' ? 'Task assigned.' : 'Assignment details updated.';
                         } else if (action === 'status') {
                             if (!TEAM_TASK_STATUSES[details.status]) throw new Error('Choose a valid status.');
@@ -4202,7 +4236,8 @@
                             if (!text) throw new Error('Write your update before sending.');
                             type = 'update';
                         } else throw new Error('Unknown task action.');
-                        const event = { id: eventId, type, text, status: next.status, authorUid: user.uid, author: getSavedDisplayName(user), timestamp, recipientUid: isAdminUser ? next.assignedUid : OWNER_UID };
+                        const recipientUids = getTaskRecipientUids(next, user.uid);
+                        const event = { id: eventId, type, text, status: next.status, authorUid: user.uid, author: getSavedDisplayName(user), timestamp, recipientUid: recipientUids[0], recipientUids };
                         next = { ...next, updatedAt: timestamp, updatedByUid: user.uid, updatedBy: getSavedDisplayName(user), events: [...(previous?.events || []), event] };
                         transaction.set(ref, next);
                     });
@@ -4211,7 +4246,7 @@
                     if (action === 'request') setTaskRequestDrafts(drafts => ({ ...drafts, [id]: '' }));
                     if (action === 'delete') setSelectedTaskId(null);
                     else { setSelectedTaskId(id); setTaskFilter(details.status === 'completed' ? 'completed' : 'all'); setTaskAssigneeFilter(''); }
-                    setTeamTaskMessage(action === 'request' ? 'Update requested. The assigned person will receive an alert.' : action === 'delete' ? 'Task deleted.' : 'Task saved.');
+                    setTeamTaskMessage(action === 'request' ? 'Update requested. Everyone assigned will receive an alert.' : action === 'delete' ? 'Task deleted.' : 'Task saved.');
                     if (['status', 'update'].includes(action)) await markTaskAlertsRead(readIds);
                 } catch (error) { setTeamTaskError(error.message || 'The task could not be saved. Your text is still here; please retry.'); }
                 finally { taskPendingRef.current = false; setTaskBusy(false); }
@@ -7402,7 +7437,7 @@
                     </footer>
 
                     {}
-                    {isTeamTasksOpen && (isAdminUser || teamTasks.some(task => task.id === selectedTaskId && task.assignedUid === user?.uid)) && <TeamTasksWindow dialogRef={taskDialogRef} close={() => setIsTeamTasksOpen(false)} owner={isAdminUser} uid={user?.uid}
+                    {isTeamTasksOpen && (isAdminUser || teamTasks.some(task => task.id === selectedTaskId && isTaskAssignedTo(task, user?.uid))) && <TeamTasksWindow dialogRef={taskDialogRef} close={() => setIsTeamTasksOpen(false)} owner={isAdminUser} uid={user?.uid}
                         loaded={teamTasksLoaded} busy={taskBusy} error={teamTaskError} message={teamTaskMessage} tasks={teamTasks} assignees={taskAssignees}
                         notifications={taskNotifications} readAlert={markTaskAlertsRead} filter={taskFilter} setFilter={setTaskFilter} person={taskAssigneeFilter} setPerson={setTaskAssigneeFilter}
                         selectedId={selectedTaskId} selectTask={setSelectedTaskId} draft={taskDraft} setDraft={setTaskDraft} startDraft={startTaskDraft} commit={commitTeamTaskAction}
@@ -7963,9 +7998,6 @@
     </script>
 </body>
 </html>
-
-
-
 
 
 
