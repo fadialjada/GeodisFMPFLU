@@ -991,8 +991,8 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { initializeApp } from 'firebase/app';
-        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+        import { initializeApp, deleteApp } from 'firebase/app';
+        import { getAuth, initializeAuth, inMemoryPersistence, validatePassword, createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
         import { getFirestore, doc, setDoc as firebaseSetDoc, getDoc, getDocs, onSnapshot, collection, query, where, deleteDoc as firebaseDeleteDoc, runTransaction as firebaseRunTransaction, arrayUnion, serverTimestamp } from 'firebase/firestore';
         import { 
             Truck, Package, Clock, CheckCircle2, AlertCircle, Navigation, ShieldCheck, 
@@ -1615,6 +1615,53 @@
             '8LDjZnhNd0XnkE2kPeL0tXLhImh2', 'XKs6jvncmtOH1vXIRuCLnN6zihh1',
             '79ko6RLyjbhlUClcMcw66lKmNg22', 'rlSdxiVJCIYO9fPTyzPyIFJJUEm2']);
         const isOwnerAccount = account => Boolean(account?.uid && account.uid === OWNER_UID);
+        const validateNewLogin = draft => {
+            const name = String(draft.name || '').trim(), email = String(draft.email || '').trim();
+            const password = String(draft.password || '');
+            if (!name) throw new Error('Enter the user’s name.');
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid login email address.');
+            if (password.length < 6) throw new Error('Enter a password with at least 6 characters.');
+            if (password !== draft.confirmPassword) throw new Error('The two passwords do not match.');
+            return {name, email, password};
+        };
+        const passwordPolicyMessage = status => {
+            const requirements = [];
+            if (status.containsLowercaseLetter === false) requirements.push('a lowercase letter');
+            if (status.containsUppercaseLetter === false) requirements.push('an uppercase letter');
+            if (status.containsNumericCharacter === false) requirements.push('a number');
+            if (status.containsNonAlphanumericCharacter === false) requirements.push('a symbol');
+            if (status.meetsMinPasswordLength === false) requirements.push('at least ' + (status.passwordPolicy?.customStrengthOptions?.minPasswordLength || 6) + ' characters');
+            if (status.meetsMaxPasswordLength === false) return 'The password is too long for your Firebase password policy.';
+            return requirements.length ? 'The password needs ' + requirements.join(', ') + '.' : 'Choose a password that meets your Firebase password policy.';
+        };
+        const accountCreationError = error => ({
+            'auth/email-already-in-use':'This email already has a Firebase login. Choose Link an existing login and use its Firebase Account ID.',
+            'auth/invalid-email':'Enter a valid login email address.',
+            'auth/weak-password':'Choose a stronger password that meets your Firebase password policy.',
+            'auth/password-does-not-meet-requirements':'Choose a password that meets your Firebase password policy.',
+            'auth/operation-not-allowed':'Email/password account creation is disabled in Firebase Authentication.',
+            'auth/admin-restricted-operation':'Firebase has restricted account creation. Create this login in Firebase Authentication, then link its Account ID here.',
+            'auth/network-request-failed':'The login could not be created. Check your connection and try again.',
+            'auth/too-many-requests':'Firebase has temporarily limited account creation. Please try again later.',
+            'auth/unauthorized-domain':'This website address is not authorized in Firebase Authentication.'
+        })[error?.code] || (error?.code === 'dashboard/password-policy' ? error.message : 'The login could not be created. Please try again.');
+        const createDashboardLogin = async draft => {
+            if (!isOwnerAccount(auth.currentUser)) throw new Error('Only Fadi can create dashboard logins.');
+            const fields = validateNewLogin(draft);
+            let temporaryApp, temporaryAuth;
+            try {
+                temporaryApp = initializeApp(firebaseConfig, 'dashboard-account-' + crypto.randomUUID());
+                temporaryAuth = initializeAuth(temporaryApp, {persistence:inMemoryPersistence});
+                const policy = await validatePassword(temporaryAuth, fields.password);
+                if (!policy.isValid) throw Object.assign(new Error(passwordPolicyMessage(policy)), {code:'dashboard/password-policy'});
+                const credential = await createUserWithEmailAndPassword(temporaryAuth, fields.email, fields.password);
+                return {uid:credential.user.uid, name:fields.name, email:fields.email};
+            } catch (error) { throw new Error(accountCreationError(error)); }
+            finally {
+                if (temporaryAuth) await signOut(temporaryAuth).catch(() => {});
+                if (temporaryApp) await deleteApp(temporaryApp).catch(() => {});
+            }
+        };
         const isManagerNote = note => note?.category === 'Manager Note';
         const isHighPriorityNote = note => note?.category === 'URGENT' || (isManagerNote(note) && !note.acknowledgedAt);
         const validateManagerNoteChanges = (before = [], after = []) => {
@@ -2491,6 +2538,62 @@
                 </div>
             </div>;
         };
+        let chatPdfModulePromise;
+        const ChatPdfPreview = ({ blob }) => {
+            const [pdf, setPdf] = useState(null), [pageNumber, setPageNumber] = useState(1);
+            const [width, setWidth] = useState(600), [busy, setBusy] = useState(true), [error, setError] = useState('');
+            const canvasRef = useRef(null), containerRef = useRef(null);
+            useEffect(() => {
+                let cancelled = false, loadingTask;
+                (async () => {
+                    try {
+                        chatPdfModulePromise ||= import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.624/pdf.min.mjs');
+                        const library = await chatPdfModulePromise;
+                        library.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.624/pdf.worker.min.mjs';
+                        const data = new Uint8Array(await blob.arrayBuffer());
+                        if (cancelled) return;
+                        loadingTask = library.getDocument({data, isEvalSupported:false});
+                        const document = await loadingTask.promise;
+                        if (!cancelled) setPdf(document);
+                    } catch { if (!cancelled) { setBusy(false); setError('This PDF could not be previewed. Use Open PDF or Download.'); chatPdfModulePromise = null; } }
+                })();
+                return () => { cancelled = true; loadingTask?.destroy(); };
+            }, [blob]);
+            useEffect(() => {
+                const observer = new ResizeObserver(entries => setWidth(Math.max(180, Math.min(800, entries[0].contentRect.width))));
+                if (containerRef.current) observer.observe(containerRef.current);
+                return () => observer.disconnect();
+            }, []);
+            useEffect(() => {
+                if (!pdf) return;
+                let cancelled = false, rendering;
+                setBusy(true); setError('');
+                (async () => {
+                    try {
+                        const page = await pdf.getPage(pageNumber);
+                        if (cancelled) return;
+                        const ratio = Math.min(window.devicePixelRatio || 1, 2);
+                        const viewport = page.getViewport({scale:width / page.getViewport({scale:1}).width});
+                        const canvas = canvasRef.current;
+                        canvas.width = Math.ceil(viewport.width * ratio); canvas.height = Math.ceil(viewport.height * ratio);
+                        rendering = page.render({canvasContext:canvas.getContext('2d'), viewport, transform:[ratio,0,0,ratio,0,0]});
+                        await rendering.promise;
+                        if (!cancelled) setBusy(false);
+                    } catch { if (!cancelled) { setBusy(false); setError('This page could not be previewed. Use Open PDF or Download.'); } }
+                })();
+                return () => { cancelled = true; rendering?.cancel(); };
+            }, [pdf, pageNumber, width]);
+            return <div ref={containerRef} className="mx-auto w-full max-w-[800px]">
+                <div className="mb-3 flex items-center justify-center gap-3 text-xs text-slate-300">
+                    <button type="button" aria-label="Previous PDF page" disabled={!pdf || pageNumber <= 1 || busy} onClick={() => setPageNumber(value => value - 1)} className="rounded-lg border border-slate-600 px-3 py-2 disabled:opacity-40">Previous</button>
+                    <span>{pdf ? 'Page ' + pageNumber + ' of ' + pdf.numPages : 'Loading PDF…'}</span>
+                    <button type="button" aria-label="Next PDF page" disabled={!pdf || pageNumber >= pdf.numPages || busy} onClick={() => setPageNumber(value => value + 1)} className="rounded-lg border border-slate-600 px-3 py-2 disabled:opacity-40">Next</button>
+                </div>
+                {busy && <p role="status" className="mb-3 text-center text-xs text-slate-400">Loading preview…</p>}
+                {error && <p role="status" className="py-8 text-center text-sm text-slate-300">{error}</p>}
+                <canvas ref={canvasRef} role="img" aria-label={'PDF page ' + pageNumber} className={'h-auto w-full rounded-lg bg-white ' + (error || !pdf ? 'hidden' : '')} />
+            </div>;
+        };
         const ChatFilePreview = ({ preview, onClose }) => {
             const [url, setUrl] = useState(''), [text, setText] = useState('');
             const closeRef = useRef(null), dialogRef = useRef(null);
@@ -2515,7 +2618,7 @@
                     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-700 px-4 py-3"><div className="min-w-0"><h2 className="break-words text-sm font-semibold text-white">{attachment.name}</h2><p className="mt-1 text-[11px] text-slate-400">{chatFileSize(attachment.size)}</p></div><button ref={closeRef} type="button" aria-label="Close file preview" onClick={onClose} className="shrink-0 rounded-lg p-2 text-slate-300 hover:bg-slate-800 hover:text-white"><X className="h-5 w-5" /></button></div>
                     <div className="min-h-0 overflow-auto p-3 sm:p-5">
                         {kind === 'image' && url && <img src={url} alt={attachment.name} className="mx-auto max-h-[60dvh] max-w-full object-contain" />}
-                        {kind === 'pdf' && url && <iframe src={url} title={'PDF preview: ' + attachment.name} className="h-[60dvh] w-full rounded-lg bg-white" />}
+                        {kind === 'pdf' && <ChatPdfPreview blob={blob} />}
                         {kind === 'text' && <><pre className="whitespace-pre-wrap break-words text-left text-sm text-slate-200">{text}</pre>{blob.size > 50000 && <p className="mt-3 text-xs text-slate-400">Preview shows the beginning of the file. Download for the full document.</p>}</>}
                         {kind === 'document' && <div className="flex flex-col items-center gap-3 py-12 text-center text-sm text-slate-300"><FileText className="h-12 w-12 text-slate-400" /><p>{attachment.name}</p><p className="text-xs text-slate-400">Download this file to open it in its app.</p></div>}
                     </div>
@@ -3631,8 +3734,8 @@
                             signOut(auth).catch(console.error); return;
                         }
                         const savedName = localStorage.getItem(getUserNameKey(firebaseUser.uid))?.trim();
-                        setUserName(savedName || getDefaultUserName(firebaseUser));
-                        currentAuditName = savedName || getDefaultUserName(firebaseUser);
+                        setUserName(savedName || profile.name || getDefaultUserName(firebaseUser));
+                        currentAuditName = savedName || profile.name || getDefaultUserName(firebaseUser);
                     } else {
                         setUserName(''); setIsEditingName(false); setIsEditing(false);
                     }
@@ -5033,23 +5136,37 @@
             }, [user?.uid, userName, masterLists.nameOverrides]);
             const saveAccountPermissions = async () => {
                 if (!isAdminUser || !accountDraft || settingsBusy || !settingsReady) return;
-                const uid = accountDraft.uid.trim();
+                const creatingLogin = accountDraft.isNew && accountDraft.mode === 'create' && !accountDraft.createdLogin;
+                let uid = String(accountDraft.uid || '').trim(), loginCreated = accountDraft.createdLogin === true;
                 if (uid === OWNER_UID) { setSettingsError('Your administrator access is protected.'); return; }
-                if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid) || !accountDraft.name.trim()) {
-                    setSettingsError('Enter the account ID and a display name.'); return;
+                if (creatingLogin) {
+                    try { validateNewLogin(accountDraft); }
+                    catch (error) { setSettingsError(error.message); return; }
+                } else if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid) || !accountDraft.name.trim()) {
+                    setSettingsError('Enter the Firebase Account ID and a display name.'); return;
                 }
                 setSettingsBusy(true); setSettingsError(''); setSettingsMessage('');
                 try {
+                    if (creatingLogin) {
+                        const login = await createDashboardLogin(accountDraft);
+                        uid = login.uid; loginCreated = true;
+                        setAccountDraft({uid, name:login.name, email:login.email, enabled:accountDraft.enabled,
+                            permissions:{...accountDraft.permissions}, isNew:true, mode:'existing', createdLogin:true});
+                    }
                     const accountRef = doc(db, 'artifacts', appId, 'public', 'data', 'accessProfiles', uid);
                     if (accountDraft.isNew && (TEAM_UIDS.has(uid) || (await getDoc(accountRef)).exists())) throw new Error('This account already exists. Use its Manage button.');
-                    const { isNew, ...accountFields } = accountDraft;
-                    const profile = normalizeAccessProfile(uid, { ...accountFields, enabled: accountDraft.enabled === true,
+                    const profile = normalizeAccessProfile(uid, { enabled: accountDraft.enabled === true,
                         name: accountDraft.name.trim(), email: accountDraft.email.trim(),
+                        permissions:Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, accountDraft.permissions?.[key] === true])),
                         lastUpdatedBy: getSavedDisplayName(user), lastUpdatedAt: new Date().toISOString() });
                     await setDoc(accountRef, profile);
                     accessProfilesCache.set(uid, profile);
-                    setAccountDraft(null); setSettingsMessage('Permissions saved for ' + profile.name + '.');
-                } catch (error) { setSettingsError('Permissions were not saved. ' + error.message); }
+                    setAccountDraft(null); setSettingsMessage(loginCreated
+                        ? 'Login and permissions created for ' + profile.name + '. ' + (profile.enabled ? 'They can sign in with ' + profile.email + ' and the password you entered.' : 'Dashboard access is disabled until you enable it.')
+                        : 'Permissions saved for ' + profile.name + '.');
+                } catch (error) { setSettingsError(loginCreated
+                    ? 'The Firebase login exists, but dashboard permissions were not saved. Click Retry permissions; do not create the login again. ' + error.message
+                    : (creatingLogin ? error.message : 'Permissions were not saved. ' + error.message)); }
                 finally { setSettingsBusy(false); }
             };
             const editDashboardSoundDraft = next => {
@@ -5178,7 +5295,7 @@
                         const restored = stripAuditMetadata(record.data);
                         const metadata = record.collection === 'teamChat'
                             ? { updatedBy: getSavedDisplayName(user), updatedAt: new Date().toISOString() }
-                            : record.collection === 'config' ? {}
+                            : ['config', 'teamChatFiles'].includes(record.collection) ? {}
                             : { lastUpdatedBy: getSavedDisplayName(user), lastUpdatedAt: new Date().toISOString() };
                         transaction.set(ref, { ...restored, ...metadata });
                     }, { auditAction: 'restore' });
@@ -8210,18 +8327,27 @@
                                     {settingsMessage && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 text-sm text-emerald-200 break-words">{settingsMessage}</div>}
                                     {isAdminUser && settingsTab === 'users' && (
                                         <div className="space-y-4">
-                                            <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-bold text-white">Users & Permissions</h3><p className="text-xs text-slate-400 mt-1">Choose who has dashboard access and which sections each person can edit.</p></div><button type="button" disabled={settingsBusy || !settingsReady} onClick={() => { setAccountDraft({ uid: '', name: '', email: '', enabled: true, permissions: { ...DEFAULT_STAFF_PERMISSIONS }, isNew: true }); setSettingsError(''); }} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><PlusCircle className="w-4 h-4" />Add user access</button></div>
+                                            <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-bold text-white">Users & Permissions</h3><p className="text-xs text-slate-400 mt-1">Create team logins and choose which sections each person can edit.</p></div><button type="button" disabled={settingsBusy || !settingsReady} onClick={() => { setAccountDraft({ uid:'', name:'', email:'', password:'', confirmPassword:'', mode:'create', enabled:true, permissions:{...DEFAULT_STAFF_PERMISSIONS}, isNew:true }); setSettingsError(''); setSettingsMessage(''); }} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><PlusCircle className="w-4 h-4" />Add user</button></div>
                                             <p className="text-xs text-slate-400">Users with access can view the dashboard. Editing permissions control saved changes. Removing access signs that account out. Your administrator account stays protected.</p>
                                             <div className="grid gap-3 sm:grid-cols-2">
                                                 {managedAccounts.map(account => <div key={account.uid} className="min-w-0 flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4"><div className="min-w-0"><div className="text-sm font-bold text-slate-100 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="text-xs text-slate-400 mt-1 break-all">{account.email || (account.uid === OWNER_UID ? 'Administrator' : 'Team account')}</div><div className={`text-xs mt-2 ${account.enabled ? 'text-emerald-300' : 'text-rose-300'}`}>{account.uid === OWNER_UID ? 'Full administrator access' : account.enabled ? 'Dashboard access enabled' : 'Access removed'}</div></div><button type="button" disabled={account.uid === OWNER_UID || settingsBusy || !settingsReady} onClick={() => { setAccountDraft({ ...account, permissions: { ...account.permissions }, isNew: false }); setSettingsError(''); setSettingsMessage(''); }} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-30">{account.uid === OWNER_UID ? 'Protected' : 'Manage'}</button></div>)}
                                             </div>
                                             {accountDraft && <div className="rounded-xl border border-indigo-400/40 bg-slate-800/50 p-4 space-y-4">
-                                                <h4 className="font-bold text-white">{accountDraft.isNew ? 'Add user access' : 'Permissions for ' + accountDraft.name}</h4>
-                                                {accountDraft.isNew && <div><label htmlFor="settings-account-id" className="block text-xs font-bold text-slate-300 mb-1">Account ID</label><input id="settings-account-id" value={accountDraft.uid} onChange={event => setAccountDraft({ ...accountDraft, uid: event.target.value })} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" placeholder="Existing account ID" /><p className="text-xs text-slate-400 mt-2">Use the UID of an existing account from Firebase Authentication. This grants dashboard access; it does not create a password or sign-in account.</p></div>}
-                                                <div className="grid gap-3 sm:grid-cols-2"><div><label htmlFor="settings-account-name" className="block text-xs font-bold text-slate-300 mb-1">Name in Settings</label><input id="settings-account-name" value={accountDraft.name} onChange={event => setAccountDraft({ ...accountDraft, name: event.target.value })} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div><div><label htmlFor="settings-account-email" className="block text-xs font-bold text-slate-300 mb-1">Email (optional)</label><input id="settings-account-email" type="email" value={accountDraft.email} onChange={event => setAccountDraft({ ...accountDraft, email: event.target.value })} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div></div>
-                                                <label className="flex gap-3 items-center text-sm font-bold text-slate-200"><input type="checkbox" checked={accountDraft.enabled} onChange={event => setAccountDraft({ ...accountDraft, enabled: event.target.checked })} className="h-4 w-4 accent-emerald-500" />Dashboard access enabled</label>
+                                                <h4 className="font-bold text-white">{accountDraft.createdLogin ? 'Finish dashboard access' : accountDraft.isNew ? 'Add user' : 'Permissions for ' + accountDraft.name}</h4>
+                                                {accountDraft.isNew && !accountDraft.createdLogin && <fieldset disabled={settingsBusy} className="flex flex-wrap gap-4 text-xs text-slate-300"><legend className="mb-2 font-bold">Login</legend><label className="flex items-center gap-2"><input type="radio" name="new-account-mode" checked={accountDraft.mode === 'create'} onChange={() => setAccountDraft({...accountDraft,mode:'create',uid:'',password:'',confirmPassword:''})} className="accent-indigo-400" />Create a new login</label><label className="flex items-center gap-2"><input type="radio" name="new-account-mode" checked={accountDraft.mode !== 'create'} onChange={() => setAccountDraft({...accountDraft,mode:'existing',password:'',confirmPassword:''})} className="accent-indigo-400" />Link an existing login</label></fieldset>}
+                                                {accountDraft.isNew && accountDraft.mode !== 'create' && <div><label htmlFor="settings-account-id" className="block text-xs font-bold text-slate-300 mb-1">Firebase Account ID</label><input id="settings-account-id" value={accountDraft.uid} disabled={settingsBusy} readOnly={accountDraft.createdLogin} onChange={event => setAccountDraft({ ...accountDraft, uid:event.target.value })} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" placeholder="Copy the UID from Firebase Authentication" /><p className="text-xs text-slate-400 mt-2">{accountDraft.createdLogin ? 'Your new login is saved in Firebase. Retry permissions to finish giving it dashboard access.' : 'For someone who already has a Firebase login. Copy their UID from Authentication → Users.'}</p></div>}
+                                                <div className="grid gap-3 sm:grid-cols-2">
+                                                    <div><label htmlFor="settings-account-name" className="block text-xs font-bold text-slate-300 mb-1">Name</label><input id="settings-account-name" value={accountDraft.name} disabled={settingsBusy} onChange={event => setAccountDraft({...accountDraft,name:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" autoComplete="off" /></div>
+                                                    <div><label htmlFor="settings-account-email" className="block text-xs font-bold text-slate-300 mb-1">{accountDraft.mode === 'create' || accountDraft.createdLogin ? 'Login email (required)' : 'Email label (optional)'}</label><input id="settings-account-email" type="email" value={accountDraft.email} disabled={settingsBusy} readOnly={accountDraft.createdLogin} onChange={event => setAccountDraft({...accountDraft,email:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" autoComplete="off" /></div>
+                                                </div>
+                                                {accountDraft.isNew && accountDraft.mode === 'create' && <>
+                                                    <div className="grid gap-3 sm:grid-cols-2"><div><label htmlFor="settings-account-password" className="block text-xs font-bold text-slate-300 mb-1">Password (required)</label><input id="settings-account-password" type="password" autoComplete="new-password" value={accountDraft.password || ''} disabled={settingsBusy} onChange={event => setAccountDraft({...accountDraft,password:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div><div><label htmlFor="settings-account-password-confirm" className="block text-xs font-bold text-slate-300 mb-1">Confirm password (required)</label><input id="settings-account-password-confirm" type="password" autoComplete="new-password" value={accountDraft.confirmPassword || ''} disabled={settingsBusy} onChange={event => setAccountDraft({...accountDraft,confirmPassword:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div></div>
+                                                    <p className="text-xs text-slate-400">At least 6 characters; your Firebase password policy also applies. Your admin login stays signed in. The password is sent only to Firebase Authentication, never saved in dashboard records.</p>
+                                                </>}
+                                                {!accountDraft.isNew && <p className="text-xs text-slate-400">The email label is for reference. Changing it does not change this person’s login email or password.</p>}
+                                                <label className="flex gap-3 items-center text-sm font-bold text-slate-200"><input type="checkbox" checked={accountDraft.enabled} disabled={settingsBusy} onChange={event => setAccountDraft({ ...accountDraft, enabled: event.target.checked })} className="h-4 w-4 accent-emerald-500" />Dashboard access enabled</label>
                                                 <fieldset disabled={!accountDraft.enabled || settingsBusy} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 disabled:opacity-50"><legend className="text-xs font-bold text-slate-300 mb-3">Allow editing</legend>{PERMISSION_OPTIONS.map(([key, label]) => <label key={key} className="flex gap-3 items-center rounded-lg border border-slate-700 p-3 text-xs text-slate-200"><input type="checkbox" checked={accountDraft.permissions[key] === true} onChange={event => setAccountDraft({ ...accountDraft, permissions: { ...accountDraft.permissions, [key]: event.target.checked } })} className="h-4 w-4 accent-indigo-400" />{label}</label>)}</fieldset>
-                                                <div className="flex flex-wrap gap-3"><button type="button" onClick={saveAccountPermissions} disabled={settingsBusy || !settingsReady} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{settingsBusy ? 'Saving…' : 'Save permissions'}</button><button type="button" onClick={() => setAccountDraft(null)} disabled={settingsBusy} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">Cancel</button></div>
+                                                <div className="flex flex-wrap gap-3"><button type="button" onClick={saveAccountPermissions} disabled={settingsBusy || !settingsReady} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{settingsBusy ? accountDraft.mode === 'create' ? 'Creating user…' : 'Saving…' : accountDraft.createdLogin ? 'Retry permissions' : accountDraft.isNew && accountDraft.mode === 'create' ? 'Create user' : 'Save permissions'}</button><button type="button" onClick={() => setAccountDraft(null)} disabled={settingsBusy} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">{accountDraft.createdLogin ? 'Close' : 'Cancel'}</button></div>
                                             </div>}
                                         </div>
                                     )}
