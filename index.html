@@ -71,6 +71,74 @@
         body { overflow-x: clip !important; overflow-y: visible !important; }
         .dashboard-page-shell { overflow-x: clip; overflow-y: visible; }
 
+        .balanced-picture-theme .dashboard-page-shell > .dashboard-header {
+            background: linear-gradient(180deg, rgba(16, 23, 34, 0.96), rgba(16, 23, 34, 0.86) 65%, rgba(16, 23, 34, 0.05)) !important;
+            border: 0;
+            box-shadow: none !important;
+        }
+        .balanced-picture-theme .dashboard-header .dashboard-top-nav {
+            background-color: transparent !important;
+            background-image: none;
+            border: 0 !important;
+            border-radius: 0;
+            padding: 4px 0;
+            gap: 8px;
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            box-shadow: none !important;
+        }
+        .balanced-picture-theme .dashboard-header .dashboard-top-nav > button {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-left: 8px;
+            padding-right: 8px;
+            background-color: transparent !important;
+            border: 0 !important;
+            border-radius: 0;
+        }
+        .balanced-picture-theme .dashboard-header .dashboard-top-nav > button.bg-indigo-600 {
+            background-color: transparent !important;
+            box-shadow: none !important;
+        }
+        .balanced-picture-theme .dashboard-header .dashboard-nav-label {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            align-self: stretch;
+        }
+        .balanced-picture-theme .dashboard-header .dashboard-top-nav > button.bg-indigo-600 .dashboard-nav-label::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: -6px;
+            width: 32px;
+            height: 3px;
+            border-radius: 999px;
+            transform: translateX(-50%);
+            background: linear-gradient(90deg, rgba(169, 186, 215, 0.05), #91a8c9 22%, #dbe9f8 50%, #91a8c9 78%, rgba(169, 186, 215, 0.05));
+            pointer-events: none;
+        }
+        .balanced-picture-theme .dashboard-header .dashboard-top-nav > button:not(.bg-indigo-600):hover {
+            background-color: transparent !important;
+            color: #e7edf6 !important;
+        }
+
+        .dashboard-page-shell > .dashboard-footer {
+            background: linear-gradient(180deg, rgba(16, 23, 34, 0.05), rgba(16, 23, 34, 0.78) 35%, rgba(16, 23, 34, 0.96));
+            border: 0;
+        }
+        .balanced-picture-theme .dashboard-footer .footer-user-badge {
+            background-color: transparent !important;
+            border-color: transparent !important;
+        }
+        .balanced-picture-theme .dashboard-footer .footer-user-badge:hover,
+        .balanced-picture-theme .dashboard-footer .footer-user-badge:focus-within {
+            background-color: rgba(96, 116, 158, 0.14) !important;
+            border-color: rgba(96, 116, 158, 0.22) !important;
+        }
+
         /* Phone layout: the document owns vertical scrolling; wide tables
            and navigation own horizontal scrolling. Do not trap page swipes. */
         @media (max-width: 767px), (max-width: 1023px) and (pointer: coarse) {
@@ -277,7 +345,7 @@
 
             .dashboard-page-shell > footer {
                 position: relative !important;
-                padding: 0.75rem 0.75rem max(0.75rem, env(safe-area-inset-bottom)) !important;
+                padding: 0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom)) !important;
             }
 
             .dashboard-page-shell > footer > .overflow-x-auto {
@@ -739,12 +807,12 @@
         }
         @keyframes metricRingHeartbeat {
             0%, 30%, 100% {
-                opacity: 0.38;
-                filter: brightness(0.86) drop-shadow(0 0 0 currentColor);
+                opacity: var(--ring-rest-opacity, .38);
+                filter: brightness(.86) drop-shadow(0 0 0 currentColor);
             }
             65% {
-                opacity: 0.72;
-                filter: brightness(1.04) drop-shadow(0 0 2px currentColor) drop-shadow(0 0 4px currentColor);
+                opacity: var(--ring-glow-opacity, .72);
+                filter: brightness(var(--ring-brightness, 1.04)) drop-shadow(0 0 var(--ring-glow-inner, 2px) currentColor) drop-shadow(0 0 var(--ring-glow-outer, 4px) var(--ring-glow-color, currentColor));
             }
         }
         @keyframes metricRingExpandDisappear {
@@ -759,29 +827,40 @@
                 transform: scale(1.82);
             }
         }
-        @keyframes metricRingHourlyDance {
-            0%, 1.25%, 100% {
-                transform: translateY(0) rotate(0deg) scale(1);
-            }
-            0.16% {
-                transform: translateY(-3px) rotate(-1.2deg) scale(1.025);
-            }
-            0.32% {
-                transform: translateY(2px) rotate(1.1deg) scale(0.995);
-            }
-            0.48% {
-                transform: translateY(-2px) rotate(0.8deg) scale(1.018);
-            }
-            0.64% {
-                transform: translateY(1px) rotate(-0.7deg) scale(1.004);
-            }
-            0.8% {
-                transform: translateY(-2px) rotate(-0.4deg) scale(1.015);
-            }
-            0.96% {
-                transform: translateY(1px) rotate(0.4deg) scale(1.002);
-            }
+        @keyframes metricRingDance {
+            0%, 100% { transform: translateY(0) rotate(0) scale(1); }
+            20% { transform: translateY(var(--ring-lift)) rotate(calc(-1 * var(--ring-tilt))) scale(var(--ring-swell)); }
+            40% { transform: translateY(var(--ring-drop)) rotate(var(--ring-tilt)) scale(1); }
+            60% { transform: translateY(var(--ring-lift)) rotate(var(--ring-tilt)) scale(var(--ring-swell)); }
+            80% { transform: translateY(var(--ring-drop)) rotate(calc(-1 * var(--ring-tilt))) scale(1); }
         }
+        @keyframes metricRingBounce {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(calc(2 * var(--ring-lift))) scale(var(--ring-swell)); }
+        }
+        @keyframes metricRingFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(var(--ring-lift)); }
+        }
+        @keyframes metricRingSway {
+            0%, 100% { transform: rotate(calc(-1 * var(--ring-tilt))); }
+            50% { transform: rotate(var(--ring-tilt)); }
+        }
+        @keyframes metricRingFirework {
+            0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(.25); }
+            4% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            22% { opacity: .9; transform: translate(calc(-50% + var(--spark-x)), calc(-50% + var(--spark-y))) scale(.8); }
+            38%, 99% { opacity: 0; transform: translate(calc(-50% + var(--spark-x)), calc(-50% + var(--spark-y))) scale(.2); }
+        }
+        .metric-ring-fireworks { position: absolute; inset: 0; pointer-events: none; }
+        .metric-ring-firework { position: absolute; width: 0; height: 0; color: var(--burst-color); }
+        .metric-ring-spark {
+            position: absolute; width: 3.5px; height: 3.5px; border-radius: 50%;
+            background: currentColor; box-shadow: 0 0 4px currentColor; opacity: 0;
+            animation: metricRingFirework 3.6s ease-out infinite;
+            animation-delay: var(--burst-delay);
+        }
+        [data-screenshot-surface="true"] .metric-ring-fireworks { display: none !important; }
         @media (hover: none) { .chat-message-edit { opacity: 1 !important; } }
         .metric-ring-value {
             display: inline-block;
@@ -794,23 +873,41 @@
             transform-box: fill-box;
             transform-origin: center;
         }
-        .metric-ring-card svg {
+        .metric-ring-visual svg {
             overflow: visible;
+        }
+        .metric-ring-motion {
             transform-box: fill-box;
             transform-origin: center;
-            animation: metricRingHourlyDance 3600s ease-in-out infinite;
         }
+        [data-ring-motion="dance"] .metric-ring-motion { animation: metricRingDance 3s ease-in-out infinite; }
+        [data-ring-motion="bounce"] .metric-ring-motion { animation: metricRingBounce 1.8s ease-in-out infinite; }
+        [data-ring-motion="float"] .metric-ring-motion { animation: metricRingFloat 4s ease-in-out infinite; }
+        [data-ring-motion="sway"] .metric-ring-motion { animation: metricRingSway 3.5s ease-in-out infinite; }
         .metric-ring-stroke {
-            opacity: 0.38;
-            filter: brightness(0.86);
-            animation: metricRingHeartbeat 15s ease-in-out infinite;
+            opacity: .8;
         }
-        .metric-ring-card:hover .metric-ring-value {
+        [data-ring-glow="pulse"] .metric-ring-stroke {
+            animation: metricRingHeartbeat var(--ring-glow-interval, 15s) ease-in-out infinite;
+        }
+        [data-ring-glow="steady"] .metric-ring-stroke {
+            opacity: var(--ring-glow-opacity, .72);
+            filter: brightness(var(--ring-brightness, 1.04)) drop-shadow(0 0 var(--ring-glow-inner, 2px) currentColor) drop-shadow(0 0 var(--ring-glow-outer, 4px) var(--ring-glow-color, currentColor));
+        }
+        .metric-ring-card:hover [data-ring-hover="expand"] .metric-ring-value,
+        .metric-ring-card:hover [data-ring-hover="highlight"] .metric-ring-value {
             animation: metricValueSwell 1.85s ease-in-out infinite;
         }
-        .metric-ring-card:hover .metric-ring-track,
-        .metric-ring-card:hover .metric-ring-stroke {
+        .metric-ring-card:hover [data-ring-hover="expand"] .metric-ring-track,
+        .metric-ring-card:hover [data-ring-hover="expand"] .metric-ring-stroke {
             animation: metricRingExpandDisappear 1.35s ease-out forwards;
+        }
+        .metric-ring-card:hover [data-ring-hover="highlight"] .metric-ring-stroke { opacity: 1; }
+        @media (prefers-reduced-motion: reduce) {
+            .metric-ring-motion, .metric-ring-stroke, .metric-ring-track, .metric-ring-value { animation: none !important; transform: none !important; }
+            [data-ring-glow="pulse"] .metric-ring-stroke { opacity: .8; filter: none; }
+            .metric-ring-fireworks { display: none !important; }
+            .metric-ring-spark { animation: none !important; }
         }
         /* Export copies only: override theme shadows, including rounded panel edges. */
         .balanced-picture-theme [data-screenshot-surface="true"],
@@ -843,6 +940,12 @@
             .settings-modal > .settings-window { height: 100%; max-height: 100%; width: 100%; border-radius: 0; }
             .settings-content { padding: 1rem; padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
         }
+        .chat-typing-dots { display: inline-flex; align-items: center; gap: 4px; height: 12px; }
+        .chat-typing-dots i { display: block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: chat-typing-pulse 1.25s ease-in-out infinite; }
+        .chat-typing-dots i:nth-child(2) { animation-delay: .16s; }
+        .chat-typing-dots i:nth-child(3) { animation-delay: .32s; }
+        @keyframes chat-typing-pulse { 0%, 70%, 100% { transform: scale(.7); opacity: .4; } 35% { transform: scale(1.3); opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .chat-typing-dots i { animation: none; } }
     </style>
     <script>
         (() => {
@@ -886,7 +989,7 @@
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef, useMemo } from 'react';
+        import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
         import { createRoot } from 'react-dom/client';
         import { initializeApp } from 'firebase/app';
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -897,7 +1000,8 @@
             Camera, Activity, AlertTriangle, ArrowUp, Minus, Target, Download, 
             Table as TableIcon, Trash2, Route, Settings, ClipboardPaste, Award, DollarSign,
             PlusCircle, X, Loader2, ActivitySquare, MessageSquare, User, Share2,
-            FileText, History, Maximize, Minimize, Bell, ThumbsUp, Smile, Search, ClipboardList
+            FileText, History, Maximize, Minimize, Bell, ThumbsUp, Smile, Search, ClipboardList,
+            Heart, Coffee, PartyPopper, Hand, Moon, Sparkles, Pizza, Cookie, Mic, Paperclip
         } from 'lucide-react';
 
         let firebaseConfig = {
@@ -1244,52 +1348,50 @@
         const normalizeAssignmentName = (name) => String(name || '').trim().replace(/\s+/g, ' ');
 
         const calculateDriverAssignmentWarnings = (currentData, historyRecords, activeDateStr) => {
-            const weekDays = getOfficeWeekBoundaries(activeDateStr).days;
-            const sameDay = [];
-            const weeklyAssignmentDays = {};
+            const sameDay = [], consecutive = [];
+            const selectedDay = Date.parse(activeDateStr + 'T00:00:00Z');
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(activeDateStr) || !Number.isFinite(selectedDay)
+                || new Date(selectedDay).toISOString().slice(0, 10) !== activeDateStr) return { sameDay, consecutive };
 
-            weekDays.forEach(dayStr => {
-                const dayRecord = dayStr === activeDateStr
-                    ? currentData
-                    : (historyRecords || []).find(record => record.date === dayStr);
-                const assignmentCounts = {};
-
-                (dayRecord?.routeTable || []).forEach(route => {
-                    [
-                        { role: 'driver', name: normalizeAssignmentName(route.driver) },
-                        { role: 'helper', name: normalizeAssignmentName(route.helper) }
-                    ].forEach(({ role, name }) => {
+            // UTC calendar days avoid losing a day at daylight-saving changes.
+            const dayKey = day => new Date(day).toISOString().slice(0, 10);
+            const dayLabel = day => new Date(day).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
+            const records = new Map((historyRecords || []).map(record => [record.date, record]));
+            // Unsaved edits on the selected date take precedence over saved history.
+            records.set(activeDateStr, currentData);
+            const assignments = new Map(), selectedCounts = new Map();
+            const peopleOn = day => {
+                const date = dayKey(day);
+                if (assignments.has(date)) return assignments.get(date);
+                const people = new Map();
+                (records.get(date)?.routeTable || []).forEach(route => {
+                    ['driver', 'helper'].forEach(role => {
+                        const name = normalizeAssignmentName(route[role]);
                         if (!name) return;
-                        const key = `${role}:${name}`;
-                        assignmentCounts[key] = (assignmentCounts[key] || 0) + 1;
-                        if (!weeklyAssignmentDays[key]) weeklyAssignmentDays[key] = new Set();
-                        weeklyAssignmentDays[key].add(dayStr);
-                    });
-                });
-
-                // A duplicate-route warning belongs only to the date being viewed.
-                if (dayStr === activeDateStr) {
-                    Object.entries(assignmentCounts).forEach(([key, count]) => {
-                        if (count > 1) {
-                            const [role, name] = key.split(':');
-                            const dayName = new Date(dayStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-                            sameDay.push(`${name} is assigned as ${role} on ${count} routes on ${dayName}.`);
+                        const personKey = name.toLowerCase();
+                        people.set(personKey, name);
+                        if (date === activeDateStr) {
+                            const roleKey = role + ':' + personKey, previous = selectedCounts.get(roleKey);
+                            selectedCounts.set(roleKey, { name, role, count: (previous?.count || 0) + 1 });
                         }
                     });
-                }
+                });
+                assignments.set(date, people);
+                return people;
+            };
+            const selectedPeople = peopleOn(selectedDay);
+            const selectedLabel = new Date(selectedDay).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'short', day: 'numeric' });
+            selectedCounts.forEach(({ name, role, count }) => {
+                if (count > 1) sameDay.push(`${name} is assigned as ${role} on ${count} routes on ${selectedLabel}.`);
             });
-
-            // A weekly warning is shown once, on Monday, instead of repeating on every date.
-            const weekly = activeDateStr === weekDays[0]
-                ? Object.entries(weeklyAssignmentDays)
-                    .filter(([, daySet]) => daySet.size > 6)
-                    .map(([key, daySet]) => {
-                        const [role, name] = key.split(':');
-                        return `${name} is assigned as ${role} ${daySet.size} days this week. Confirm before overriding the six-day limit.`;
-                    })
-                : [];
-
-            return { sameDay, weekly };
+            selectedPeople.forEach((name, personKey) => {
+                let firstDay = selectedDay, lastDay = selectedDay;
+                while (peopleOn(firstDay - 86400000).has(personKey)) firstDay -= 86400000;
+                while (peopleOn(lastDay + 86400000).has(personKey)) lastDay += 86400000;
+                const count = (lastDay - firstDay) / 86400000 + 1;
+                if (count > 6) consecutive.push(`${name} is assigned for ${count} consecutive days (${dayLabel(firstDay)} – ${dayLabel(lastDay)}). Confirm before overriding the six-day limit.`);
+            });
+            return { sameDay, consecutive };
         };
 
         const calculatePreloadAssignmentWarnings = (allSchedules, days) => {
@@ -1453,6 +1555,15 @@
                 };
             };
 
+            const getNextDayRouteCounts = (inputData) => {
+                const routes = getCountableRouteRows(inputData || { routeTable: [] }).filter(route => !isSameDayRoute(route));
+                const confirmed = routes.filter(route => {
+                    const contractor = String(route?.contractor || '').trim();
+                    return contractor && !/^(?:[-–—]|n\/a|unassigned|- select -)$/i.test(contractor);
+                });
+                return { planned: routes.length, confirmed: confirmed.length };
+            };
+
             const withAutoRouteMetrics = (inputData) => {
                 const cloned = JSON.parse(JSON.stringify(inputData || DEFAULT_DATA));
                 if (!cloned.loadout) cloned.loadout = {};
@@ -1556,9 +1667,9 @@
             if (!accountHasPermission(auth.currentUser, key)) throw new Error('You do not have permission to edit ' + (PERMISSION_OPTIONS.find(item => item[0] === key)?.[1] || key) + '.');
         };
         const BUSINESS_COLLECTIONS = ['dailyRecaps', 'weeklyBonuses', 'officeSchedules', 'preloadSchedules', 'config', 'teamChat', 'accessProfiles', 'teamTasks'];
-        const BACKUP_COLLECTIONS = ['dailyRecaps', 'weeklyBonuses', 'officeSchedules', 'preloadSchedules', 'config', 'teamChat'];
+        const BACKUP_COLLECTIONS = ['dailyRecaps', 'weeklyBonuses', 'officeSchedules', 'preloadSchedules', 'config', 'teamChat', 'teamChatFiles'];
         const sectionNameForRecord = (kind, id) => ({ dailyRecaps: 'Daily dashboard', weeklyBonuses: 'Bonus',
-            officeSchedules: 'Office', preloadSchedules: 'Preload', config: 'Master lists', teamChat: 'Team Chat', accessProfiles: 'Users & Permissions', teamTasks: 'Team Tasks' })[kind] || kind;
+            officeSchedules: 'Office', preloadSchedules: 'Preload', config: 'Master lists', teamChat: 'Team Chat', teamChatFiles: 'Chat attachments', accessProfiles: 'Users & Permissions', teamTasks: 'Team Tasks' })[kind] || kind;
         const TEAM_TASK_STATUSES = { open: 'Open', 'in-progress': 'In Progress', completed: 'Completed' };
         const MAX_TASK_ASSIGNEES = 8;
         const getTaskAssignedUids = task => Array.isArray(task?.assignedUids) ? task.assignedUids : task?.assignedUid ? [task.assignedUid] : [];
@@ -1702,6 +1813,7 @@
                 const fields = ['drivers', 'helpers', 'nameOverrides'];
                 if (changed('nameOverrides')) throw new Error('Only Fadi can rename dashboard users.');
                 if (changed('soundSettings')) throw new Error('Only Fadi can choose or mute dashboard sounds.');
+                if (changed('ringSettings')) throw new Error('Only Fadi can change dashboard ring effects.');
                 if (fields.some(key => changed(key)) || (changed('contractors') && !accountHasPermission(auth.currentUser, 'masterLists'))) {
                     if (changed('drivers') || changed('helpers')) requirePermission('masterLists');
                     if (changed('contractors')) {
@@ -2013,6 +2125,57 @@
             else pendingNotificationChime = null;
         };
 
+        const defaultDashboardRingSettings = () => ({ enabled: true, motion: 'dance', motionInterval: 60, motionDuration: 45, motionStrength: 30,
+            glowMode: 'pulse', glowStyle: 'soft', glowStrength: 20, glowInterval: 15, temperature: 0, hoverEffect: 'expand' });
+        const normalizeDashboardRingSettings = saved => {
+            const defaults = defaultDashboardRingSettings(), input = saved || {};
+            const number = (key, min, max) => typeof input[key] === 'number' && Number.isFinite(input[key]) ? Math.min(max, Math.max(min, input[key])) : defaults[key];
+            const choice = (key, options) => options.includes(input[key]) ? input[key] : defaults[key];
+            return { enabled: typeof input.enabled === 'boolean' ? input.enabled : defaults.enabled,
+                motion: choice('motion', ['none','dance','bounce','float','sway','fireworks']), motionInterval: number('motionInterval', 1, 120),
+                motionDuration: number('motionDuration', 5, 60), motionStrength: number('motionStrength', 0, 100),
+                glowMode: choice('glowMode', ['off','pulse','steady']), glowStyle: choice('glowStyle', ['soft','neon','wide']),
+                glowStrength: number('glowStrength', 0, 100), glowInterval: number('glowInterval', 5, 60),
+                temperature: number('temperature', -100, 100), hoverEffect: choice('hoverEffect', ['none','highlight','expand']) };
+        };
+        const DASHBOARD_RING_PRESETS = [
+            { id: 'current', name: 'Original look', settings: defaultDashboardRingSettings() },
+            { id: 'gentle', name: 'Gentle halo', settings: { ...defaultDashboardRingSettings(), motion: 'float', motionStrength: 20, glowStyle: 'wide', glowStrength: 15, glowInterval: 30, hoverEffect: 'highlight' } },
+            { id: 'neon', name: 'Neon glow', settings: { ...defaultDashboardRingSettings(), glowStyle: 'neon', glowStrength: 60, hoverEffect: 'highlight' } },
+            { id: 'dance', name: 'Dance party', settings: { ...defaultDashboardRingSettings(), motionStrength: 65, glowStrength: 35, hoverEffect: 'highlight' } },
+            { id: 'bounce', name: 'Playful bounce', settings: { ...defaultDashboardRingSettings(), motion: 'bounce', motionStrength: 50, glowStrength: 30, hoverEffect: 'highlight' } },
+            { id: 'fireworks', name: 'Fireworks', settings: { ...defaultDashboardRingSettings(), motion: 'fireworks', motionStrength: 50, glowStrength: 20, hoverEffect: 'highlight' } },
+            { id: 'steady', name: 'Steady rings', settings: { ...defaultDashboardRingSettings(), motion: 'none', glowMode: 'steady', hoverEffect: 'none' } },
+            { id: 'off', name: 'Effects off', settings: { ...defaultDashboardRingSettings(), enabled: false } }
+        ];
+        const ringVisualProperties = settings => {
+            const value = normalizeDashboardRingSettings(settings), strength = value.glowStrength / 20;
+            const spread = value.glowStyle === 'wide' ? 1.8 : value.glowStyle === 'neon' ? .7 : 1;
+            const warmth = Math.abs(value.temperature) / 100;
+            return { '--ring-glow-inner': `${2 * strength * spread}px`, '--ring-glow-outer': `${4 * strength * spread}px`,
+                '--ring-glow-color': value.temperature === 0 ? 'currentColor' : `rgba(${value.temperature < 0 ? '120, 190, 255' : '255, 175, 90'}, ${.35 + warmth * .65})`,
+                '--ring-brightness': String(value.glowStyle === 'neon' ? 1.15 : 1.04), '--ring-glow-opacity': String(Math.min(1, .62 + value.glowStrength / 200)),
+                '--ring-glow-interval': `${value.glowInterval}s`, '--ring-lift': `${-3 * value.motionStrength / 30}px`,
+                '--ring-drop': `${2 * value.motionStrength / 30}px`, '--ring-tilt': `${1.2 * value.motionStrength / 30}deg`,
+                '--ring-swell': String(1 + .025 * value.motionStrength / 30) };
+        };
+        const useMetricRingMotion = (settings, previewRun = 0, preview = false) => {
+            const [active, setActive] = useState(false);
+            useEffect(() => {
+                setActive(false);
+                if (!settings.enabled || settings.motion === 'none' || settings.motionStrength === 0 || (preview && !previewRun)) return;
+                let cycleTimer, stopTimer, mounted = true;
+                const run = () => {
+                    if (!mounted) return;
+                    setActive(true);
+                    stopTimer = setTimeout(() => { if (mounted) setActive(false); }, (preview ? 6 : settings.motionDuration) * 1000);
+                    if (!preview) cycleTimer = setTimeout(run, settings.motionInterval * 60000);
+                };
+                if (preview) run(); else cycleTimer = setTimeout(run, settings.motionInterval * 60000);
+                return () => { mounted = false; clearTimeout(cycleTimer); clearTimeout(stopTimer); };
+            }, [settings.enabled, settings.motion, settings.motionInterval, settings.motionDuration, settings.motionStrength, previewRun, preview]);
+            return active;
+        };
         const PRESENCE_AWAY_AFTER_MS = 10 * 60 * 1000;
         const SCREENSHOT_BACKGROUND = '#1b1f25';
         const prepareScreenshotSurface = (surface) => {
@@ -2088,10 +2251,282 @@
             ['🏆', 'Trophy'], ['🥇', 'Gold medal'], ['✨', 'Sparkles'], ['🌟', 'Glowing star'],
             ['☀️', 'Sun'], ['🌧️', 'Rain'], ['☕', 'Coffee'], ['🍕', 'Pizza'],
             ['🚗', 'Car'], ['🚦', 'Traffic light'], ['⛽', 'Fuel'], ['🛠️', 'Tools'],
-            ['📞', 'Phone'], ['📝', 'Note'], ['⚠️', 'Warning'], ['❌', 'No']
+            ['📞', 'Phone'], ['📝', 'Note'], ['⚠️', 'Warning'], ['❌', 'No'],
+            ['😆', 'Laughing smile'], ['😋', 'Yummy'], ['😛', 'Tongue out'], ['😜', 'Playful wink'],
+            ['🤪', 'Silly'], ['😝', 'Squinting tongue'], ['🤑', 'Money face'], ['🤓', 'Nerd'],
+            ['🧐', 'Curious'], ['😏', 'Smirk'], ['😐', 'Neutral'], ['😑', 'Expressionless'],
+            ['🙄', 'Eye roll'], ['😬', 'Awkward'], ['😌', 'Relieved'], ['😔', 'Pensive'],
+            ['😞', 'Disappointed'], ['😩', 'Exhausted'], ['😫', 'Tired'], ['🥹', 'Happy tears'],
+            ['😳', 'Flushed'], ['🤨', 'Raised eyebrow'], ['🤐', 'Zipped lips'], ['🤥', 'Long nose'],
+            ['😵', 'Dizzy'], ['😵‍💫', 'Spinning'], ['🥴', 'Woozy'], ['🤠', 'Cowboy'],
+            ['🤖', 'Robot'], ['👻', 'Ghost'], ['👽', 'Alien'], ['💩', 'Silly poop'],
+            ['😺', 'Happy cat'], ['😸', 'Grinning cat'], ['😹', 'Laughing cat'], ['😻', 'Heart eyes cat'],
+            ['🙀', 'Surprised cat'], ['🐶', 'Dog'], ['🐱', 'Cat'], ['🐻', 'Bear'],
+            ['🦊', 'Fox'], ['🐼', 'Panda'], ['🦁', 'Lion'], ['🐸', 'Frog'],
+            ['🦋', 'Butterfly'], ['🐝', 'Bee'], ['🐢', 'Turtle'], ['🦄', 'Unicorn'],
+            ['🤘', 'Rock on'], ['🤟', 'Love you hand'], ['🖖', 'Live long and prosper'], ['👐', 'Open hands'],
+            ['🤲', 'Palms together'], ['🖐️', 'Spread hand'], ['✍️', 'Writing'], ['🫰', 'Finger heart'],
+            ['👉', 'Point right'], ['👈', 'Point left'], ['👇', 'Point down'], ['👆', 'Point up'],
+            ['☝️', 'One moment'], ['🫵', 'You'], ['🤌', 'Pinched fingers'], ['🫳', 'Palm down'],
+            ['🩷', 'Pink heart'], ['🩵', 'Light blue heart'], ['🩶', 'Grey heart'], ['🖤', 'Black heart'],
+            ['💕', 'Two hearts'], ['💞', 'Revolving hearts'], ['💓', 'Beating heart'], ['💗', 'Growing heart'],
+            ['💖', 'Sparkling heart'], ['💘', 'Heart arrow'], ['💝', 'Heart gift'], ['❤️‍🩹', 'Healing heart'],
+            ['❤️‍🔥', 'Heart on fire'], ['💌', 'Love letter'], ['💐', 'Bouquet'], ['🌹', 'Rose'],
+            ['🌻', 'Sunflower'], ['🌷', 'Tulip'], ['🌴', 'Palm tree'], ['🌵', 'Cactus'],
+            ['🌿', 'Leaf'], ['🍀', 'Good luck'], ['🍁', 'Autumn leaf'], ['🌈', 'Rainbow'],
+            ['🌙', 'Moon'], ['🌍', 'Earth'], ['🌊', 'Wave'], ['❄️', 'Snow'],
+            ['⛈️', 'Thunderstorm'], ['💨', 'Wind'], ['🌤️', 'Partly sunny'], ['☔', 'Umbrella'],
+            ['🍔', 'Burger'], ['🍟', 'Fries'], ['🌮', 'Taco'], ['🥪', 'Sandwich'],
+            ['🍩', 'Doughnut'], ['🍪', 'Cookie'], ['🍫', 'Chocolate'], ['🍰', 'Cake slice'],
+            ['🧁', 'Cupcake'], ['🍦', 'Ice cream'], ['🍎', 'Apple'], ['🍌', 'Banana'],
+            ['🍉', 'Watermelon'], ['🍓', 'Strawberry'], ['🍇', 'Grapes'], ['🥑', 'Avocado'],
+            ['🍿', 'Popcorn'], ['🥨', 'Pretzel'], ['🥐', 'Croissant'], ['🥯', 'Bagel'],
+            ['🥤', 'Drink'], ['🧋', 'Bubble tea'], ['🧃', 'Juice'], ['🍵', 'Tea'],
+            ['🥛', 'Milk'], ['💧', 'Water'], ['🍽️', 'Lunch'], ['🥡', 'Takeaway'],
+            ['🚌', 'Bus'], ['🚐', 'Van'], ['🚛', 'Large truck'], ['🚕', 'Taxi'],
+            ['🏍️', 'Motorcycle'], ['🚲', 'Bicycle'], ['✈️', 'Flight'], ['🚀', 'Rocket'],
+            ['🏠', 'Home'], ['🏢', 'Office'], ['🏭', 'Warehouse'], ['🛣️', 'Road'],
+            ['🅿️', 'Parking'], ['🚧', 'Road work'], ['🛑', 'Stop'], ['🔑', 'Key'],
+            ['🔒', 'Locked'], ['🔓', 'Unlocked'], ['🧰', 'Toolbox'], ['🔧', 'Wrench'],
+            ['🔨', 'Hammer'], ['📋', 'Checklist'], ['📊', 'Chart'], ['📅', 'Calendar'],
+            ['📧', 'Email'], ['💬', 'Chat'], ['🔔', 'Bell'], ['📣', 'Announcement'],
+            ['🔍', 'Search'], ['📸', 'Photo'], ['💻', 'Laptop'], ['📱', 'Mobile phone'],
+            ['🔋', 'Battery'], ['💡', 'Idea'], ['🚨', 'Alert'], ['🆘', 'Help'],
+            ['🔄', 'Refresh'], ['⏳', 'Waiting'], ['🎯', 'Goal'], ['🛡️', 'Safety'],
+            ['🥈', 'Silver medal'], ['🥉', 'Bronze medal'], ['🎖️', 'Achievement'], ['🎵', 'Music'],
+            ['🎶', 'Music notes'], ['🎤', 'Microphone'], ['⚽', 'Football'], ['🏀', 'Basketball'],
+            ['🏈', 'American football'], ['⚾', 'Baseball'], ['🎾', 'Tennis'], ['🎮', 'Game'],
+            ['🧩', 'Puzzle'], ['🎨', 'Art'], ['🎬', 'Movie'], ['📚', 'Books']
         ];
 
+        const TEAM_CHAT_STICKERS = [
+            { id:'great-job', label:'Great job!', icon:'thumbs', color:'#a7f3d0', tilt:-5 },
+            { id:'on-it', label:'On it!', icon:'check', color:'#93c5fd', tilt:4 },
+            { id:'thank-you', label:'Thank you!', icon:'heart', color:'#fda4af', tilt:-4 },
+            { id:'all-done', label:'All done!', icon:'check', color:'#6ee7b7', tilt:5 },
+            { id:'got-it', label:'Got it!', icon:'shield', color:'#c4b5fd', tilt:-3 },
+            { id:'on-my-way', label:'On my way!', icon:'truck', color:'#7dd3fc', tilt:4 },
+            { id:'teamwork', label:'Teamwork!', icon:'team', color:'#fcd34d', tilt:-5 },
+            { id:'coffee-time', label:'Coffee time', icon:'coffee', color:'#fdba74', tilt:3 },
+            { id:'lets-go', label:"Let's go!", icon:'sparkles', color:'#f9a8d4', tilt:-4 },
+            { id:'hello', label:'Hello!', icon:'hand', color:'#fde68a', tilt:5 },
+            { id:'no-worries', label:'No worries!', icon:'smile', color:'#a5b4fc', tilt:-3 },
+            { id:'nice-work', label:'Nice work!', icon:'award', color:'#fcd34d', tilt:4 },
+            { id:'celebrate', label:'Celebrate!', icon:'party', color:'#f0abfc', tilt:-5 },
+            { id:'delivered', label:'Delivered!', icon:'package', color:'#86efac', tilt:3 },
+            { id:'checking', label:'Checking...', icon:'clock', color:'#67e8f9', tilt:-3 },
+            { id:'good-night', label:'Good night!', icon:'moon', color:'#c4b5fd', tilt:4 },
+            { id:'haha', label:'Haha!', art:'face', mood:'laugh', group:'fun', color:'#fcd34d', tilt:-6 },
+            { id:'lol', label:'LOL!', art:'face', mood:'tears', group:'fun', color:'#7dd3fc', tilt:5 },
+            { id:'rofl', label:'ROFL!', art:'face', mood:'tears', group:'fun', color:'#f9a8d4', tilt:-9 },
+            { id:'oops', label:'Oops!', art:'face', mood:'surprised', group:'fun', color:'#c4b5fd', tilt:4 },
+            { id:'oof', label:'Oof!', art:'face', mood:'meh', group:'fun', color:'#fdba74', tilt:-5 },
+            { id:'oh-no', label:'Oh no!', art:'face', mood:'surprised', group:'fun', color:'#fda4af', tilt:6 },
+            { id:'facepalm', label:'Facepalm!', art:'face', mood:'facepalm', group:'fun', color:'#a5b4fc', tilt:-4 },
+            { id:'seriously', label:'Seriously?', art:'face', mood:'thinking', group:'fun', color:'#93c5fd', tilt:4 },
+            { id:'so-sleepy', label:'So sleepy', art:'face', mood:'sleep', group:'fun', color:'#c4b5fd', tilt:-5 },
+            { id:'brain-loading', label:'Brain loading', art:'face', mood:'loading', group:'fun', color:'#67e8f9', tilt:4 },
+            { id:'coffee-first', label:'Coffee first', icon:'coffee', group:'fun', color:'#fdba74', tilt:-4 },
+            { id:'friday-vibes', label:'Friday vibes', art:'face', mood:'cool', group:'fun', color:'#f0abfc', tilt:6 },
+            { id:'party-time', label:'Party time!', art:'face', mood:'party', group:'fun', color:'#f9a8d4', tilt:-4 },
+            { id:'happy-dance', label:'Happy dance!', art:'dance', group:'fun', color:'#86efac', tilt:5 },
+            { id:'you-rock', label:'You rock!', icon:'sparkles', group:'fun', color:'#fcd34d', tilt:-5 },
+            { id:'youre-awesome', label:"You're awesome!", art:'face', mood:'cool', group:'fun', color:'#a7f3d0', tilt:4 },
+            { id:'big-hugs', label:'Big hugs!', art:'face', mood:'love', group:'fun', color:'#fda4af', tilt:-5 },
+            { id:'sending-love', label:'Sending love', art:'face', mood:'love', group:'fun', color:'#f9a8d4', tilt:4 },
+            { id:'happy-birthday', label:'Happy birthday!', art:'face', mood:'party', group:'fun', color:'#c4b5fd', tilt:-4 },
+            { id:'chill-mode', label:'Chill mode', art:'face', mood:'cool', group:'fun', color:'#7dd3fc', tilt:5 },
+            { id:'not-today', label:'Not today', art:'face', mood:'meh', group:'fun', color:'#a5b4fc', tilt:-4 },
+            { id:'nope', label:'Nope!', art:'face', mood:'meh', group:'fun', color:'#fda4af', tilt:6 },
+            { id:'yay', label:'Yay!', art:'face', mood:'happy', group:'fun', color:'#86efac', tilt:-5 },
+            { id:'high-five', label:'High five!', icon:'hand', group:'fun', color:'#fde68a', tilt:4 },
+            { id:'drama-llama', label:'Drama llama', art:'llama', group:'fun', color:'#f0abfc', tilt:-5 },
+            { id:'cool-cat', label:'Cool cat', art:'cat', group:'fun', color:'#93c5fd', tilt:5 },
+            { id:'sleepy-panda', label:'Sleepy panda', art:'panda', group:'fun', color:'#a7f3d0', tilt:-4 },
+            { id:'lucky-duck', label:'Lucky duck', art:'duck', group:'fun', color:'#7dd3fc', tilt:5 },
+            { id:'pizza-time', label:'Pizza time!', icon:'pizza', group:'fun', color:'#fdba74', tilt:-5 },
+            { id:'snack-break', label:'Snack break', icon:'cookie', group:'fun', color:'#fde68a', tilt:4 },
+            { id:'just-kidding', label:'Just kidding!', art:'face', mood:'wink', group:'fun', color:'#f9a8d4', tilt:-4 },
+            { id:'mic-drop', label:'Mic drop!', icon:'mic', group:'fun', color:'#c4b5fd', tilt:6 }
+        ];
+        const teamChatStickerText = sticker => `[Sticker: ${sticker.label}]`;
+        const getTeamChatSticker = text => TEAM_CHAT_STICKERS.find(sticker => String(text || '').trim() === teamChatStickerText(sticker));
+        const filterChatPickerItems = (items, query, group = 'all') => {
+            const terms = String(query || '').trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+            return items.filter(item => (Array.isArray(item) || group === 'all' || (item.group || 'work') === group) && terms.every(term => (Array.isArray(item) ? item.join(' ') : `${item.label} ${item.id}`).toLocaleLowerCase().includes(term)));
+        };
+        const ChatStickerArt = ({ sticker, Icon }) => {
+            const mood = sticker.mood, ink = '#17212f';
+            if (sticker.art === 'face') return <g stroke={ink} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="80" cy="65" r="36" fill="#fde68a" />
+                <ellipse cx="55" cy="76" rx="7" ry="4" fill="#fb7185" opacity=".5" stroke="none" /><ellipse cx="105" cy="76" rx="7" ry="4" fill="#fb7185" opacity=".5" stroke="none" />
+                {mood === 'cool' ? <g><path d="M43 52h74" /><rect x="46" y="51" width="29" height="17" rx="6" fill={ink} /><rect x="85" y="51" width="29" height="17" rx="6" fill={ink} /><path d="M75 57h10M51 54l8 9m32-9l8 9" stroke="#94a3b8" strokeWidth="2" /></g>
+                    : mood === 'love' ? <g fill="#f43f5e" stroke="#be123c" strokeWidth="1.5"><path d="M59 66l-9-10c-7-8 6-17 10-7 4-10 17-1 10 7Z" /><path d="M99 66l-9-10c-7-8 6-17 10-7 4-10 17-1 10 7Z" /></g>
+                    : ['laugh','tears','sleep','party','happy'].includes(mood) ? <g fill="none"><path d="M55 60q9-10 17 0M88 60q9-10 17 0" /></g>
+                    : <g><circle cx="61" cy="59" r="3" fill={ink} />{mood === 'wink' ? <path d="M88 60q8-8 16 0" fill="none" /> : <circle cx="99" cy="59" r="3" fill={ink} />}{['thinking','meh'].includes(mood) && <path d="M53 46l17 5m20-1l16-6" fill="none" />}</g>}
+                {['laugh','tears','party','happy'].includes(mood) ? <g><path d="M62 76q18 34 36 0Z" fill={ink} /><path d="M71 89q9-6 18 0" stroke="#fb7185" strokeWidth="6" /></g>
+                    : mood === 'surprised' ? <ellipse cx="80" cy="84" rx="9" ry="11" fill={ink} />
+                    : mood === 'sleep' ? <ellipse cx="80" cy="83" rx="5" ry="6" fill={ink} />
+                    : mood === 'loading' ? <g fill={ink} stroke="none"><circle cx="69" cy="84" r="3" /><circle cx="80" cy="84" r="3" /><circle cx="91" cy="84" r="3" /></g>
+                    : ['meh','facepalm'].includes(mood) ? <path d="M68 83h23" fill="none" />
+                    : <path d="M65 80q15 17 30 0" fill="none" />}
+                {mood === 'tears' && <g fill="#38bdf8" stroke="#0284c7" strokeWidth="1.5"><path d="M44 63q-14 16-2 17t2-17Z" /><path d="M116 63q14 16 2 17t-2-17Z" /></g>}
+                {mood === 'sleep' && <text x="104" y="33" fill={ink} stroke="none" fontFamily="system-ui,sans-serif" fontWeight="900" fontSize="18">Zz</text>}
+                {mood === 'party' && <g><path d="M57 35L78 4l20 31Z" fill="#f472b6" stroke="#f8fafc" /><path d="M66 23l23 6M72 15l12 5" stroke="#fde68a" /><circle cx="78" cy="5" r="5" fill="#67e8f9" stroke="#f8fafc" /></g>}
+                {mood === 'facepalm' && <g><path d="M88 97V58q0-10 5-10v24-34q0-10 5-8v40-34q0-9 5-7v44-29q0-9 5-6v39l7-7q6-5 9 1l-16 29Z" fill="#fdba74" strokeWidth="2.5" /><path d="M94 80h14" strokeWidth="2" /></g>}
+            </g>;
+            if (sticker.art === 'cat') return <g stroke={ink} strokeWidth="3" strokeLinejoin="round"><path d="M48 48l-4-24 23 15m26 0l24-15-4 26" fill="#fdba74" /><circle cx="80" cy="68" r="33" fill="#fdba74" /><path d="M47 54h65" /><rect x="50" y="53" width="25" height="16" rx="5" fill={ink} /><rect x="85" y="53" width="25" height="16" rx="5" fill={ink} /><path d="M75 59h10M75 79h10l-5 5Z" fill="#fb7185" /><path d="M80 84q-8 11-13 2m13-2q8 11 13 2M47 77l-15-4m15 10l-15 3m81-9l15-4m-15 10l15 3" fill="none" strokeLinecap="round" /></g>;
+            if (sticker.art === 'panda') return <g stroke={ink} strokeWidth="3"><circle cx="54" cy="37" r="14" fill={ink} /><circle cx="106" cy="37" r="14" fill={ink} /><circle cx="80" cy="67" r="34" fill="#f8fafc" /><ellipse cx="62" cy="62" rx="12" ry="16" fill={ink} transform="rotate(20 62 62)" /><ellipse cx="98" cy="62" rx="12" ry="16" fill={ink} transform="rotate(-20 98 62)" /><path d="M57 63l9 2m28 0l9-2" stroke="#f8fafc" strokeLinecap="round" /><ellipse cx="80" cy="81" rx="7" ry="4" fill={ink} /><path d="M73 91q7 7 14 0" fill="none" strokeLinecap="round" /></g>;
+            if (sticker.art === 'duck') return <g stroke={ink} strokeWidth="2.5"><ellipse cx="78" cy="90" rx="30" ry="17" fill="#fde047" /><circle cx="78" cy="57" r="28" fill="#fde047" /><circle cx="70" cy="54" r="3" fill={ink} /><path d="M60 34q0-14 13-14m-5 15q1-15 16-11" fill="none" strokeLinecap="round" /><path d="M87 63q30-9 34 4-8 14-31 10Z" fill="#fb923c" /><path d="M91 69h26M57 89q13-11 28 0" fill="none" strokeLinecap="round" /></g>;
+            if (sticker.art === 'llama') return <g stroke={ink} strokeWidth="2.5" strokeLinecap="round"><rect x="60" y="17" width="12" height="39" rx="6" fill="#f8fafc" /><rect x="89" y="17" width="12" height="39" rx="6" fill="#f8fafc" /><path d="M65 26v17m30-17v17" stroke="#f9a8d4" strokeWidth="4" /><path d="M60 100V64q-7-24 19-27 27 0 23 26v37Z" fill="#f8fafc" /><path d="M59 49q6-13 12-6 8-14 14-3 10-9 18 9" fill="#f8fafc" /><circle cx="70" cy="64" r="3" fill={ink} /><circle cx="92" cy="64" r="3" fill={ink} /><ellipse cx="81" cy="81" rx="17" ry="12" fill="#fed7aa" /><path d="M77 80h8m-4 0v7m-7 0q7 5 14 0" fill="none" /></g>;
+            if (sticker.art === 'dance') return <g stroke={ink} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"><circle cx="80" cy="35" r="12" fill="#fde68a" strokeWidth="3" /><path d="M80 48l-4 29m2-19l-21 3-10-15m31 13l25-5 8-15m-35 38l-18 19m18-19l22 17" fill="none" /><path d="M55 97h13m25-1h13" stroke="#f472b6" strokeWidth="8" /><path d="M37 73V57l10-3v13m69 11V62l9-2" strokeWidth="2.5" /><circle cx="33" cy="75" r="4" fill="#a78bfa" stroke="none" /><circle cx="43" cy="68" r="4" fill="#a78bfa" stroke="none" /><circle cx="112" cy="80" r="4" fill="#a78bfa" stroke="none" /></g>;
+            return <Icon x="43" y="29" width="74" height="74" color={ink} strokeWidth="2.3" />;
+        };
+        const TeamChatSticker = ({ sticker, className = '' }) => {
+            const Icon = {thumbs:ThumbsUp,check:CheckCircle2,heart:Heart,shield:ShieldCheck,truck:Truck,team:Users,coffee:Coffee,sparkles:Sparkles,hand:Hand,smile:Smile,award:Award,party:PartyPopper,package:Package,clock:Clock,moon:Moon,pizza:Pizza,cookie:Cookie,mic:Mic}[sticker.icon] || Smile;
+            return <svg role="img" aria-label={sticker.label + ' sticker'} viewBox="0 0 160 160" className={'inline-block align-middle select-none ' + className}>
+                <g transform={`rotate(${sticker.tilt} 80 80)`}>
+                    <path d="M32 21Q53 8 80 16Q105 8 127 26Q150 43 143 69Q151 94 129 115Q110 137 80 129Q52 139 31 121Q8 103 17 76Q7 47 32 21Z" fill={sticker.color} stroke="#f8fafc" strokeWidth="7" strokeLinejoin="round" />
+                    <g stroke="#1e293b" strokeWidth="2.5" strokeLinecap="round" opacity=".65"><path d="M24 45l-4-5m113 42l6 2M36 99l-5 4M112 21l3-5" /><path d="M130 47h8m-4-4v8M32 71h8m-4-4v8" /></g>
+                    <ChatStickerArt sticker={sticker} Icon={Icon} />
+                    <path d="M12 108Q80 99 148 108L145 140Q80 149 15 140Z" fill="#17212f" stroke="#f8fafc" strokeWidth="5" strokeLinejoin="round" />
+                    <text x="80" y="129" textAnchor="middle" fill="#f8fafc" fontFamily="system-ui, sans-serif" fontWeight="800" fontSize={sticker.label.length > 13 ? '13' : sticker.label.length > 10 ? '15' : '17'}>{sticker.label}</text>
+                </g>
+            </svg>;
+        };
+
+        const CHAT_FILE_MAX_BYTES = 500 * 1024;
+        const CHAT_FILE_TYPES = {
+            jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif', webp:'image/webp', avif:'image/avif',
+            heic:'image/heic', heif:'image/heif', pdf:'application/pdf', txt:'text/plain', csv:'text/csv',
+            doc:'application/msword', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            xls:'application/vnd.ms-excel', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ppt:'application/vnd.ms-powerpoint', pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            zip:'application/zip'
+        };
+        const CHAT_FILE_ACCEPT = Object.keys(CHAT_FILE_TYPES).map(extension => '.' + extension).join(',');
+        const chatFileName = name => String(name || '').replace(/[\u0000-\u001f\u007f/\\]/g, '_').trim().slice(0, 160);
+        const chatFileType = name => CHAT_FILE_TYPES[String(name || '').split('.').at(-1).toLowerCase()] || '';
+        const chatFileSize = size => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${Math.ceil(size / 1024)} KB` : `${(size / (1024 * 1024)).toFixed(1)} MB`;
+        const chatFilePreviewKind = type => ['image/jpeg','image/png','image/gif','image/webp','image/avif'].includes(type) ? 'image'
+            : type === 'application/pdf' ? 'pdf' : ['text/plain','text/csv'].includes(type) ? 'text' : 'document';
+        const validateChatFile = file => {
+            if (!file || !Number.isInteger(file.size) || file.size <= 0) throw new Error('Choose a file that is not empty.');
+            if (file.size > CHAT_FILE_MAX_BYTES) throw new Error('This file is too large. Choose a file up to 500 KB.');
+            const name = chatFileName(file.name), contentType = chatFileType(name);
+            if (!contentType) throw new Error('Choose an image, PDF, Office document, text file, CSV, or ZIP.');
+            if (['text/html','image/svg+xml','application/javascript','text/javascript','application/x-msdownload'].includes(file.type)) throw new Error('This file type cannot be attached.');
+            return {name, size:file.size, contentType};
+        };
+        const chatFilePath = (uid, messageId, fileId) => `artifacts/${appId}/public/data/teamChatFiles/${fileId}`;
+        const isChatAttachment = (attachment, messageId, uid) => Boolean(attachment && /^[A-Za-z0-9_-]{1,128}$/.test(attachment.id || '')
+            && /^[A-Za-z0-9_-]{1,128}$/.test(messageId || '') && /^[A-Za-z0-9_-]{1,128}$/.test(uid || '')
+            && attachment.name === chatFileName(attachment.name) && attachment.name.length > 0
+            && Number.isInteger(attachment.size) && attachment.size > 0 && attachment.size <= CHAT_FILE_MAX_BYTES
+            && attachment.contentType === chatFileType(attachment.name) && Boolean(attachment.contentType)
+            && attachment.path === chatFilePath(uid, messageId, attachment.id));
+        const downloadChatFile = (blob, name) => {
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
+            link.href = url; link.download = chatFileName(name); document.body.appendChild(link); link.click(); link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+        };
+        const encodeChatFile = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result).slice(String(reader.result).indexOf(',') + 1));
+            reader.onerror = () => reject(new Error('This file could not be read. Choose it again.'));
+            reader.readAsDataURL(file);
+        });
+        const readChatFile = async attachment => {
+            const snapshot = await getDoc(doc(db, ...attachment.path.split('/')));
+            if (!snapshot.exists()) throw new Error('Attachment unavailable');
+            const saved = snapshot.data();
+            if (saved.name !== attachment.name || saved.size !== attachment.size || saved.contentType !== attachment.contentType
+                || typeof saved.base64 !== 'string' || saved.base64.length !== 4 * Math.ceil(attachment.size / 3)) throw new Error('Attachment metadata mismatch');
+            const decoded = atob(saved.base64);
+            if (decoded.length !== attachment.size) throw new Error('Attachment size mismatch');
+            return new Blob([Uint8Array.from(decoded, character => character.charCodeAt(0))], {type:attachment.contentType});
+        };
+
+        const ChatAttachmentCard = ({ attachment, messageId, uid, active, onPreview }) => {
+            const [imageUrl, setImageUrl] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('');
+            const cardRef = useRef(null), blobRef = useRef(null), aliveRef = useRef(true);
+            const valid = isChatAttachment(attachment, messageId, uid);
+            const kind = valid ? chatFilePreviewKind(attachment.contentType) : 'document';
+            useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
+            const readFile = async () => {
+                if (!valid) throw new Error('Attachment unavailable');
+                if (blobRef.current) return blobRef.current;
+                const file = await readChatFile(attachment);
+                if (aliveRef.current) blobRef.current = file;
+                return file;
+            };
+            useEffect(() => {
+                let cancelled = false, url = '', observer;
+                setImageUrl('');
+                if (active && valid && kind === 'image') {
+                    const load = async () => {
+                        try { const blob = await readFile(); if (!cancelled) { url = URL.createObjectURL(blob); setImageUrl(url); setError(''); } }
+                        catch { if (!cancelled) setError('Image preview unavailable. Try Preview or Download.'); }
+                    };
+                    observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) { observer.disconnect(); load(); } });
+                    if (cardRef.current) observer.observe(cardRef.current);
+                }
+                return () => { cancelled = true; observer?.disconnect(); if (url) URL.revokeObjectURL(url); blobRef.current = null; };
+            }, [active, valid, attachment?.path, kind]);
+            const open = async download => {
+                if (busy) return;
+                setBusy(true); setError('');
+                try { const blob = await readFile(); if (!aliveRef.current) return; if (download) downloadChatFile(blob, attachment.name); else onPreview({attachment, blob}); }
+                catch { if (aliveRef.current) setError('This file could not load. Check your connection and try again.'); }
+                finally { if (aliveRef.current) setBusy(false); }
+            };
+            if (!valid) return <p className="mt-2 text-xs text-slate-400">Attachment unavailable.</p>;
+            return <div ref={cardRef} data-chat-attachment className="mt-2 w-64 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/60 text-left">
+                {kind === 'image' && <button type="button" aria-label={'Preview ' + attachment.name} disabled={busy} onClick={() => open(false)} className="flex h-36 w-full items-center justify-center overflow-hidden bg-slate-950/50">
+                    {imageUrl ? <img src={imageUrl} alt={attachment.name} className="h-full w-full object-contain" /> : <FileText className="h-8 w-8 text-slate-500" />}
+                </button>}
+                <div className="p-3"><div className="flex items-start gap-2"><FileText aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" /><div className="min-w-0"><p className="break-words text-xs font-semibold text-slate-100">{attachment.name}</p><p className="mt-1 text-[10px] text-slate-400">{chatFileSize(attachment.size)} · {attachment.name.split('.').at(-1).toUpperCase()}</p></div></div>
+                    <div className="mt-3 flex items-center gap-4 text-[11px] font-semibold"><button type="button" disabled={busy} onClick={() => open(false)} aria-label={'Preview file ' + attachment.name} className="text-slate-300 hover:text-white disabled:opacity-50">Preview</button><button type="button" disabled={busy} onClick={() => open(true)} aria-label={'Download ' + attachment.name} className="inline-flex items-center gap-1.5 text-emerald-300 hover:text-emerald-200 disabled:opacity-50"><Download className="h-3.5 w-3.5" />Download</button>{busy && <Loader2 aria-label="Loading file" className="h-3.5 w-3.5 animate-spin text-slate-400" />}</div>
+                    {error && <p role="status" className="mt-2 text-[10px] text-rose-300">{error}</p>}
+                </div>
+            </div>;
+        };
+        const ChatFilePreview = ({ preview, onClose }) => {
+            const [url, setUrl] = useState(''), [text, setText] = useState('');
+            const closeRef = useRef(null), dialogRef = useRef(null);
+            const {attachment, blob} = preview, kind = chatFilePreviewKind(attachment.contentType);
+            useEffect(() => {
+                const previous = document.activeElement, objectUrl = URL.createObjectURL(blob); let cancelled = false;
+                setUrl(objectUrl); closeRef.current?.focus({preventScroll:true});
+                if (kind === 'text') blob.slice(0, 50000).text().then(value => { if (!cancelled) setText(value); });
+                const keydown = event => {
+                    if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+                    if (event.key === 'Tab') {
+                        const items = [...(dialogRef.current?.querySelectorAll('button:not(:disabled), a[href], iframe') || [])];
+                        if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1)?.focus(); }
+                        else if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0]?.focus(); }
+                    }
+                };
+                document.addEventListener('keydown', keydown);
+                return () => { cancelled = true; document.removeEventListener('keydown', keydown); URL.revokeObjectURL(objectUrl); if (previous?.isConnected) previous.focus({preventScroll:true}); };
+            }, [blob]);
+            return <div className="dashboard-modal fixed inset-0 z-[140] flex items-center justify-center bg-slate-950/90 p-3 sm:p-6" data-dashboard-edit-ignore="true" data-html2canvas-ignore="true" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+                <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={'File preview: ' + attachment.name} className="flex max-h-[85dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-600 bg-[#101722] shadow-2xl">
+                    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-700 px-4 py-3"><div className="min-w-0"><h2 className="break-words text-sm font-semibold text-white">{attachment.name}</h2><p className="mt-1 text-[11px] text-slate-400">{chatFileSize(attachment.size)}</p></div><button ref={closeRef} type="button" aria-label="Close file preview" onClick={onClose} className="shrink-0 rounded-lg p-2 text-slate-300 hover:bg-slate-800 hover:text-white"><X className="h-5 w-5" /></button></div>
+                    <div className="min-h-0 overflow-auto p-3 sm:p-5">
+                        {kind === 'image' && url && <img src={url} alt={attachment.name} className="mx-auto max-h-[60dvh] max-w-full object-contain" />}
+                        {kind === 'pdf' && url && <iframe src={url} title={'PDF preview: ' + attachment.name} className="h-[60dvh] w-full rounded-lg bg-white" />}
+                        {kind === 'text' && <><pre className="whitespace-pre-wrap break-words text-left text-sm text-slate-200">{text}</pre>{blob.size > 50000 && <p className="mt-3 text-xs text-slate-400">Preview shows the beginning of the file. Download for the full document.</p>}</>}
+                        {kind === 'document' && <div className="flex flex-col items-center gap-3 py-12 text-center text-sm text-slate-300"><FileText className="h-12 w-12 text-slate-400" /><p>{attachment.name}</p><p className="text-xs text-slate-400">Download this file to open it in its app.</p></div>}
+                    </div>
+                    <div className="flex shrink-0 justify-end gap-3 border-t border-slate-700 px-4 py-3">{kind === 'pdf' && url && <a href={url} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300">Open PDF</a>}<button type="button" onClick={() => downloadChatFile(blob, attachment.name)} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500"><Download className="h-4 w-4" />Download</button></div>
+                </div>
+            </div>;
+        };
+
         const ChatMessageText = ({ text }) => {
+            const sticker = getTeamChatSticker(text);
+            if (sticker) return <TeamChatSticker sticker={sticker} className="h-36 w-36 max-w-full" />;
             // Keep joined emoji, skin tones, flags and keycaps together when sizing them.
             const parts = String(text || '').split(/(\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})(?:\uFE0F|\p{Emoji_Modifier})*(?:\u200D(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})(?:\uFE0F|\p{Emoji_Modifier})*)*)/gu);
             const emojiOnly = !parts.some((part, index) => index % 2 === 0 && part.trim());
@@ -2135,6 +2570,260 @@
             </span>;
         };
 
+        const CHAT_TYPING_TTL_MS = 6000;
+        const getTeamChatTypingNames = (sessions, currentUid, overrides = {}, now = Date.now()) => {
+            const names = new Map();
+            sessions.forEach(session => {
+                const until = Number(session.chatTypingUntil || 0);
+                if (!session.uid || session.uid === currentUid || session.hiddenSince || session.status === 'away'
+                    || until <= now || until > now + CHAT_TYPING_TTL_MS) return;
+                names.set(session.uid, overrides[session.uid] || session.name || 'Team member');
+            });
+            return [...names.values()];
+        };
+        const TeamChatTypingIndicator = ({ sessions, uid, names }) => {
+            const [now, setNow] = useState(Date.now);
+            useEffect(() => {
+                setNow(Date.now());
+                if (!getTeamChatTypingNames(sessions, uid).length) return;
+                const timer = setInterval(() => {
+                    const time = Date.now();
+                    setNow(time);
+                    if (!getTeamChatTypingNames(sessions, uid, {}, time).length) clearInterval(timer);
+                }, 500);
+                return () => clearInterval(timer);
+            }, [sessions, uid]);
+            const typingNames = getTeamChatTypingNames(sessions, uid, names, now);
+            return <div role="status" aria-live="polite" aria-atomic="true" className="h-6 px-4 flex items-center gap-2 text-[11px] text-slate-400">
+                {typingNames.length > 0 && <><span>{typingNames.join(', ')} {typingNames.length === 1 ? 'is' : 'are'} typing</span><span aria-hidden="true" className="chat-typing-dots"><i /><i /><i /></span></>}
+            </div>;
+        };
+        // Keep every keystroke local to the composer instead of rendering the dashboard.
+        const TeamChatComposer = ({ open, canSend, sendMessage, publishTyping }) => {
+            const [draft, setDraft] = useState('');
+            const [sending, setSending] = useState(false);
+            const [emojiOpen, setEmojiOpen] = useState(false);
+            const [pickerMode, setPickerMode] = useState('emojis');
+            const [pickerQuery, setPickerQuery] = useState('');
+            const [stickerGroup, setStickerGroup] = useState('all');
+            const [selectedSticker, setSelectedSticker] = useState(null);
+            const [selectedFile, setSelectedFile] = useState(null), [filePreviewUrl, setFilePreviewUrl] = useState('');
+            const [fileError, setFileError] = useState('');
+            const fileInputRef = useRef(null);
+            const inputRef = useRef(null), pickerRef = useRef(null), emojiRef = useRef(null);
+            const sendingRef = useRef(false), typingStopRef = useRef(null);
+            const stopTyping = () => { clearTimeout(typingStopRef.current); publishTyping(false); };
+            const changeDraft = text => {
+                setDraft(text);
+                clearTimeout(typingStopRef.current);
+                publishTyping(Boolean(text.trim()));
+                typingStopRef.current = setTimeout(() => publishTyping(false), 3500);
+            };
+            useEffect(() => {
+                if (!open || !canSend) { setEmojiOpen(false); clearTimeout(typingStopRef.current); publishTyping(false); }
+                return () => { clearTimeout(typingStopRef.current); publishTyping(false); };
+            }, [open, canSend, publishTyping]);
+            useEffect(() => {
+                if (!selectedFile || chatFilePreviewKind(chatFileType(selectedFile.name)) !== 'image') { setFilePreviewUrl(''); return; }
+                const url = URL.createObjectURL(selectedFile); setFilePreviewUrl(url);
+                return () => URL.revokeObjectURL(url);
+            }, [selectedFile]);
+            const chooseFile = event => {
+                const file = event.target.files?.[0]; event.target.value = '';
+                if (!file) return;
+                try { validateChatFile(file); setSelectedFile(file); setSelectedSticker(null); setEmojiOpen(false); setFileError(''); }
+                catch (error) { setFileError(error.message); }
+            };
+            useEffect(() => {
+                if (!emojiOpen) return;
+                const outside = event => { if (!pickerRef.current?.contains(event.target) && !emojiRef.current?.contains(event.target)) setEmojiOpen(false); };
+                const escape = event => { if (event.key === 'Escape') { setEmojiOpen(false); emojiRef.current?.focus({preventScroll:true}); } };
+                document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape);
+                return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+            }, [emojiOpen]);
+            const insertEmoji = emoji => {
+                const input = inputRef.current, start = input?.selectionStart ?? draft.length, end = input?.selectionEnd ?? start;
+                setSelectedSticker(null); changeDraft(draft.slice(0, start) + emoji + draft.slice(end)); setEmojiOpen(false);
+                requestAnimationFrame(() => { if (input?.isConnected) { input.focus({preventScroll:true}); input.setSelectionRange(start + emoji.length, start + emoji.length); } });
+            };
+            const send = async () => {
+                if ((!draft.trim() && !selectedSticker && !selectedFile) || !canSend || sendingRef.current) return;
+                const original = draft, originalSticker = selectedSticker;
+                const originalFile = selectedFile;
+                const messageText = originalSticker ? teamChatStickerText(originalSticker) : original.trim();
+                sendingRef.current = true; setSending(true); if (!originalSticker) setDraft(''); setSelectedSticker(null); setEmojiOpen(false); stopTyping();
+                const restore = () => { if (originalSticker) setSelectedSticker(originalSticker); else setDraft(original); };
+                try { if (!await sendMessage(messageText, originalFile)) restore(); else { setSelectedFile(null); setFileError(''); } }
+                catch { restore(); }
+                finally { sendingRef.current = false; setSending(false); if (open) inputRef.current?.focus({preventScroll:true}); }
+            };
+            const pickerItems = filterChatPickerItems(pickerMode === 'emojis' ? TEAM_CHAT_EMOJIS : TEAM_CHAT_STICKERS, pickerQuery, pickerMode === 'stickers' ? stickerGroup : 'all');
+            return <div className="border-t border-slate-800 bg-slate-900/80">
+                {selectedFile && <div role="group" aria-label="Attachment preview" className="flex items-center gap-3 px-3 pt-3">
+                    {filePreviewUrl ? <img src={filePreviewUrl} alt={'Selected file: ' + selectedFile.name} className="h-14 w-14 shrink-0 rounded-lg object-cover" /> : <FileText className="h-9 w-9 shrink-0 text-slate-400" />}
+                    <div className="min-w-0 flex-1"><p className="break-words text-xs font-semibold text-slate-100">{selectedFile.name}</p><p className="mt-1 text-[10px] text-slate-400">{chatFileSize(selectedFile.size)} · Add a message or send the file.</p></div>
+                    <button type="button" disabled={sending} aria-label="Remove attachment" onClick={() => { setSelectedFile(null); setFileError(''); }} className="shrink-0 rounded-lg p-2 text-slate-400 hover:text-white disabled:opacity-40"><X className="h-4 w-4" /></button>
+                </div>}
+                {fileError && <p role="alert" className="px-3 pt-2 text-[11px] text-rose-300">{fileError}</p>}
+                {selectedSticker && <div role="group" aria-label="Sticker preview" className="flex items-center gap-3 px-3 pt-2"><TeamChatSticker sticker={selectedSticker} className="h-20 w-20 shrink-0" /><div className="min-w-0 text-xs text-slate-300"><p className="font-semibold">{selectedSticker.label}</p><p className="mt-1 text-[11px] text-slate-400">Press Send to share this sticker.</p><button type="button" disabled={sending} onClick={() => { setSelectedSticker(null); requestAnimationFrame(() => inputRef.current?.focus({preventScroll:true})); }} className="mt-2 text-slate-300 underline underline-offset-2 hover:text-white">Remove sticker</button></div></div>}
+                <div className="relative flex items-end gap-2 px-3 py-3">
+                    {emojiOpen && <div ref={pickerRef} id="team-chat-emoji-picker" role="group" aria-label="Emojis and stickers" className="absolute bottom-full left-3 right-3 z-10 mb-1 flex max-h-[min(21rem,45dvh)] flex-col overflow-hidden rounded-xl border border-slate-600 bg-slate-900 p-2 shadow-xl">
+                        <div role="tablist" aria-label="Chat picker" className="flex shrink-0 gap-1 border-b border-slate-700 pb-2">{['emojis','stickers'].map(mode => <button key={mode} id={'chat-picker-' + mode} type="button" role="tab" aria-selected={pickerMode === mode} aria-controls="chat-picker-results" onClick={() => { setPickerMode(mode); setPickerQuery(''); }} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold capitalize ${pickerMode === mode ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{mode}</button>)}<button type="button" aria-label="Close emoji and sticker picker" onClick={() => { setEmojiOpen(false); emojiRef.current?.focus({preventScroll:true}); }} className="p-2 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button></div>
+                        <label className="relative my-2 block shrink-0"><Search aria-hidden="true" className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" /><input aria-label={'Search ' + pickerMode} value={pickerQuery} onChange={event => setPickerQuery(event.target.value)} placeholder={'Search ' + pickerMode + '...'} className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-8 pr-2 text-xs text-slate-100 outline-none focus:border-slate-400" /></label>
+                        {pickerMode === 'stickers' && <div role="group" aria-label="Sticker categories" className="mb-2 flex shrink-0 gap-1">{['all','fun','work'].map(group => <button key={group} type="button" aria-label={'Show ' + group + ' stickers'} aria-pressed={stickerGroup === group} onClick={() => setStickerGroup(group)} className={`rounded-full px-3 py-1 text-[11px] font-semibold capitalize ${stickerGroup === group ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>{group}</button>)}</div>}
+                        <div id="chat-picker-results" role="tabpanel" aria-labelledby={'chat-picker-' + pickerMode} className="min-h-0 overflow-y-auto overscroll-contain"><div className={pickerMode === 'emojis' ? 'grid grid-cols-6 gap-1' : 'grid grid-cols-3 gap-1'}>{pickerItems.map(item => pickerMode === 'emojis' ? <button key={item[1]} type="button" aria-label={item[1]} title={item[1]} onClick={() => insertEmoji(item[0])} className="flex min-h-[40px] items-center justify-center rounded-lg text-2xl leading-none transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300">{item[0]}</button> : <button key={item.id} type="button" aria-label={'Preview ' + item.label + ' sticker'} title={item.label} onClick={() => { setSelectedSticker(item); setSelectedFile(null); setFileError(''); setEmojiOpen(false); stopTyping(); }} className="flex min-h-[80px] items-center justify-center rounded-lg p-1 transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300"><TeamChatSticker sticker={item} className="h-20 w-20 max-w-full" /></button>)}</div>{pickerItems.length === 0 && <p role="status" className="py-5 text-center text-xs text-slate-400">No matches. Try another word.</p>}</div>
+                    </div>}
+                    <button ref={emojiRef} type="button" disabled={!canSend || sending} aria-label="Add emoji" title="Emojis and stickers" aria-expanded={emojiOpen} aria-controls="team-chat-emoji-picker" onClick={() => setEmojiOpen(value => !value)} className={`flex h-10 w-9 shrink-0 items-center justify-center rounded-lg transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300 ${emojiOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:text-white'}`}><Smile className="h-5 w-5" /></button>
+                    <input ref={fileInputRef} type="file" accept={CHAT_FILE_ACCEPT} onChange={chooseFile} className="hidden" aria-label="Choose chat attachment" tabIndex={-1} />
+                    <button type="button" disabled={!canSend || sending} aria-label="Attach file" title="Attach a file up to 500 KB" onClick={() => fileInputRef.current?.click()} className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-40"><Paperclip className="h-5 w-5" /></button>
+                    <textarea ref={inputRef} aria-label="Team message" disabled={!canSend || sending || Boolean(selectedSticker)} value={selectedSticker ? '' : draft} onChange={event => changeDraft(event.target.value)} onBlur={stopTyping} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} rows="2" placeholder={selectedSticker ? 'Sticker ready to send' : 'Write a team message...'} className="min-h-[42px] min-w-0 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500 disabled:opacity-60" />
+                    <button type="button" onClick={send} disabled={!canSend || sending || (!draft.trim() && !selectedSticker && !selectedFile)} className="rounded-xl bg-indigo-600 px-3 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">{sending ? 'Sending…' : 'Send'}</button>
+                </div>
+            </div>;
+        };
+
+        // Small staggered bursts stay around the ring, with no animation work between sessions.
+        const RING_FIREWORK_BURSTS = [
+            { x: 50, y: 9, color: '#fbbf24', delay: 0 },
+            { x: 91, y: 50, color: '#7dd3fc', delay: .9 },
+            { x: 50, y: 91, color: '#c4b5fd', delay: 1.8 },
+            { x: 9, y: 50, color: '#fda4af', delay: 2.7 }
+        ];
+        const MetricRingFireworks = ({ strength }) => <div className="metric-ring-fireworks" aria-hidden="true" data-html2canvas-ignore="true">
+            {RING_FIREWORK_BURSTS.map((burst, index) => <span key={index} className="metric-ring-firework" style={{ left: `${burst.x}%`, top: `${burst.y}%`, '--burst-color': burst.color, '--burst-delay': `${burst.delay}s` }}>
+                {Array.from({ length: 12 }, (_, spark) => {
+                    const angle = spark * Math.PI / 6, distance = (10 + strength * .3) * (spark % 2 ? .7 : 1);
+                    return <span key={spark} className="metric-ring-spark" style={{ '--spark-x': `${Math.cos(angle) * distance}px`, '--spark-y': `${Math.sin(angle) * distance + 4}px` }} />;
+                })}
+            </span>)}
+        </div>;
+        const MetricRingVisual = ({ settings, moving, percentage, displayValue, colors, preview = false }) => {
+            const glow = settings.enabled && settings.glowStrength > 0 ? settings.glowMode : 'off';
+            return <div className="metric-ring-visual relative w-32 h-32 z-10 flex items-center justify-center" style={ringVisualProperties(settings)}
+                data-ring-glow={glow} data-ring-motion={settings.enabled && moving ? settings.motion : 'none'} data-ring-hover={settings.enabled ? settings.hoverEffect : 'none'}>
+                <div className="metric-ring-motion absolute inset-0">
+                    <svg aria-hidden="true" className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="40" className={`metric-ring-track stroke-current ${colors.text} opacity-20`} strokeWidth="6" fill="transparent" />
+                        <circle cx="50" cy="50" r="40" className={`metric-ring-stroke stroke-current ${colors.ring} transition-all duration-1000 ease-out`} style={preview && glow === 'pulse' ? { animationDelay: `${-settings.glowInterval * .55}s` } : undefined} strokeWidth="6" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * Math.max(0, Math.min(100, percentage || 0))) / 100} strokeLinecap="round" />
+                    </svg>
+                </div>
+                {settings.enabled && moving && settings.motion === 'fireworks' && settings.motionStrength > 0 && <MetricRingFireworks strength={settings.motionStrength} />}
+                <span className={`metric-ring-value text-lg md:text-xl font-bold tracking-tight z-10 ${colors.text}`}>{displayValue}</span>
+            </div>;
+        };
+        const DashboardRingSettings = ({ settings, change, save, discard, busy, loaded, dirty }) => {
+            const [previewRun, setPreviewRun] = useState(0);
+            const moving = useMetricRingMotion(settings, previewRun, true);
+            const preset = DASHBOARD_RING_PRESETS.find(item => sameSavedValue(item.settings, settings))?.id || 'custom';
+            const disabled = busy || !loaded;
+            const fieldClass = 'mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm font-normal text-slate-100';
+            const warmth = settings.temperature === 0 ? 'Neutral' : settings.temperature < 0 ? 'Cool' : 'Warm';
+            return <section aria-label="Ring settings" className="space-y-5">
+                <div><h3 className="font-bold text-white">Rings</h3><p className="text-xs text-slate-400 mt-1">Try a look in the preview, then save it for the whole team. Only you can change these settings.</p></div>
+                <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+                    <div className="space-y-3 min-w-0">
+                        <div className="metric-ring-card rounded-xl border border-slate-700 bg-slate-800/40 p-5 flex flex-col items-center gap-3" aria-label="Ring preview">
+                            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Live preview</span>
+                            <MetricRingVisual key={previewRun} settings={settings} moving={moving} percentage={99.06} displayValue="99.06%" colors={{text:'text-emerald-400',ring:'text-emerald-500'}} preview />
+                            <span className="text-xs text-slate-400">{settings.enabled ? `${settings.glowMode === 'off' ? 'No glow' : settings.glowMode === 'steady' ? 'Steady glow' : 'Pulsing glow'} · ${warmth}` : 'Effects off'}</span>
+                        </div>
+                        <button type="button" aria-label="Preview ring movement" disabled={disabled || !settings.enabled || settings.motion === 'none' || settings.motionStrength === 0} onClick={() => setPreviewRun(run => run + 1)} className="w-full rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800 disabled:opacity-40">Preview movement · 6 seconds</button>
+                        {moving && <button type="button" onClick={() => setPreviewRun(0)} className="w-full text-xs text-slate-400 underline underline-offset-2">Stop preview</button>}
+                        <p className="text-xs text-slate-400">Temperature changes the glow color. Your metric scores keep their original colors.</p>
+                    </div>
+                    <div className="space-y-4 min-w-0">
+                        <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 space-y-4">
+                            <label className="flex items-center justify-between gap-3 text-sm font-bold text-slate-200">Ring effects<input type="checkbox" aria-label="Enable ring effects" disabled={disabled} checked={settings.enabled} onChange={event => change({...settings,enabled:event.target.checked})} className="h-5 w-5 shrink-0 accent-emerald-500" /></label>
+                            <label className="block text-xs font-bold text-slate-300">Choose a look<select aria-label="Ring look preset" disabled={disabled} value={preset} onChange={event => change({...DASHBOARD_RING_PRESETS.find(item => item.id === event.target.value).settings})} className={fieldClass}><option value="custom" disabled>Custom look</option>{DASHBOARD_RING_PRESETS.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                            <button type="button" disabled={disabled} onClick={() => change({...settings,enabled:true,motion:'none',glowMode:settings.glowMode === 'off' ? 'off' : 'steady',hoverEffect:'none'})} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200">Make rings steady</button>
+                        </div>
+                        <fieldset disabled={disabled || !settings.enabled} className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 space-y-4 disabled:opacity-50">
+                            <legend className="px-1 text-sm font-bold text-slate-200">Glow</legend>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <label className="text-xs font-bold text-slate-300">Glow mode<select aria-label="Ring glow mode" value={settings.glowMode} onChange={event => change({...settings,glowMode:event.target.value})} className={fieldClass}><option value="off">Off</option><option value="pulse">Slow pulse</option><option value="steady">Steady glow</option></select></label>
+                                <label className="text-xs font-bold text-slate-300">Glow style<select aria-label="Ring glow style" value={settings.glowStyle} onChange={event => change({...settings,glowStyle:event.target.value})} className={fieldClass}><option value="soft">Soft halo</option><option value="neon">Neon</option><option value="wide">Wide halo</option></select></label>
+                            </div>
+                            <label className="block text-xs font-bold text-slate-300">Glow strength: {settings.glowStrength}%<input aria-label="Ring glow strength" type="range" min="0" max="100" step="5" value={settings.glowStrength} onInput={event => change({...settings,glowStrength:Number(event.currentTarget.value)})} className="mt-3 w-full accent-emerald-400" /></label>
+                            <label className="block text-xs font-bold text-slate-300">Glow temperature: {warmth} {settings.temperature === 0 ? '' : `${Math.abs(settings.temperature)}%`}<input aria-label="Ring glow temperature" type="range" min="-100" max="100" step="5" value={settings.temperature} onInput={event => change({...settings,temperature:Number(event.currentTarget.value)})} className="mt-3 w-full accent-amber-400" /><span className="flex justify-between text-[10px] font-normal text-slate-500 mt-1"><span>Cool</span><span>Neutral</span><span>Warm</span></span></label>
+                            <label className="block text-xs font-bold text-slate-300">Pulse every {settings.glowInterval} seconds<input aria-label="Ring glow pulse interval" disabled={settings.glowMode !== 'pulse'} type="range" min="5" max="60" step="5" value={settings.glowInterval} onInput={event => change({...settings,glowInterval:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400 disabled:opacity-40" /></label>
+                        </fieldset>
+                        <fieldset disabled={disabled || !settings.enabled} className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 space-y-4 disabled:opacity-50">
+                            <legend className="px-1 text-sm font-bold text-slate-200">Movement</legend>
+                            <label className="block text-xs font-bold text-slate-300">Movement style<select aria-label="Ring movement style" value={settings.motion} onChange={event => change({...settings,motion:event.target.value})} className={fieldClass}><option value="none">Off / Steady</option><option value="dance">Dance</option><option value="bounce">Bounce</option><option value="float">Float</option><option value="sway">Sway</option><option value="fireworks">Fireworks</option></select></label>
+                            {settings.motion === 'fireworks' && <p className="text-xs text-slate-400">Colorful bursts around each ring. Strength controls their size; the interval and duration below control when they appear.</p>}
+                            <fieldset disabled={settings.motion === 'none'} className="space-y-4 disabled:opacity-40">
+                                <label className="block text-xs font-bold text-slate-300">Movement strength: {settings.motionStrength}%<input aria-label="Ring movement strength" type="range" min="0" max="100" step="5" value={settings.motionStrength} onInput={event => change({...settings,motionStrength:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400" /></label>
+                                <label className="block text-xs font-bold text-slate-300">Repeat every {settings.motionInterval === 60 ? '1 hour' : `${settings.motionInterval} minutes`}<input aria-label="Ring movement repeat interval" type="range" min="1" max="120" step="1" value={settings.motionInterval} onInput={event => change({...settings,motionInterval:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400" /></label>
+                                <label className="block text-xs font-bold text-slate-300">Move for {settings.motionDuration} seconds<input aria-label="Ring movement duration" type="range" min="5" max="60" step="5" value={settings.motionDuration} onInput={event => change({...settings,motionDuration:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400" /></label>
+                            </fieldset>
+                            <label className="block text-xs font-bold text-slate-300">Mouse hover<select aria-label="Ring hover effect" value={settings.hoverEffect} onChange={event => change({...settings,hoverEffect:event.target.value})} className={fieldClass}><option value="none">Off / Steady</option><option value="highlight">Highlight score</option><option value="expand">Expand ring</option></select></label>
+                        </fieldset>
+                    </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3"><button type="button" onClick={save} disabled={disabled || !dirty} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{busy ? 'Saving…' : 'Save ring settings'}</button><button type="button" disabled={disabled} onClick={() => change(defaultDashboardRingSettings())} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">Restore original look</button><button type="button" disabled={disabled || !dirty} onClick={discard} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">Discard ring changes</button></div>
+                <p className="text-xs text-slate-400">The dashboard starts counting the movement interval when Overview opens or saved movement settings change. Devices set to reduced motion keep the rings still.</p>
+            </section>;
+        };
+
+        const TaskDeadlinePicker = ({ value, onChange, disabled }) => {
+            const [date = '', time = ''] = (value || '').split('T');
+            const [open, setOpen] = useState(false);
+            const [monthKey, setMonthKey] = useState(() => date.slice(0, 7) || taskDueInput(new Date().toISOString()).slice(0, 7));
+            const pickerRef = useRef(null), triggerRef = useRef(null);
+            const closeCalendar = () => {
+                setOpen(false);
+                requestAnimationFrame(() => triggerRef.current?.focus({ preventScroll: true }));
+            };
+            useEffect(() => {
+                if (!open) return;
+                const outside = event => { if (!pickerRef.current?.contains(event.target)) setOpen(false); };
+                // Close this picker before the task window's Escape handler runs.
+                const keyboard = event => {
+                    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeCalendar(); }
+                };
+                document.addEventListener('pointerdown', outside);
+                document.addEventListener('keydown', keyboard, true);
+                return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', keyboard, true); };
+            }, [open]);
+            useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
+            const monthBase = new Date(`${monthKey}-01T12:00:00`);
+            const year = monthBase.getFullYear(), month = monthBase.getMonth();
+            const monthLabel = monthBase.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            const cells = Array.from({ length: new Date(year, month, 1).getDay() }, () => null);
+            for (let day = 1; day <= new Date(year, month + 1, 0).getDate(); day++) cells.push(day);
+            while (cells.length % 7 !== 0) cells.push(null);
+            const changeMonth = offset => {
+                const next = new Date(year, month + offset, 1, 12);
+                setMonthKey(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
+            };
+            return <fieldset className="min-w-0" disabled={disabled}>
+                <legend className="text-xs font-semibold text-slate-300">Deadline (Central time)</legend>
+                <div ref={pickerRef} className="mt-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
+                        <div className="min-w-0"><span className="block mb-1 text-xs text-slate-400">Date</span><button ref={triggerRef} type="button" aria-label="Choose task deadline date" aria-expanded={open} aria-controls="task-deadline-calendar" onClick={() => {
+                            if (!open) setMonthKey(date.slice(0, 7) || taskDueInput(new Date().toISOString()).slice(0, 7));
+                            setOpen(current => !current);
+                        }} className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-400"><Calendar aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" /><span className="truncate">{date ? new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Choose date'}</span></button></div>
+                        <label className="block min-w-0 text-xs text-slate-400">Time<input aria-label="Task deadline time in Central time" type="time" style={{ colorScheme: 'dark' }} required value={time} onInput={event => onChange(date + 'T' + event.currentTarget.value)} className="mt-1 w-full min-w-0 rounded-lg border border-slate-600 bg-slate-950 px-2 py-2 text-sm text-slate-100 focus:outline-none focus:border-slate-400" /></label>
+                    </div>
+                    {open && <div id="task-deadline-calendar" role="group" aria-label="Task deadline calendar" className="mt-2 w-64 max-w-full rounded-xl border border-slate-700 bg-slate-900 shadow-2xl p-3 text-slate-200">
+                        <div className="flex items-center justify-between mb-3">
+                            <button type="button" aria-label="Previous deadline month" onClick={() => changeMonth(-1)} className="px-2 py-1 text-slate-400 hover:text-white transition-colors cursor-pointer">‹</button>
+                            <div aria-live="polite" className="text-xs font-black uppercase tracking-widest text-slate-200">{monthLabel}</div>
+                            <button type="button" aria-label="Next deadline month" onClick={() => changeMonth(1)} className="px-2 py-1 text-slate-400 hover:text-white transition-colors cursor-pointer">›</button>
+                            <button type="button" aria-label="Close task deadline calendar" onClick={closeCalendar} className="p-1 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
+                        </div>
+                        <div className="grid grid-cols-7 gap-1 text-center text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">{['S','M','T','W','T','F','S'].map((day, index) => <div key={index} className="py-1">{day}</div>)}</div>
+                        <div className="grid grid-cols-7 gap-1">{cells.map((day, index) => {
+                            if (!day) return <div key={'empty-' + index} className="h-9 sm:h-7" />;
+                            const cellDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                            return <button key={cellDate} type="button" aria-label={new Date(cellDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} aria-pressed={cellDate === date} onClick={() => { onChange(cellDate + 'T' + time); closeCalendar(); }} className={`h-9 sm:h-7 text-[10px] font-bold rounded-md transition-colors cursor-pointer ${cellDate === date ? 'bg-slate-700 text-white border border-slate-500' : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent'}`}>{day}</button>;
+                        })}</div>
+                    </div>}
+                </div>
+            </fieldset>;
+        };
+
         const TeamTasksWindow = ({ dialogRef, close, owner, uid, loaded, busy, error, message, tasks, assignees, notifications, readAlert,
             filter, setFilter, person, setPerson, selectedId, selectTask, draft, setDraft, startDraft, commit, updates, setUpdates, requests, setRequests }) => {
             const filtered = owner ? tasks.filter(task => (filter === 'all' || (filter === 'active' ? task.status !== 'completed' : task.status === filter)) && (!person || isTaskAssignedTo(task, person))) : tasks.filter(task => task.id === selectedId && isTaskAssignedTo(task, uid));
@@ -2154,9 +2843,9 @@
                         {!loaded && !error && <p className="text-sm text-slate-400">Loading assignments…</p>}
                         {owner && notifications.length > 0 && <section aria-label="Your task alerts" className="rounded-xl border border-rose-500/30 p-3 space-y-2">
                             <h3 className="text-sm font-bold text-rose-300">Your task alerts ({notifications.length})</h3>
-                            {notifications.map(event => <button key={event.id} type="button" disabled={busy} onClick={() => { selectTask(event.taskId); setFilter('all'); setPerson(''); readAlert([event.id]); }} className="block w-full text-left rounded-lg bg-slate-800/60 hover:bg-slate-800 px-3 py-2 text-sm">
+                            {notifications.map(event => <div key={event.id} className="flex items-start gap-2"><button type="button" disabled={busy} onClick={() => { selectTask(event.taskId); setFilter('all'); setPerson(''); readAlert([event.id]); }} className="block min-w-0 flex-1 text-left rounded-lg bg-slate-800/60 hover:bg-slate-800 px-3 py-2 text-sm">
                                 <span className="block font-bold text-slate-100">{event.author}: {eventLabels[event.type]} — {event.title}</span><span className="block mt-1 text-slate-400 break-words whitespace-pre-wrap">{event.text}</span><span className="block mt-1 text-xs text-slate-500">{formatTaskTime(event.timestamp)}</span>
-                            </button>)}
+                            </button><button type="button" disabled={busy} onClick={() => readAlert([event.id])} aria-label={'Dismiss alert for ' + event.title} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40">Dismiss</button></div>)}
                         </section>}
                         {owner && <div className="flex flex-wrap items-end justify-between gap-3">
                             <div className="flex flex-wrap gap-3 min-w-0">
@@ -2171,7 +2860,7 @@
                             <label className="block text-xs font-semibold text-slate-300">Instructions<textarea aria-label="Task instructions" rows={3} maxLength={4000} value={draft.instructions} onChange={event => setDraft({ ...draft, instructions: event.target.value })} className={fieldClass + ' mt-1'} placeholder="Describe what needs to be done." /></label>
                             <div className="grid gap-3 sm:grid-cols-2">
                                 <fieldset className="min-w-0 rounded-lg border border-slate-600 p-3"><legend className="px-1 text-xs font-semibold text-slate-300">Assigned to</legend><p className="text-xs text-slate-400 mb-2">Choose one or more people · {draft.assignedUids.length} selected</p><div className="max-h-44 overflow-y-auto space-y-1">{draftAccounts.map(account => <label key={account.uid} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-100 hover:bg-slate-700/40"><input type="checkbox" aria-label={'Assign task to ' + account.name} checked={draft.assignedUids.includes(account.uid)} disabled={busy || (!draft.assignedUids.includes(account.uid) && (account.inactive || draft.assignedUids.length >= MAX_TASK_ASSIGNEES))} onChange={event => setDraft({ ...draft, assignedUids: event.target.checked ? [...draft.assignedUids, account.uid] : draft.assignedUids.filter(id => id !== account.uid) })} className="h-4 w-4 shrink-0 accent-indigo-500" /><span className="break-words min-w-0">{account.name}{account.inactive ? ' (inactive)' : ''}</span></label>)}</div><p className="mt-2 text-xs text-slate-400">Up to {MAX_TASK_ASSIGNEES} people share this task and its progress.</p></fieldset>
-                                <label className="block min-w-0 text-xs font-semibold text-slate-300">Deadline (Central time)<input aria-label="Task deadline in Central time" type="datetime-local" required value={draft.due} onChange={event => setDraft({ ...draft, due: event.target.value })} className={fieldClass + ' mt-1'} /></label>
+                                <TaskDeadlinePicker key={draft.id || 'new-task'} value={draft.due} disabled={busy} onChange={due => setDraft({ ...draft, due })} />
                             </div>
                             <div className="flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setDraft(null)} className="px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300">Cancel</button><button type="submit" disabled={busy || !loaded || !draft.assignedUids.length} className="px-3 py-2 rounded-lg bg-indigo-600 text-sm font-bold text-white disabled:opacity-40">{busy ? 'Saving…' : draft.id ? 'Save Task' : 'Assign Task'}</button></div>
                         </form>}
@@ -2228,6 +2917,11 @@
             const [soundDraftDirty, setSoundDraftDirty] = useState(false);
             const soundDraftDirtyRef = useRef(false);
             const [soundSettingsLoaded, setSoundSettingsLoaded] = useState(false);
+            const [savedDashboardRings, setSavedDashboardRings] = useState(defaultDashboardRingSettings);
+            const [ringDraft, setRingDraft] = useState(defaultDashboardRingSettings);
+            const [ringDraftDirty, setRingDraftDirty] = useState(false);
+            const ringDraftDirtyRef = useRef(false), ringDraftBaselineRef = useRef(null);
+            const [ringSettingsLoaded, setRingSettingsLoaded] = useState(false);
             const [audioReady, setAudioReady] = useState(false);
             const warningSoundsPlayed = useRef(new Set());
             const [importedBackup, setImportedBackup] = useState(null);
@@ -2270,6 +2964,7 @@
             const [isEditingName, setIsEditingName] = useState(false);
             const [isEditMode, setIsEditing] = useState(false);
             const [activeTab, setActiveTab] = useState('overview');
+            const ringMotionActive = useMetricRingMotion({ ...savedDashboardRings, enabled: savedDashboardRings.enabled && ringSettingsLoaded && activeTab === 'overview' });
             const canEditSection = section => accountHasPermission(user, ({ notes: 'shiftNotes', driverHub: 'preload' })[section] || section, accessProfile);
             const activeEditPermission = ({ notes: 'shiftNotes', driverHub: 'preload' })[activeTab] || activeTab;
             const isEditing = isEditMode && accountHasPermission(user, activeEditPermission, accessProfile);
@@ -2288,12 +2983,14 @@
             const [shiftReplyDrafts, setShiftReplyDrafts] = useState({});
             const [savingShiftReplyId, setSavingShiftReplyId] = useState(null);
             const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
+            const [chatFilePreview, setChatFilePreview] = useState(null);
             const [teamChatMessages, setTeamChatMessages] = useState([]);
-            const [teamChatDraft, setTeamChatDraft] = useState('');
-            const [isTeamEmojiOpen, setIsTeamEmojiOpen] = useState(false);
-            const teamChatInputRef = useRef(null);
-            const teamEmojiPickerRef = useRef(null);
-            const teamEmojiButtonRef = useRef(null);
+            const [teamChatTypingSessions, setTeamChatTypingSessions] = useState([]);
+            const teamChatTypingStateRef = useRef({until:0,lastWrite:0,active:false});
+            const pendingTeamChatMessagesRef = useRef(new Map());
+            const teamChatReadIdsRef = useRef([]);
+            const teamChatReceiptIdsRef = useRef(new Set());
+            const teamChatReadPendingRef = useRef(new Set());
             const [teamChatError, setTeamChatError] = useState('');
             const [teamChatSeenAt, setTeamChatSeenAt] = useState('');
             const [teamChatReadIds, setTeamChatReadIds] = useState([]);
@@ -2904,6 +3601,8 @@
                     setSoundSettingsLoaded(false); setSavedDashboardSounds(defaultDashboardSoundSettings());
                     soundDraftDirtyRef.current = false; setSoundDraftDirty(false);
                     setSoundDraft(defaultDashboardSoundSettings()); warningSoundsPlayed.current.clear();
+                    setRingSettingsLoaded(false); setSavedDashboardRings(defaultDashboardRingSettings()); setRingDraft(defaultDashboardRingSettings());
+                    ringDraftDirtyRef.current = false; ringDraftBaselineRef.current = null; setRingDraftDirty(false);
                     setAudioReady(window.Tone?.context.state === 'running');
                     pendingNotificationChime = null;
                     setSettingsReady(false); setAccessProfile(null); setIsSettingsOpen(false);
@@ -3060,6 +3759,9 @@
                         const sounds = normalizeDashboardSoundSettings(docSnap.exists() ? docSnap.data().soundSettings : null);
                         applyDashboardSoundSettings(sounds); setSavedDashboardSounds(sounds); setSoundSettingsLoaded(true);
                         if (!soundDraftDirtyRef.current) setSoundDraft(sounds);
+                        const rings = normalizeDashboardRingSettings(docSnap.exists() ? docSnap.data().ringSettings : null);
+                        setSavedDashboardRings(rings); setRingSettingsLoaded(true);
+                        if (!ringDraftDirtyRef.current) { setRingDraft(rings); ringDraftBaselineRef.current = null; }
                         if (docSnap.exists()) {
                             const ml = docSnap.data();
                             const mergedLists = { ...DEFAULT_MASTER_LISTS, ...ml, nameOverrides: ml.nameOverrides || {} };
@@ -3202,7 +3904,8 @@
                             lastInteraction,
                             lastSeen: now,
                             status,
-                            hiddenSince: hiddenSince || null
+                            hiddenSince: hiddenSince || null,
+                            chatTypingUntil: document.hidden ? 0 : teamChatTypingStateRef.current.until
                         });
                     } catch (e) {}
                 };
@@ -3229,10 +3932,12 @@
                 const presenceCol = collection(db, 'artifacts', appId, 'public', 'data', 'presence');
                 const unsubscribePresence = onSnapshot(presenceCol, (snapshot) => {
                     const byUser = new Map();
+                    const typingSessions = [];
                     const now = Date.now();
                     const threshold = now - offlineAfterMs; 
                     snapshot.forEach(doc => { 
                         const presence = doc.data();
+                        if (presence.chatTypingUntil) typingSessions.push(presence);
                         const lastSeen = Number(presence.lastSeen || presence.lastActive || 0);
                         if (lastSeen > threshold) {
                             const hiddenSince = Number(presence.hiddenSince || 0);
@@ -3265,6 +3970,7 @@
                         }
                     });
                     setActiveUsers(Array.from(byUser.values()));
+                    setTeamChatTypingSessions(previous => sameSavedValue(previous, typingSessions) ? previous : typingSessions);
                 }, (err) => console.error(err));
                 return () => {
                     clearInterval(intervalId);
@@ -3274,6 +3980,26 @@
                     deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'presence', presenceDocId)).catch(() => {});
                 };
             }, [user, userName, masterLists.nameOverrides]);
+
+            const canSendTeamChat = canEditSection('chat');
+            const publishTeamChatTyping = useCallback(typing => {
+                if (!db || !user || !presenceSessionIdRef.current) return;
+                const state = teamChatTypingStateRef.current, now = Date.now();
+                const active = Boolean(typing && canSendTeamChat && !document.hidden);
+                if (!active && !state.active) return;
+                if (active && state.active && now - state.lastWrite < 2000) return;
+                state.active = active; state.lastWrite = now; state.until = active ? now + CHAT_TYPING_TTL_MS : 0;
+                const sessionId = presenceSessionIdRef.current;
+                setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'presence', `${user.uid}_${sessionId}`), {
+                    uid:user.uid, sessionId, chatTypingUntil:state.until
+                }, {merge:true}).catch(error => console.error('Typing indicator unavailable:', error));
+            }, [user?.uid, canSendTeamChat]);
+            useEffect(() => {
+                const hide = () => { if (document.hidden) publishTeamChatTyping(false); };
+                const blur = () => publishTeamChatTyping(false);
+                document.addEventListener('visibilitychange', hide); window.addEventListener('blur', blur);
+                return () => { document.removeEventListener('visibilitychange', hide); window.removeEventListener('blur', blur); };
+            }, [publishTeamChatTyping]);
 
             const isDashboardBackgroundEvent = (event, allowDoubleClickSelection = false) => {
                 if (!user || isLoading || isCapturing || dashboardSaveInFlightRef.current || event.defaultPrevented) return false;
@@ -4091,6 +4817,7 @@
             const openSettings = () => {
                 if (!isAdminUser) return;
                 soundDraftDirtyRef.current = false; setSoundDraftDirty(false); setSoundDraft(savedDashboardSounds);
+                ringDraftDirtyRef.current = false; ringDraftBaselineRef.current = null; setRingDraftDirty(false); setRingDraft(savedDashboardRings);
                 setIsTeamTasksOpen(false);
                 setIsShiftNotificationOpen(false); setIsTeamChatOpen(false); setIsHeaderCalendarOpen(false);
                 setSettingsError(''); setSettingsMessage(''); setSettingsTab('users'); setIsSettingsOpen(true);
@@ -4122,6 +4849,10 @@
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notificationStates', user.uid), { taskReadIds: arrayUnion(...ids), updatedAt: new Date().toISOString() }, { merge: true });
                     setTaskReadIds(previous => [...new Set([...previous, ...ids])]);
                 } catch (error) { setTeamTaskError('Could not mark the task alert read. Please try again.'); }
+            };
+            const dismissTaskAlert = async event => {
+                if (!event) return;
+                await markTaskAlertsRead([event.id]);
             };
             useEffect(() => {
                 setTeamTasks([]); setTeamTasksLoaded(false); setTaskReadIds([]); taskSoundKnownRef.current = null;
@@ -4355,6 +5086,35 @@
                     soundDraftDirtyRef.current = false; setSoundDraftDirty(false);
                     setSettingsMessage('Sound settings saved for the whole team. Only you can change or mute them.');
                 } catch (error) { setSettingsError('Sound settings were not saved. ' + error.message); }
+                finally { setSettingsBusy(false); }
+            };
+            const editDashboardRingDraft = next => {
+                if (!isAdminUser || !ringSettingsLoaded || settingsBusy) return;
+                if (!ringDraftDirtyRef.current) ringDraftBaselineRef.current = savedDashboardRings;
+                const normalized = normalizeDashboardRingSettings(next), dirty = !sameSavedValue(normalized, savedDashboardRings);
+                ringDraftDirtyRef.current = dirty; setRingDraftDirty(dirty); setRingDraft(normalized);
+                if (!dirty) ringDraftBaselineRef.current = null;
+                setSettingsMessage(''); setSettingsError('');
+            };
+            const discardDashboardRingDraft = () => {
+                ringDraftDirtyRef.current = false; ringDraftBaselineRef.current = null; setRingDraftDirty(false); setRingDraft(savedDashboardRings);
+                setSettingsError(''); setSettingsMessage('');
+            };
+            const saveDashboardRingSettings = async () => {
+                if (!isAdminUser || settingsBusy || !ringSettingsLoaded || !ringDraftDirty || !settingsReady) return;
+                const next = normalizeDashboardRingSettings(ringDraft), baseline = ringDraftBaselineRef.current || savedDashboardRings;
+                setSettingsBusy(true); setSettingsError(''); setSettingsMessage('');
+                try {
+                    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
+                    await runTransaction(db, async transaction => {
+                        const snapshot = await transaction.get(ref), latest = snapshot.exists() ? snapshot.data() : {};
+                        if (!sameSavedValue(normalizeDashboardRingSettings(latest.ringSettings), baseline)) throw new Error('Ring settings changed on another device. Discard your ring changes and try again.');
+                        transaction.set(ref, { ...latest, ringSettings: next });
+                    });
+                    setSavedDashboardRings(next); setRingDraft(next);
+                    ringDraftDirtyRef.current = false; ringDraftBaselineRef.current = null; setRingDraftDirty(false);
+                    setSettingsMessage('Ring settings saved for the whole team.');
+                } catch (error) { setSettingsError('Ring settings were not saved. ' + error.message); }
                 finally { setSettingsBusy(false); }
             };
             const exportDashboardBackup = async () => {
@@ -4763,8 +5523,9 @@
                 }
                 chatReadMigrationRef.current = null;
                 setTeamChatReadVersion(0);
-                try { setTeamChatReadIds(JSON.parse(localStorage.getItem(getTeamChatReadIdsKey(user.uid)) || '[]')); }
-                catch { setTeamChatReadIds([]); }
+                try { teamChatReadIdsRef.current = JSON.parse(localStorage.getItem(getTeamChatReadIdsKey(user.uid)) || '[]'); }
+                catch { teamChatReadIdsRef.current = []; }
+                setTeamChatReadIds(teamChatReadIdsRef.current);
                 if (!db) {
                     setNotificationStateLoaded(true);
                     return;
@@ -4801,7 +5562,11 @@
                     shiftReadIdsRef.current = Array.from(new Set([...shiftReadIdsRef.current, ...sharedReadIds]));
                     setShiftNoteReadIds(shiftReadIdsRef.current);
                     const sharedChatReadIds = Array.isArray(sharedState.teamChatReadIds) ? sharedState.teamChatReadIds : [];
-                    setTeamChatReadIds(prev => Array.from(new Set([...prev, ...sharedChatReadIds])));
+                    setTeamChatReadIds(prev => {
+                        const merged = Array.from(new Set([...prev, ...sharedChatReadIds]));
+                        teamChatReadIdsRef.current = merged;
+                        return merged.length === prev.length ? prev : merged;
+                    });
                     setTeamChatReadVersion(sharedState.teamChatReadVersion || 0);
                     localStorage.setItem(getTeamChatReadIdsKey(user.uid), JSON.stringify(sharedChatReadIds));
                     setTeamChatSeenAt(sharedTeamSeenAt);
@@ -4824,6 +5589,9 @@
             useEffect(() => {
                 if (!user || !db) return;
                 setTeamChatLoaded(false);
+                pendingTeamChatMessagesRef.current.clear();
+                teamChatReadPendingRef.current.clear();
+                teamChatReceiptIdsRef.current.clear();
                 teamChatSoundSignature.current = null;
                 const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
                 const unsubscribeTeamChat = onSnapshot(chatRef, (docSnap) => {
@@ -4831,7 +5599,10 @@
                     if (teamChatSoundSignature.current === null) {
                         teamChatSoundSignature.current = new Set(messages.map(teamMessageKey));
                     }
-                    setTeamChatMessages(messages.slice(-150));
+                    const savedIds = new Set(messages.map(teamMessageKey));
+                    savedIds.forEach(id => pendingTeamChatMessagesRef.current.delete(id));
+                    const visible = [...messages.slice(-150), ...pendingTeamChatMessagesRef.current.values()];
+                    setTeamChatMessages(previous => sameSavedValue(previous, visible) ? previous : visible);
                     setTeamChatLoaded(true);
                 }, (error) => {
                     console.error('Failed to load team chat:', error);
@@ -4877,26 +5648,37 @@
                 if (!user || document.hidden || !document.hasFocus()) return;
                 const current = getCurrentShiftUser();
                 const timestamp = new Date().toISOString();
-                const visibleMessageIds = teamChatMessages.map(teamMessageKey).filter(Boolean);
-                const nextReadIds = Array.from(new Set([...teamChatReadIds, ...visibleMessageIds]));
-                setTeamChatReadIds(nextReadIds);
+                const visibleMessageIds = teamChatMessages.filter(message => !message.pending).map(teamMessageKey).filter(Boolean);
+                const unreadIds = visibleMessageIds.filter(id => !teamChatReadIdsRef.current.includes(id) && !teamChatReadPendingRef.current.has(id));
+                const receiptIds = visibleMessageIds.filter(id => !teamChatReceiptIdsRef.current.has(id));
+                if (!unreadIds.length && !receiptIds.length) return;
+                const nextReadIds = Array.from(new Set([...teamChatReadIdsRef.current, ...unreadIds]));
+                teamChatReadIdsRef.current = nextReadIds;
+                if (unreadIds.length) setTeamChatReadIds(nextReadIds);
                 localStorage.setItem(getTeamChatReadIdsKey(user.uid), JSON.stringify(nextReadIds));
                 localStorage.setItem(getTeamChatSeenKey(user.uid), timestamp);
                 setTeamChatSeenAt(timestamp);
-                if (db) {
+                if (db && unreadIds.length) {
+                    unreadIds.forEach(id => teamChatReadPendingRef.current.add(id));
                     setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notificationStates', user.uid), {
                         teamChatSeenAt: timestamp,
                         teamChatReadVersion: 2,
-                        ...(visibleMessageIds.length ? { teamChatReadIds: arrayUnion(...visibleMessageIds) } : {}),
+                        teamChatReadIds: arrayUnion(...unreadIds),
                         updatedAt: timestamp
-                    }, { merge: true }).catch(error => console.error('Failed to save team chat seen state:', error));
+                    }, { merge: true }).catch(error => {
+                        teamChatReadIdsRef.current = teamChatReadIdsRef.current.filter(id => !unreadIds.includes(id));
+                        setTeamChatReadIds(teamChatReadIdsRef.current);
+                        console.error('Failed to save team chat seen state:', error);
+                    }).finally(() => unreadIds.forEach(id => teamChatReadPendingRef.current.delete(id)));
                 }
-                if (!db || !visibleMessageIds.length) return;
+                if (!db || !receiptIds.length) return;
+                receiptIds.forEach(id => teamChatReceiptIdsRef.current.add(id));
                 try {
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teamChatReaders', current.uid), {
-                        name: current.name, readIds: arrayUnion(...visibleMessageIds), updatedAt: timestamp
+                        name: current.name, readIds: arrayUnion(...receiptIds), updatedAt: timestamp
                     }, { merge: true });
                 } catch (error) {
+                    receiptIds.forEach(id => teamChatReceiptIdsRef.current.delete(id));
                     console.error('Failed to update team chat read receipts:', error);
                 }
             };
@@ -4910,13 +5692,14 @@
                 return onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'teamChatReaders'), snapshot => {
                     const readers = [];
                     snapshot.forEach(item => readers.push({ ...item.data(), uid: item.id }));
+                    (readers.find(entry => entry.uid === user.uid)?.readIds || []).forEach(id => teamChatReceiptIdsRef.current.add(id));
                     setTeamChatReaders(readers);
                 }, error => console.error('Chat read receipts unavailable:', error));
             }, [user?.uid]);
 
             const saveTeamChatEdit = async () => {
                 const text = editingChatText.trim();
-                if (!text || !db || !user || isSavingChatEdit) return;
+                if (!db || !user || isSavingChatEdit) return;
                 setIsSavingChatEdit(true);
                 setTeamChatError('');
                 try {
@@ -4926,6 +5709,7 @@
                         const messages = snapshot.exists() ? snapshot.data().messages || [] : [];
                         const target = messages.find(message => message.id === editingChatId);
                         if (!target || target.authorUid !== user.uid) throw new Error('Message unavailable');
+                        if (!text && !isChatAttachment(target.attachment, target.id, target.authorUid)) throw new Error('Write a message.');
                         transaction.set(chatRef, { messages: messages.map(message => message.id === editingChatId
                             ? { ...message, text, editedAt: new Date().toISOString() } : message) }, { merge: true });
                     });
@@ -4938,57 +5722,29 @@
                 }
             };
 
-            useEffect(() => {
-                if (!isTeamChatOpen) setIsTeamEmojiOpen(false);
-            }, [isTeamChatOpen]);
-
-            useEffect(() => {
-                if (!isTeamEmojiOpen) return;
-                const closeOnOutsideClick = event => {
-                    if (!teamEmojiPickerRef.current?.contains(event.target) && !teamEmojiButtonRef.current?.contains(event.target)) {
-                        setIsTeamEmojiOpen(false);
-                    }
-                };
-                const closeOnEscape = event => {
-                    if (event.key === 'Escape') {
-                        setIsTeamEmojiOpen(false);
-                        teamEmojiButtonRef.current?.focus({ preventScroll: true });
-                    }
-                };
-                document.addEventListener('pointerdown', closeOnOutsideClick);
-                document.addEventListener('keydown', closeOnEscape);
-                return () => {
-                    document.removeEventListener('pointerdown', closeOnOutsideClick);
-                    document.removeEventListener('keydown', closeOnEscape);
-                };
-            }, [isTeamEmojiOpen]);
-
-            const insertTeamChatEmoji = emoji => {
-                const input = teamChatInputRef.current;
-                const start = input?.selectionStart ?? teamChatDraft.length;
-                const end = input?.selectionEnd ?? start;
-                setTeamChatDraft(teamChatDraft.slice(0, start) + emoji + teamChatDraft.slice(end));
-                setIsTeamEmojiOpen(false);
-                requestAnimationFrame(() => {
-                    if (!input?.isConnected) return;
-                    input.focus({ preventScroll: true });
-                    input.setSelectionRange(start + emoji.length, start + emoji.length);
-                });
-            };
-
-            const sendTeamChatMessage = async () => {
-                const text = String(teamChatDraft || '').trim();
-                if (!text || !db || !canEditSection('chat')) return;
+            const sendTeamChatMessage = async (text, file = null) => {
+                if ((!String(text || '').trim() && !file) || !db || !canEditSection('chat')) return false;
                 const current = getCurrentShiftUser();
                 const message = {
-                    id: `${Date.now()}-${current.uid}`,
-                    text,
+                    id: crypto.randomUUID(),
+                    text: String(text || '').trim(),
                     author: current.name,
                     authorUid: current.uid,
                     timestamp: new Date().toISOString()
                 };
-                setTeamChatDraft('');
-                setIsTeamEmojiOpen(false);
+                let fileRecord = null;
+                if (file) {
+                    try {
+                        const metadata = validateChatFile(file), fileId = crypto.randomUUID();
+                        const base64 = await encodeChatFile(file);
+                        if (base64.length !== 4 * Math.ceil(metadata.size / 3)) throw new Error('This file could not be read. Choose it again.');
+                        message.attachment = {id:fileId, ...metadata, path:chatFilePath(current.uid, message.id, fileId)};
+                        fileRecord = {...metadata, ownerUid:current.uid, messageId:message.id, base64, createdAt:message.timestamp};
+                    } catch (error) { setTeamChatError(error.message); return false; }
+                }
+                publishTeamChatTyping(false);
+                pendingTeamChatMessagesRef.current.set(message.id, {...message, pending:true});
+                setTeamChatMessages(previous => [...previous, {...message, pending:true}]);
                 setTeamChatError('');
                 try {
                     const chatRef = doc(db, 'artifacts', appId, 'public', 'data', 'teamChat', 'general');
@@ -4996,16 +5752,23 @@
                         const chatSnap = await transaction.get(chatRef);
                         const existing = chatSnap.exists() && Array.isArray(chatSnap.data().messages) ? chatSnap.data().messages : [];
                         const messages = [...existing, message].slice(-150);
+                        // The file and message commit together; failed sends leave no orphan upload.
+                        if (fileRecord) transaction.set(doc(db, ...message.attachment.path.split('/')), fileRecord);
                         transaction.set(chatRef, {
                             messages,
                             updatedAt: message.timestamp,
                             updatedBy: current.name
                         }, { merge: true });
                     });
+                    pendingTeamChatMessagesRef.current.delete(message.id);
+                    setTeamChatMessages(previous => previous.map(item => item.id === message.id ? message : item));
+                    return true;
                 } catch (error) {
+                    pendingTeamChatMessagesRef.current.delete(message.id);
+                    setTeamChatMessages(previous => previous.filter(item => item.id !== message.id));
                     console.error('Failed to send team chat message:', error);
-                    setTeamChatDraft(text);
-                    setTeamChatError('Message did not send. Try again.');
+                    setTeamChatError(file ? 'The file did not send. Your message and file are ready to retry.' : 'Message did not send. It is ready to retry.');
+                    return false;
                 }
             };
 
@@ -5299,7 +6062,7 @@
                 online: isBrowserOnline, connection: dashboardConnection,
                 pending: saveActivity.pending, pendingWrites: dashboardPendingWrites,
                 error: saveActivity.error || (saveError ? { message: saveError } : null),
-                dirty: hasUnsavedDashboardChanges || soundDraftDirty || (isParkingEditing && !sameSavedValue(parkingDraft, masterLists.parkingAssignments || []))
+                dirty: hasUnsavedDashboardChanges || soundDraftDirty || ringDraftDirty || (isParkingEditing && !sameSavedValue(parkingDraft, masterLists.parkingAssignments || []))
             });
             const activeDateObj = new Date(activeDate + 'T12:00:00');
             const nextDayDateObj = new Date(activeDateObj.getTime() + 86400000);
@@ -5307,9 +6070,9 @@
             const displayDateString = String(activeDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
             const nextDayString = String(nextDayDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
             const nextDayRecord = (historyData || []).find(record => record.date === nextDayDateKey);
-            const nextDayRouteCounts = getAutoRouteCounts(nextDayRecord);
-            const nextDayRoutesAreAuto = nextDayRouteCounts.hasRows;
-            const plannedNextDayRoutes = nextDayRoutesAreAuto ? nextDayRouteCounts.routes : (Number(data.endOfDay?.nextRoutes) || 0);
+            const nextDayRouteCounts = getNextDayRouteCounts(nextDayRecord);
+            const plannedNextDayRoutes = nextDayRouteCounts.planned;
+            const confirmedNextDayRoutes = nextDayRouteCounts.confirmed;
             const hasCurrentUserSeenTeamMessage = (message) => hasSeenTeamMessage(message, user?.uid || 'local', teamChatReadIds);
 
             const teamChatUnreadMessages = (teamChatMessages || []).filter(message => {
@@ -5318,6 +6081,7 @@
             });
             const teamChatUnreadCount = teamChatUnreadMessages.length;
             const newestTeamChatUnreadId = teamChatUnreadMessages.length ? String(teamChatUnreadMessages[teamChatUnreadMessages.length - 1].id || teamChatUnreadMessages[teamChatUnreadMessages.length - 1].timestamp || '') : '';
+            const latestTeamChatMessageId = teamMessageKey(teamChatMessages.at(-1));
             useEffect(() => {
                 if (!isTeamChatOpen) return;
                 const scrollTimer = setTimeout(() => {
@@ -5325,7 +6089,7 @@
                     target?.scrollIntoView({ behavior: 'auto', block: newestTeamChatUnreadId ? 'center' : 'end' });
                 }, 0);
                 return () => clearTimeout(scrollTimer);
-            }, [isTeamChatOpen, teamChatMessages.length, newestTeamChatUnreadId]);
+            }, [isTeamChatOpen, latestTeamChatMessageId]);
 
             const shiftNoteNotificationItems = getShiftNoteNotificationItems();
             const shiftNoteNotificationCount = shiftNoteNotificationItems.length;
@@ -5352,9 +6116,9 @@
             }, [shiftNoteNotificationSignature, isLoading, notificationStateLoaded, activeDate, soundSettingsLoaded]);
 
             const toFixedSafe = (val, dec = 1) => { const num = Number(val); return isNaN(num) ? '0.0' : num.toFixed(dec); };
-            const driverAssignmentWarnings = calculateDriverAssignmentWarnings(data, historyData, activeDate);
+            const driverAssignmentWarnings = useMemo(() => calculateDriverAssignmentWarnings({ routeTable: data.routeTable }, historyData, activeDate), [data.routeTable, historyData, activeDate]);
             const preloadAssignmentWarnings = calculatePreloadAssignmentWarnings(allPreloadSchedules, getOfficeWeekBoundaries(preloadActiveDate).days);
-            const driverAssignmentAlertKey = ['routes-week', getOfficeWeekBoundaries(activeDate).mondayStr, ...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.weekly].join('|');
+            const driverAssignmentAlertKey = ['routes-date', activeDate, ...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.consecutive].join('|');
             const preloadAssignmentAlertKey = ['preload', preloadActiveDate, ...preloadAssignmentWarnings].join('|');
 
             // Assignment/schedule alerts stay silent by default; an admin can enable them.
@@ -5365,7 +6129,7 @@
             useEffect(() => {
                 if (!user || isLoading || !soundSettingsLoaded || isEditing) return;
                 const warnings = [
-                    ['driverAssignment', driverAssignmentAlertKey, activeTab === 'routes' && (driverAssignmentWarnings.sameDay.length + driverAssignmentWarnings.weekly.length) > 0 && !isAssignmentAlertAcknowledged(driverAssignmentAlertKey)],
+                    ['driverAssignment', driverAssignmentAlertKey, activeTab === 'routes' && (driverAssignmentWarnings.sameDay.length + driverAssignmentWarnings.consecutive.length) > 0 && !isAssignmentAlertAcknowledged(driverAssignmentAlertKey)],
                     ['preloadAssignment', preloadAssignmentAlertKey, isPreloadModalOpen && preloadAssignmentWarnings.length > 0 && !isAssignmentAlertAcknowledged(preloadAssignmentAlertKey)],
                     ['officeConflict', officeSoundWarningKey, activeTab === 'office' && officeSoundHasWarnings && dismissedOfficeWarningKey !== officeSoundWarningKey]
                 ];
@@ -5392,7 +6156,7 @@
             );
 
             const DriverAssignmentAlert = () => {
-                const warnings = [...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.weekly];
+                const warnings = [...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.consecutive];
                 if (warnings.length === 0 || isAssignmentAlertAcknowledged(driverAssignmentAlertKey)) return null;
 
                 return (
@@ -5510,7 +6274,8 @@
             }
             return (
                 <div ref={dashboardRef} onClick={handleDashboardBackgroundClick} onDoubleClick={handleDashboardBackgroundDoubleClick} className="dashboard-page-shell relative min-h-screen bg-slate-900 font-sans text-slate-100 pb-20">
-                    <header data-html2canvas-ignore="true" className={`bg-slate-800 border-b border-slate-700 relative z-30 shadow-lg ${isCapturing ? 'hidden' : 'sticky top-0'}`}>
+                    {chatFilePreview && <ChatFilePreview key={chatFilePreview.attachment.id} preview={chatFilePreview} onClose={() => setChatFilePreview(null)} />}
+                    <header data-html2canvas-ignore="true" className={`dashboard-header relative z-30 ${isCapturing ? 'hidden' : 'sticky top-0'}`}>
                         <div className="dashboard-header-grid w-full px-4 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                             <div className="dashboard-header-brand flex items-center gap-3 min-w-0 justify-start">
                                 <LayoutDashboard className="w-7 h-7 shrink-0 text-slate-100 drop-shadow-lg" />
@@ -5518,14 +6283,14 @@
                             </div>
                             <div className="dashboard-nav-wrap min-w-0 flex justify-center">
                                 <nav aria-label="Dashboard sections" className="dashboard-top-nav max-w-full min-w-0 flex items-center overflow-x-auto whitespace-nowrap [&>button]:shrink-0 bg-slate-900/50 p-1 rounded-xl border border-slate-700">
-                                    <button onClick={() => setActiveTab('overview')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'overview' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}>OVERVIEW</button>
-                                    <button onClick={() => setActiveTab('routes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'routes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Route className="w-3 h-3" /> ROUTES</button>
-                                    <button onClick={() => setActiveTab('driver-hub')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'driver-hub' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Truck className="w-3 h-3" /> DRIVER HUB</button>
-                                    <button onClick={() => setActiveTab('metrics')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'metrics' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Activity className="w-3 h-3" /> METRICS</button>
-                                    <button onClick={() => setActiveTab('history')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'history' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><History className="w-3 h-3" /> HISTORY</button>
-                                    <button onClick={() => setActiveTab('bonus')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'bonus' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Award className="w-3 h-3" /> BONUS</button>
-                                    <button onClick={() => setActiveTab('notes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'notes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><MessageSquare className="w-3 h-3" /> SHIFT NOTES</button>
-                                    <button onClick={() => setActiveTab('office')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'office' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Users className="w-3 h-3" /> OFFICE</button>
+                                    <button onClick={() => setActiveTab('overview')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'overview' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><span className="dashboard-nav-label">OVERVIEW</span></button>
+                                    <button onClick={() => setActiveTab('routes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'routes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Route className="w-3 h-3" /> <span className="dashboard-nav-label">ROUTES</span></button>
+                                    <button onClick={() => setActiveTab('driver-hub')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'driver-hub' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Truck className="w-3 h-3" /> <span className="dashboard-nav-label">DRIVER HUB</span></button>
+                                    <button onClick={() => setActiveTab('metrics')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'metrics' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Activity className="w-3 h-3" /> <span className="dashboard-nav-label">METRICS</span></button>
+                                    <button onClick={() => setActiveTab('history')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'history' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><History className="w-3 h-3" /> <span className="dashboard-nav-label">HISTORY</span></button>
+                                    <button onClick={() => setActiveTab('bonus')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'bonus' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Award className="w-3 h-3" /> <span className="dashboard-nav-label">BONUS</span></button>
+                                    <button onClick={() => setActiveTab('notes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'notes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><MessageSquare className="w-3 h-3" /> <span className="dashboard-nav-label">SHIFT NOTES</span></button>
+                                    <button onClick={() => setActiveTab('office')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'office' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Users className="w-3 h-3" /> <span className="dashboard-nav-label">OFFICE</span></button>
                                 </nav>
                             </div>
                             <div className="dashboard-header-actions flex items-center justify-end gap-2 shrink-0">
@@ -5574,14 +6339,13 @@
                                     )}
                                 </div>
                                 <div className="relative">
-                                    <button onClick={() => { setIsTeamChatOpen(prev => !prev); setIsShiftNotificationOpen(false); }} className={`p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${isTeamChatOpen ? 'text-indigo-300' : 'text-slate-300 hover:text-white'}`} title="Team Chat">
+                                    <button aria-label={teamChatUnreadCount ? `Team Chat, ${teamChatUnreadCount} unread messages` : 'Team Chat'} onClick={() => { setIsTeamChatOpen(prev => !prev); setIsShiftNotificationOpen(false); }} className={`p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${isTeamChatOpen ? 'text-indigo-300' : 'text-slate-300 hover:text-white'}`} title="Team Chat">
                                         <MessageSquare className="w-4 h-4" />
                                         {!isTeamChatOpen && teamChatUnreadCount > 0 && (
                                             <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{teamChatUnreadCount > 9 ? '9+' : teamChatUnreadCount}</span>
                                         )}
                                     </button>
-                                    {isTeamChatOpen && (
-                                        <div role="dialog" data-dashboard-edit-ignore="true" className="dashboard-header-popover absolute right-0 top-8 z-[120] w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                        <div role="dialog" aria-label="Team Chat" style={{display:isTeamChatOpen ? undefined : 'none'}} data-dashboard-edit-ignore="true" className="dashboard-header-popover absolute right-0 top-8 z-[120] w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
                                             <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
                                                 <div>
                                                     <div className="text-xs font-black uppercase tracking-widest text-white">Team Chat</div>
@@ -5608,7 +6372,7 @@
                                                                     <div className={`mb-1 flex items-center justify-between gap-3 ${mine ? 'flex-row-reverse' : ''}`}>
                                                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{mine ? 'You' : String(message.author || 'Team')}</span>
                                                                         <div className="flex items-center gap-2">
-                                                                            {mine && editingChatId !== message.id && <button type="button" onClick={() => { setEditingChatId(message.id); setEditingChatText(message.text || ''); }} className="chat-message-edit text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Edit your message">Edit</button>}
+                                                                            {mine && !message.pending && !getTeamChatSticker(message.text) && canSendTeamChat && editingChatId !== message.id && <button type="button" onClick={() => { setEditingChatId(message.id); setEditingChatText(message.text || ''); }} className="chat-message-edit text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Edit your message">Edit</button>}
                                                                             <span className="text-[9px] font-bold text-slate-500">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>
                                                                         </div>
                                                                     </div>
@@ -5616,13 +6380,15 @@
                                                                         <div>
                                                                             <textarea aria-label="Edit message" value={editingChatText} onChange={event => setEditingChatText(event.target.value)} disabled={isSavingChatEdit} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3" />
                                                                             <div className="flex gap-3 mt-2">
-                                                                                <button type="button" disabled={isSavingChatEdit || !editingChatText.trim()} onClick={saveTeamChatEdit} className="text-xs text-emerald-300 disabled:opacity-40">Save</button>
+                                                                                <button type="button" disabled={isSavingChatEdit || (!editingChatText.trim() && !message.attachment)} onClick={saveTeamChatEdit} className="text-xs text-emerald-300 disabled:opacity-40">Save</button>
                                                                                 <button type="button" disabled={isSavingChatEdit} onClick={() => setEditingChatId(null)} className="text-xs text-slate-300">Cancel</button>
                                                                             </div>
                                                                         </div>
                                                                     ) : (
                                                                         <div>
                                                                             <ChatMessageText text={message.text} />
+                                                                            {message.attachment && !message.pending && <ChatAttachmentCard attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={isTeamChatOpen} onPreview={setChatFilePreview} />}
+                                                                            {message.pending && <span className="text-[9px] text-slate-400">Sending…</span>}
                                                                             {message.editedAt && <span className="text-[9px] text-slate-400">Edited</span>}
                                                                         </div>
                                                                     )}
@@ -5637,22 +6403,9 @@
                                                 <div ref={teamChatEndRef} />
                                             </div>
                                             {teamChatError && <div className="border-t border-rose-900/40 bg-rose-950/30 px-4 py-2 text-[11px] font-semibold text-rose-300">{teamChatError}</div>}
-                                            <div className="relative flex items-end gap-2 border-t border-slate-800 bg-slate-900/80 px-3 py-3">
-                                                {isTeamEmojiOpen && (
-                                                    <div ref={teamEmojiPickerRef} id="team-chat-emoji-picker" role="group" aria-label="Choose an emoji" className="absolute bottom-full left-3 right-3 z-10 mb-1 max-h-[min(12rem,35dvh)] overflow-y-auto overscroll-contain rounded-xl border border-slate-600 bg-slate-900 p-2 shadow-xl">
-                                                        <div className="grid grid-cols-6 gap-1">
-                                                            {TEAM_CHAT_EMOJIS.map(([emoji, label]) => (
-                                                                <button key={label} type="button" aria-label={label} title={label} onClick={() => insertTeamChatEmoji(emoji)} className="flex min-h-[40px] items-center justify-center rounded-lg text-2xl leading-none transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300">{emoji}</button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                <button ref={teamEmojiButtonRef} type="button" aria-label="Add emoji" title="Add emoji" aria-expanded={isTeamEmojiOpen} aria-controls="team-chat-emoji-picker" onClick={() => setIsTeamEmojiOpen(open => !open)} className={`flex h-10 w-9 shrink-0 items-center justify-center rounded-lg transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300 ${isTeamEmojiOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:text-white'}`}><Smile className="h-5 w-5" /></button>
-                                                <textarea ref={teamChatInputRef} aria-label="Team message" disabled={!canEditSection('chat')} value={teamChatDraft} onChange={(event) => setTeamChatDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); sendTeamChatMessage(); } }} rows="2" placeholder="Write a team message..." className="min-h-[42px] min-w-0 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500" />
-                                                <button type="button" onClick={sendTeamChatMessage} disabled={!canEditSection('chat') || !String(teamChatDraft || '').trim()} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">Send</button>
-                                            </div>
+                                            <TeamChatTypingIndicator sessions={teamChatTypingSessions} uid={user?.uid} names={masterLists.nameOverrides || {}} />
+                                            <TeamChatComposer key={user?.uid || 'local'} open={isTeamChatOpen} canSend={canSendTeamChat} sendMessage={sendTeamChatMessage} publishTyping={publishTeamChatTyping} />
                                         </div>
-                                    )}
                                 </div>
                                 {isAdminUser && <button type="button" onClick={openTeamTasks} aria-label={taskNotifications.length ? `Team Tasks, ${taskNotifications.length} unread alerts` : 'Team Tasks'} title="Team Tasks" className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${taskNotifications.length ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`}>
                                     <ClipboardList className="w-4 h-4" />
@@ -5726,14 +6479,18 @@
                         {taskNotifications.length > 0 && !isTeamTasksOpen && <section data-team-task-alert data-html2canvas-ignore="true" data-dashboard-edit-ignore="true" role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-500/35 bg-rose-950/20 p-4">
                             <div className="min-w-0"><p className="text-sm font-bold text-rose-200">Team Tasks · {taskNotifications[0].type === 'update-request' ? 'Update requested' : taskNotifications[0].type === 'assigned' ? 'New assignment' : 'New task update'}</p><p className="text-sm text-slate-200 mt-1 break-words">{taskNotifications[0].title}</p><p className="text-xs text-slate-400 mt-1 break-words">{taskNotifications[0].author}: {taskNotifications[0].text}</p></div>
                             <div className="flex flex-wrap gap-2"><button type="button" onClick={() => { openTaskAssignment(taskNotifications[0].taskId); markTaskAlertsRead([taskNotifications[0].id]); }} className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-bold text-rose-200 hover:bg-rose-950/30">{taskNotifications[0].type === 'update-request' ? 'Reply to request' : 'View Task'}</button>
+                            <button type="button" disabled={taskBusy} onClick={() => dismissTaskAlert(taskNotifications[0])} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 disabled:opacity-40">Dismiss</button>
                             {taskNotifications[0].type === 'assigned' && teamTasks.find(task => task.id === taskNotifications[0].taskId)?.status === 'open' && <button type="button" disabled={taskBusy || !teamTasksLoaded} onClick={() => commitTeamTaskAction(taskNotifications[0].taskId, 'status', { status: 'in-progress' })} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">Start Task</button>}</div>
                         </section>}
-                        {!isAdminUser && ownActiveTasks.length > 0 && <section aria-label="Your assignments" data-html2canvas-ignore="true" data-dashboard-edit-ignore="true" className="mb-5 rounded-xl border border-slate-700 bg-slate-900/50 p-4 space-y-2">
-                            <h2 className="text-sm font-bold text-slate-200">Your assigned tasks</h2>
-                            {ownActiveTasks.map(task => <div key={task.id} className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="min-w-0 text-sm text-slate-300 break-words">{task.title} <span className="ml-2 text-xs text-slate-400">{TEAM_TASK_STATUSES[task.status]}</span></p>
-                                <button type="button" onClick={() => openTaskAssignment(task.id)} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800">Open assignment</button>
-                            </div>)}
+                        {!isAdminUser && ownActiveTasks.length > 0 && <section aria-label="Your assignments" data-html2canvas-ignore="true" data-dashboard-edit-ignore="true" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+                            <h2 className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-400"><ClipboardList aria-hidden="true" className="h-3.5 w-3.5" />Your tasks <span className="text-slate-500">({ownActiveTasks.length})</span></h2>
+                            <div className="flex min-w-0 flex-1 flex-wrap gap-2 basis-full sm:basis-auto">
+                                {ownActiveTasks.map(task => <button key={task.id} type="button" aria-label={'Open assignment: ' + task.title} title={task.title} onClick={() => openTaskAssignment(task.id)} className="group flex w-full min-w-0 items-center gap-2 rounded-lg bg-slate-800/45 px-3 py-2 text-left transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:w-auto sm:max-w-[30rem] sm:py-1.5">
+                                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-200">{task.title}</span>
+                                    <span className={`inline-flex shrink-0 items-center gap-1.5 text-[11px] ${task.status === 'in-progress' ? 'text-amber-300/80' : 'text-slate-400'}`}><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${task.status === 'in-progress' ? 'bg-amber-400/80' : 'bg-slate-500'}`} />{TEAM_TASK_STATUSES[task.status]}</span>
+                                    <span className="inline-flex shrink-0 items-center gap-1 border-l border-slate-600/70 pl-2 text-xs font-semibold text-slate-300 group-hover:text-white">Open <ArrowUp aria-hidden="true" className="h-3 w-3 rotate-45" /></span>
+                                </button>)}
+                            </div>
                         </section>}
 
                         {saveError && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-700 bg-slate-900 p-4 text-sm text-rose-200">
@@ -5953,13 +6710,7 @@
                                                     return (
                                                         <div key={idx} className="metric-ring-card bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
                                                             <div className="absolute top-4 right-4 opacity-[0.03]"><Icon className="w-16 h-16 text-white" /></div>
-                                                            <div className="relative w-32 h-32 mb-4 z-10 mt-2 flex items-center justify-center">
-                                                                <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                                                                    <circle cx="50" cy="50" r="40" className={`metric-ring-track stroke-current ${colors.text} opacity-20`} strokeWidth="6" fill="transparent" />
-                                                                    <circle cx="50" cy="50" r="40" className={`metric-ring-stroke stroke-current ${colors.ring} transition-all duration-1000 ease-out`} strokeWidth="6" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * pctSafeguard) / 100} strokeLinecap="round" />
-                                                                </svg>
-                                                                <span className={`metric-ring-value text-lg md:text-xl font-bold tracking-tight z-10 ${colors.text}`}>{card.displayValue}</span>
-                                                            </div>
+                                                            <div className="mb-4 mt-2"><MetricRingVisual settings={savedDashboardRings} moving={ringMotionActive} percentage={pctSafeguard} displayValue={card.displayValue} colors={colors} /></div>
                                                             <span className={`text-[10px] md:text-[11px] font-black uppercase tracking-widest z-10 text-center mb-1 ${colors.text}`}>{card.title}</span>
                                                             <span className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center z-10 mb-4">{card.targetDisplay}</span>
                                                             <div className="z-10 text-[9px] font-black text-indigo-200/90 uppercase tracking-[0.1em] text-center bg-slate-950 px-5 py-2.5 rounded-xl border border-slate-800 shadow-inner flex items-center gap-3 whitespace-nowrap">
@@ -6041,23 +6792,22 @@
                                 </section>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col">
+                                    <div role="region" aria-label="Next Day Routes" className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col">
                                         <div className="px-4 py-3 bg-slate-900/50 border-b border-slate-700 text-xs font-bold uppercase text-indigo-300 tracking-widest">Next Day Routes</div>
                                         <div className="p-4 space-y-3 flex-1">
                                             <div className="flex items-center justify-between text-sm pb-3 border-b border-slate-700/50">
                                                 <span className="text-slate-400 font-bold uppercase text-[10px]">Planned Routes</span>
-                                                {isEditing && !nextDayRoutesAreAuto ? (
-                                                    <input className="bg-slate-900 border border-slate-700 rounded px-2 w-16 text-right font-black text-indigo-400 focus:ring-1 focus:ring-indigo-500 outline-none" value={String(data.endOfDay?.nextRoutes || '0')} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.endOfDay.nextRoutes = String(e.target.value); setData(nd); }} />
-                                                ) : (
-                                                    <span className="font-black text-indigo-400 flex flex-col items-end leading-tight">
-                                                        <span>{String(plannedNextDayRoutes)}</span>
-                                                        {isEditing && nextDayRoutesAreAuto && <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Auto</span>}
-                                                    </span>
-                                                )}
+                                                <span className="font-black text-indigo-400 flex flex-col items-end leading-tight">
+                                                    <span>{String(plannedNextDayRoutes)}</span>
+                                                    {isEditing && <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Auto</span>}
+                                                </span>
                                             </div>
                                             <div className="flex items-center justify-between text-sm pb-3 border-b border-slate-700/50">
                                                 <span className="text-slate-400 font-bold uppercase text-[10px]">Confirmed Routes</span>
-                                                {isEditing ? <input className="bg-slate-900 border border-slate-700 rounded px-2 w-16 text-right font-black text-emerald-400 focus:ring-1 focus:ring-emerald-500 outline-none placeholder-slate-500" inputMode="numeric" pattern="[0-9]*" placeholder="0" value={formatEditableZeroNumber(data.endOfDay?.confirmedRoutes)} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.endOfDay.confirmedRoutes = String(Math.min(parseEditableNumber(e.target.value), Number(plannedNextDayRoutes || 0))); setData(nd); }} /> : <span className="font-black text-emerald-400">{String(data.endOfDay?.confirmedRoutes || '0')}</span>}
+                                                <span className="font-black text-emerald-400 flex flex-col items-end leading-tight">
+                                                    <span>{String(confirmedNextDayRoutes)}</span>
+                                                    {isEditing && <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Auto</span>}
+                                                </span>
                                             </div>
                                             {(data.endOfDay?.admin || []).map((item, idx) => {
                                                 let displayLabel = String(item.label);
@@ -6066,7 +6816,7 @@
                                                 if (displayLabel ==="Action Center Clear") return null;
                                                 if (item.label ==="All Routes Confirmed") {
                                                     const plannedRoutes = plannedNextDayRoutes;
-                                                    const confirmed = parseInt(data.endOfDay?.confirmedRoutes) || 0;
+                                                    const confirmed = confirmedNextDayRoutes;
                                                     displayLabel = `All ${plannedRoutes} Confirmed`;
                                                     isAutoCompliant = (plannedRoutes > 0 && confirmed >= plannedRoutes);
                                                     isAutoDisabled = true; 
@@ -7383,11 +8133,11 @@
                     </main>
 
                     {}
-                    <footer data-html2canvas-ignore="true" className={`fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-5 py-2 z-50 flex flex-col md:flex-row justify-between items-center gap-2 ${isCapturing ? 'hidden' : ''}`}>
-                        <div className="flex items-center gap-2 overflow-x-auto max-w-full no-scrollbar">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.4)] flex-shrink-0" />
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex-shrink-0">Online Users:</span>
-                            <div className="flex items-center gap-1.5">
+                    <footer data-html2canvas-ignore="true" className={`dashboard-footer fixed bottom-0 left-0 right-0 backdrop-blur-md px-4 py-1 z-50 flex flex-col md:flex-row justify-between items-center gap-1.5 md:gap-3 ${isCapturing ? 'hidden' : ''}`}>
+                        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto max-w-full no-scrollbar md:flex-1">
+                            <Users aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                            <span className="text-[11px] font-medium text-slate-500 shrink-0">Online users</span>
+                            <div className="flex items-center gap-0.5">
                                 <div className="relative shrink-0">
                                     {isEditingName ? (
                                         <div className="flex items-center gap-1.5 animate-in slide-in-from-left-2 duration-200">
@@ -7395,7 +8145,7 @@
                                             <button onClick={() => { localStorage.setItem(getUserNameKey(user.uid), userName); setIsEditingName(false); }} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-500 transition-colors cursor-pointer"><Check className="w-3 h-3" /></button>
                                         </div>
                                     ) : (
-                                        <button onClick={() => setIsEditingName(true)} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[9px] font-black transition-all cursor-pointer ${currentUserIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400 hover:border-slate-500' : currentUserIsIdle ? 'bg-amber-900/30 border-amber-500/30 text-amber-200 hover:border-amber-400' : 'bg-indigo-900/40 border-indigo-500/40 text-indigo-200 hover:border-indigo-400'}`}>
+                                        <button onClick={() => setIsEditingName(true)} className={`footer-user-badge flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300 ${currentUserIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400 hover:border-slate-500' : currentUserIsIdle ? 'bg-amber-900/30 border-amber-500/30 text-amber-200 hover:border-amber-400' : 'bg-indigo-900/40 border-indigo-500/40 text-indigo-200 hover:border-indigo-400'}`}>
                                             <div className={`w-1.5 h-1.5 rounded-full ${currentUserIsAway ? 'bg-slate-500' : currentUserIsIdle ? 'bg-amber-400' : 'bg-emerald-500'}`} /> YOU: {getSavedDisplayName(user)} {currentUserIsAway ? <span className="text-[8px] normal-case tracking-normal font-semibold text-slate-400">Away</span> : currentUserIsIdle ? <span className="text-[8px] normal-case tracking-normal font-semibold text-amber-300/75">Idle</span> : null} <Edit3 className="w-2.5 h-2.5 opacity-50" />
                                         </button>
                                     )}
@@ -7405,7 +8155,7 @@
                                     const userIsIdle = isPresenceIdle(u);
                                     const userIsAway = isPresenceAway(u);
                                     return (
-                                        <div key={u.uid} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[9px] font-bold ${userIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400' : userIsIdle ? 'bg-amber-900/20 border-amber-500/25 text-amber-200/80' : 'bg-slate-800/60 border-slate-700 text-slate-400'}`}>
+                                        <div key={u.uid} className={`footer-user-badge flex shrink-0 items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-medium whitespace-nowrap ${userIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400' : userIsIdle ? 'bg-amber-900/20 border-amber-500/25 text-amber-200/80' : 'bg-slate-800/60 border-slate-700 text-slate-400'}`}>
                                             <div className={`w-1.5 h-1.5 rounded-full ${userIsAway ? 'bg-slate-500/80' : userIsIdle ? 'bg-amber-400/80' : 'bg-emerald-500/60'}`} />
                                             {isAdminUser && editingOnlineUserId === u.uid ? (
                                                 <div className="flex items-center gap-1">
@@ -7425,14 +8175,14 @@
                                 })}
                             </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-wrap justify-center md:justify-end">
-                            <div className="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                        <div className="flex shrink-0 items-center gap-3 flex-wrap justify-center md:justify-end">
+                            <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-medium text-slate-400">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Signed in
                             </div>
-                            <button onClick={handleLogout} className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[9px] font-black text-slate-300 hover:bg-slate-700 hover:text-white transition-all cursor-pointer uppercase tracking-widest" title="Sign out">
+                            <button onClick={handleLogout} className="px-1.5 py-1 rounded-md bg-transparent text-[11px] font-medium text-slate-400 hover:text-white transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300" title="Sign out">
                                 Sign out
                             </button>
-                            <div className="border-l border-slate-700 pl-4"><DashboardSaveStatus status={dashboardSaveStatus} location="footer" /></div>
+                            <div><DashboardSaveStatus status={dashboardSaveStatus} location="footer" /></div>
                         </div>
                     </footer>
 
@@ -7446,11 +8196,11 @@
                         <div className="dashboard-modal settings-modal fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4" data-dashboard-edit-ignore="true" data-html2canvas-ignore="true">
                             <div ref={settingsDialogRef} role="dialog" aria-modal="true" aria-labelledby="settings-title" className="settings-window flex flex-col min-h-0 w-full max-w-5xl max-h-[90dvh] rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden">
                                 <div className="dashboard-mobile-toolbar flex items-center justify-between gap-3 border-b border-slate-700 bg-slate-800 px-5 py-4 shrink-0">
-                                    <div className="min-w-0"><h2 id="settings-title" className="text-lg font-black text-white">Settings</h2><p className="text-xs text-slate-400">Manage dashboard users, records, and sounds.</p></div>
+                                    <div className="min-w-0"><h2 id="settings-title" className="text-lg font-black text-white">Settings</h2><p className="text-xs text-slate-400">Manage dashboard users, records, sounds, and rings.</p></div>
                                     <button type="button" data-settings-close aria-label="Close Settings" disabled={settingsBusy} onClick={() => setIsSettingsOpen(false)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-40"><X className="w-5 h-5" /></button>
                                 </div>
                                 <nav aria-label="Settings sections" className="dashboard-modal-tabs flex gap-1 px-3 border-b border-slate-700 bg-slate-800/40 shrink-0 overflow-x-auto">
-                                    {[['users', 'Users & Permissions'], ['history', 'Change History'], ['backup', 'Backup & Restore'], ['sounds', 'Sounds & Alerts']].map(([key, label]) => (
+                                    {[['users', 'Users & Permissions'], ['history', 'Change History'], ['backup', 'Backup & Restore'], ['sounds', 'Sounds & Alerts'], ['rings', 'Rings']].map(([key, label]) => (
                                         <button key={key} type="button" aria-current={settingsTab === key ? 'page' : undefined} onClick={() => { setSettingsTab(key); setSettingsError(''); setSettingsMessage(''); }} className={`shrink-0 px-3 py-3 text-xs font-bold border-b-2 transition-colors ${settingsTab === key ? 'border-indigo-400 text-indigo-200' : 'border-transparent text-slate-400 hover:text-white'}`}>{label}</button>
                                     ))}
                                 </nav>
@@ -7500,6 +8250,7 @@
                                             </div>
                                         </div>
                                     )}
+                                    {isAdminUser && settingsTab === 'rings' && <DashboardRingSettings settings={ringDraft} change={editDashboardRingDraft} save={saveDashboardRingSettings} discard={discardDashboardRingDraft} busy={settingsBusy} loaded={ringSettingsLoaded && settingsReady} dirty={ringDraftDirty} />}
                                     {isAdminUser && settingsTab === 'sounds' && <div className="space-y-5">
                                         <div><h3 className="font-bold text-white">Sounds & Alerts</h3><p className="text-xs text-slate-400 mt-1">Only you can choose or mute sounds. Saved choices apply to every user and device. Previews play here only.</p></div>
                                         <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 space-y-4">
@@ -7998,13 +8749,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
