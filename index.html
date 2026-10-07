@@ -1707,6 +1707,7 @@
             enabled: uid === OWNER_UID || (saved ? saved.enabled === true : TEAM_UIDS.has(uid)),
             permissions: saved ? Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, saved.permissions?.[key] === true]))
                 : { ...DEFAULT_STAFF_PERMISSIONS } });
+        const isRemovedDashboardUser = (account, removed = {}) => account.uid !== OWNER_UID && !account.enabled && Boolean(removed?.[account.uid]);
         const accountHasPermission = (account, key, profile = accessProfilesCache.get(account?.uid)) =>
             isOwnerAccount(account) || Boolean(account?.uid && profile?.enabled && profile.permissions?.[key]);
         const requirePermission = key => {
@@ -1861,6 +1862,7 @@
                 if (changed('nameOverrides')) throw new Error('Only Fadi can rename dashboard users.');
                 if (changed('soundSettings')) throw new Error('Only Fadi can choose or mute dashboard sounds.');
                 if (changed('ringSettings')) throw new Error('Only Fadi can change dashboard ring effects.');
+                if (changed('deletedDashboardUsers')) throw new Error('Only Fadi can delete or restore dashboard users.');
                 if (fields.some(key => changed(key)) || (changed('contractors') && !accountHasPermission(auth.currentUser, 'masterLists'))) {
                     if (changed('drivers') || changed('helpers')) requirePermission('masterLists');
                     if (changed('contractors')) {
@@ -1919,7 +1921,7 @@
                         const auditRef = doc(database, 'artifacts', appId, 'public', 'data', 'auditEvents', eventId);
                         native.set(auditRef, { actorUid: auth.currentUser.uid, actorName: currentAuditName || getDefaultUserName(auth.currentUser),
                             timestamp: new Date().toISOString(), createdAt: serverTimestamp(), collection: tracked.kind,
-                            recordId: tracked.id, section: tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('soundSettings')) ? 'Sounds & Alerts' : sectionNameForRecord(tracked.kind, tracked.id), operation: options?.auditAction || tracked.operation,
+                            recordId: tracked.id, section: tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('soundSettings')) ? 'Sounds & Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('deletedDashboardUsers')) ? 'Users & Permissions' : sectionNameForRecord(tracked.kind, tracked.id), operation: options?.auditAction || tracked.operation,
                             summary: tracked.changes.length + ' field' + (tracked.changes.length === 1 ? '' : 's') + ' changed',
                             changeCount: tracked.changes.length, changes: tracked.changes.slice(0, 150) });
                         if (!entry.deleted) entry.value = { ...entry.value, _auditId: eventId };
@@ -1938,6 +1940,32 @@
             : firebaseSetDoc(ref, fields, options);
         const deleteDoc = ref => BUSINESS_COLLECTIONS.includes(ref.path.split('/').at(-2))
             ? runTransaction(db, async transaction => { transaction.delete(ref); }) : firebaseDeleteDoc(ref);
+        const writeDashboardUserRemoval = async (uid, removing, actorName, restoredProfile = null) => {
+            if (!isOwnerAccount(auth.currentUser)) throw new Error('Only Fadi can delete or restore dashboard users.');
+            if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid) || uid === OWNER_UID) throw new Error('Your administrator account is protected.');
+            const accountRef = doc(db, 'artifacts', appId, 'public', 'data', 'accessProfiles', uid);
+            const masterRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
+            return runTransaction(db, async transaction => {
+                const accountSnapshot = await transaction.get(accountRef);
+                const masterSnapshot = await transaction.get(masterRef);
+                const before = normalizeAccessProfile(uid, accountSnapshot.exists() ? accountSnapshot.data() : null);
+                const master = masterSnapshot.exists() ? masterSnapshot.data() : DEFAULT_MASTER_LISTS;
+                const removed = { ...(master.deletedDashboardUsers || {}) };
+                if (!removing && !removed[uid]) throw new Error('This user is no longer in Deleted users. Close this form and use Manage.');
+                const source = removing ? before : restoredProfile || before;
+                const timestamp = new Date().toISOString();
+                const profile = normalizeAccessProfile(uid, { name:String(source.name || '').trim(), email:String(source.email || '').trim(),
+                    enabled:removing ? false : source.enabled === true,
+                    permissions:Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, source.permissions?.[key] === true])),
+                    lastUpdatedBy:actorName, lastUpdatedAt:timestamp });
+                if (removing) removed[uid] = timestamp;
+                else delete removed[uid];
+                const updatedMaster = { ...master, deletedDashboardUsers:removed };
+                transaction.set(accountRef, profile);
+                transaction.set(masterRef, updatedMaster);
+                return { profile, master:updatedMaster };
+            });
+        };
         const createBackupFile = (records, actorUid, now = new Date().toISOString()) => ({
             format: 'geodis-dashboard-backup', version: 1, appId, exportedAt: now, exportedBy: actorUid,
             records: records.map(record => ({ collection: record.collection, id: record.id, data: stripAuditMetadata(record.data) }))
@@ -3011,6 +3039,10 @@
             const settingsDialogRef = useRef(null);
             const [managedAccounts, setManagedAccounts] = useState([...TEAM_UIDS].map(uid => defaultAccessProfile(uid)));
             const [accountDraft, setAccountDraft] = useState(null);
+            const [userToDelete, setUserToDelete] = useState(null);
+            const [showDeletedUsers, setShowDeletedUsers] = useState(false);
+            const userDeletionPendingRef = useRef(false);
+            const userDeletionConfirmRef = useRef(null);
             const [auditEvents, setAuditEvents] = useState([]);
             const [auditLoading, setAuditLoading] = useState(false);
             const [auditVisibleCount, setAuditVisibleCount] = useState(50);
@@ -3709,7 +3741,7 @@
                     setAudioReady(window.Tone?.context.state === 'running');
                     pendingNotificationChime = null;
                     setSettingsReady(false); setAccessProfile(null); setIsSettingsOpen(false);
-                    setAccountDraft(null); setAuditEvents([]); setImportedBackup(null); setRestorePreview(null);
+                    setAccountDraft(null); setUserToDelete(null); setShowDeletedUsers(false); setAuditEvents([]); setImportedBackup(null); setRestorePreview(null);
                     setIsTeamTasksOpen(false); setTaskDraft(null); setTeamTasks([]); setTaskReadIds([]);
                     if (firebaseUser) {
                         let profile = null;
@@ -4923,6 +4955,7 @@
                 ringDraftDirtyRef.current = false; ringDraftBaselineRef.current = null; setRingDraftDirty(false); setRingDraft(savedDashboardRings);
                 setIsTeamTasksOpen(false);
                 setIsShiftNotificationOpen(false); setIsTeamChatOpen(false); setIsHeaderCalendarOpen(false);
+                setUserToDelete(null); setShowDeletedUsers(false);
                 setSettingsError(''); setSettingsMessage(''); setSettingsTab('users'); setIsSettingsOpen(true);
             };
             const taskAssignees = useMemo(() => {
@@ -5134,6 +5167,9 @@
             useEffect(() => {
                 currentAuditName = getSavedDisplayName(user);
             }, [user?.uid, userName, masterLists.nameOverrides]);
+            useEffect(() => {
+                if (userToDelete && isSettingsOpen && settingsTab === 'users') userDeletionConfirmRef.current?.focus();
+            }, [userToDelete, isSettingsOpen, settingsTab]);
             const saveAccountPermissions = async () => {
                 if (!isAdminUser || !accountDraft || settingsBusy || !settingsReady) return;
                 const creatingLogin = accountDraft.isNew && accountDraft.mode === 'create' && !accountDraft.createdLogin;
@@ -5159,7 +5195,11 @@
                         name: accountDraft.name.trim(), email: accountDraft.email.trim(),
                         permissions:Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, accountDraft.permissions?.[key] === true])),
                         lastUpdatedBy: getSavedDisplayName(user), lastUpdatedAt: new Date().toISOString() });
-                    await setDoc(accountRef, profile);
+                    if (accountDraft.restoringDashboardAccess) {
+                        const restored = await writeDashboardUserRemoval(uid, false, getSavedDisplayName(user), profile);
+                        masterSnapshotRef.current = { ...DEFAULT_MASTER_LISTS, ...restored.master };
+                        setMasterLists(masterSnapshotRef.current);
+                    } else await setDoc(accountRef, profile);
                     accessProfilesCache.set(uid, profile);
                     setAccountDraft(null); setSettingsMessage(loginCreated
                         ? 'Login and permissions created for ' + profile.name + '. ' + (profile.enabled ? 'They can sign in with ' + profile.email + ' and the password you entered.' : 'Dashboard access is disabled until you enable it.')
@@ -5169,6 +5209,23 @@
                     : (creatingLogin ? error.message : 'Permissions were not saved. ' + error.message)); }
                 finally { setSettingsBusy(false); }
             };
+            const confirmUserDeletion = async () => {
+                if (!isAdminUser || !userToDelete || settingsBusy || !settingsReady || userDeletionPendingRef.current) return;
+                userDeletionPendingRef.current = true;
+                setSettingsBusy(true); setSettingsError(''); setSettingsMessage('');
+                try {
+                    const removed = await writeDashboardUserRemoval(userToDelete.uid, true, getSavedDisplayName(user));
+                    accessProfilesCache.set(userToDelete.uid, removed.profile);
+                    masterSnapshotRef.current = { ...DEFAULT_MASTER_LISTS, ...removed.master };
+                    setMasterLists(masterSnapshotRef.current);
+                    setManagedAccounts(previous => previous.map(account => account.uid === userToDelete.uid ? removed.profile : account));
+                    setUserToDelete(null); setAccountDraft(null);
+                    setSettingsMessage('User removed from the dashboard. Their access is blocked; previous notes and messages are kept.');
+                } catch (error) { setSettingsError('The user was not deleted. ' + (error.message || 'Please try again.')); }
+                finally { userDeletionPendingRef.current = false; setSettingsBusy(false); }
+            };
+            const deletedDashboardAccounts = managedAccounts.filter(account => isRemovedDashboardUser(account, masterLists.deletedDashboardUsers));
+            const currentDashboardAccounts = managedAccounts.filter(account => !isRemovedDashboardUser(account, masterLists.deletedDashboardUsers));
             const editDashboardSoundDraft = next => {
                 if (!isAdminUser) return;
                 const normalized = normalizeDashboardSoundSettings(next);
@@ -8327,13 +8384,20 @@
                                     {settingsMessage && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 text-sm text-emerald-200 break-words">{settingsMessage}</div>}
                                     {isAdminUser && settingsTab === 'users' && (
                                         <div className="space-y-4">
-                                            <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-bold text-white">Users & Permissions</h3><p className="text-xs text-slate-400 mt-1">Create team logins and choose which sections each person can edit.</p></div><button type="button" disabled={settingsBusy || !settingsReady} onClick={() => { setAccountDraft({ uid:'', name:'', email:'', password:'', confirmPassword:'', mode:'create', enabled:true, permissions:{...DEFAULT_STAFF_PERMISSIONS}, isNew:true }); setSettingsError(''); setSettingsMessage(''); }} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><PlusCircle className="w-4 h-4" />Add user</button></div>
+                                            <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-bold text-white">Users & Permissions</h3><p className="text-xs text-slate-400 mt-1">Create team logins and choose which sections each person can edit.</p></div><button type="button" disabled={settingsBusy || !settingsReady} onClick={() => { setUserToDelete(null); setAccountDraft({ uid:'', name:'', email:'', password:'', confirmPassword:'', mode:'create', enabled:true, permissions:{...DEFAULT_STAFF_PERMISSIONS}, isNew:true }); setSettingsError(''); setSettingsMessage(''); }} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><PlusCircle className="w-4 h-4" />Add user</button></div>
                                             <p className="text-xs text-slate-400">Users with access can view the dashboard. Editing permissions control saved changes. Removing access signs that account out. Your administrator account stays protected.</p>
+                                            {userToDelete && <div role="region" aria-label="Confirm user deletion" className="rounded-xl border border-rose-400/40 bg-rose-950/20 p-4 space-y-3">
+                                                <h4 className="font-bold text-slate-100">Delete {masterLists.nameOverrides?.[userToDelete.uid] || userToDelete.name || 'this user'} from the dashboard?</h4>
+                                                <p className="text-sm text-slate-300">Their dashboard access will stop and they will move to Deleted users. Previous notes, messages, and assignments stay saved. Their Firebase login is not deleted.</p>
+                                                <p className="text-xs text-slate-400">You can restore them later from Deleted users and review their permissions.</p>
+                                                <div className="flex flex-wrap gap-3"><button ref={userDeletionConfirmRef} type="button" onClick={confirmUserDeletion} disabled={settingsBusy || !settingsReady} className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{settingsBusy ? 'Deleting…' : 'Delete user'}</button><button type="button" onClick={() => setUserToDelete(null)} disabled={settingsBusy} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">Cancel deletion</button></div>
+                                            </div>}
                                             <div className="grid gap-3 sm:grid-cols-2">
-                                                {managedAccounts.map(account => <div key={account.uid} className="min-w-0 flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4"><div className="min-w-0"><div className="text-sm font-bold text-slate-100 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="text-xs text-slate-400 mt-1 break-all">{account.email || (account.uid === OWNER_UID ? 'Administrator' : 'Team account')}</div><div className={`text-xs mt-2 ${account.enabled ? 'text-emerald-300' : 'text-rose-300'}`}>{account.uid === OWNER_UID ? 'Full administrator access' : account.enabled ? 'Dashboard access enabled' : 'Access removed'}</div></div><button type="button" disabled={account.uid === OWNER_UID || settingsBusy || !settingsReady} onClick={() => { setAccountDraft({ ...account, permissions: { ...account.permissions }, isNew: false }); setSettingsError(''); setSettingsMessage(''); }} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-30">{account.uid === OWNER_UID ? 'Protected' : 'Manage'}</button></div>)}
+                                                {currentDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-100 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="text-xs text-slate-400 mt-1 break-all">{account.email || (account.uid === OWNER_UID ? 'Administrator' : 'Team account')}</div><div className={`text-xs mt-2 ${account.enabled ? 'text-emerald-300' : 'text-rose-300'}`}>{account.uid === OWNER_UID ? 'Full administrator access' : account.enabled ? 'Dashboard access enabled' : 'Access removed'}</div></div><div className="flex shrink-0 flex-wrap gap-2"><button type="button" disabled={account.uid === OWNER_UID || settingsBusy || !settingsReady} onClick={() => { setUserToDelete(null); setAccountDraft({ ...account, permissions: { ...account.permissions }, isNew: false }); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-30">{account.uid === OWNER_UID ? 'Protected' : 'Manage'}</button>{account.uid !== OWNER_UID && <button type="button" aria-label={'Delete ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setAccountDraft(null); setUserToDelete(account); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-950/30 disabled:opacity-40">Delete</button>}</div></div>)}
                                             </div>
+                                            {deletedDashboardAccounts.length > 0 && <div className="space-y-3 border-t border-slate-700 pt-4"><button type="button" aria-expanded={showDeletedUsers} onClick={() => setShowDeletedUsers(value => !value)} className="text-xs font-bold text-slate-300 hover:text-white">{showDeletedUsers ? 'Hide' : 'Show'} deleted users ({deletedDashboardAccounts.length})</button>{showDeletedUsers && <><p className="text-xs text-slate-400">These users have no dashboard access. Restore opens their permissions for review before you save.</p><div className="grid gap-3 sm:grid-cols-2">{deletedDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-300 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="mt-1 text-xs text-slate-400 break-all">{account.email || 'Team account'}</div><div className="mt-2 text-xs text-rose-300">Deleted from dashboard · access blocked</div></div><button type="button" aria-label={'Restore ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setUserToDelete(null); setAccountDraft({ ...account, enabled:true, permissions:{...account.permissions}, isNew:false, restoringDashboardAccess:true }); setSettingsError(''); setSettingsMessage(''); }} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-40">Restore</button></div>)}</div></>}</div>}
                                             {accountDraft && <div className="rounded-xl border border-indigo-400/40 bg-slate-800/50 p-4 space-y-4">
-                                                <h4 className="font-bold text-white">{accountDraft.createdLogin ? 'Finish dashboard access' : accountDraft.isNew ? 'Add user' : 'Permissions for ' + accountDraft.name}</h4>
+                                                <h4 className="font-bold text-white">{accountDraft.restoringDashboardAccess ? 'Restore ' + accountDraft.name : accountDraft.createdLogin ? 'Finish dashboard access' : accountDraft.isNew ? 'Add user' : 'Permissions for ' + accountDraft.name}</h4>
                                                 {accountDraft.isNew && !accountDraft.createdLogin && <fieldset disabled={settingsBusy} className="flex flex-wrap gap-4 text-xs text-slate-300"><legend className="mb-2 font-bold">Login</legend><label className="flex items-center gap-2"><input type="radio" name="new-account-mode" checked={accountDraft.mode === 'create'} onChange={() => setAccountDraft({...accountDraft,mode:'create',uid:'',password:'',confirmPassword:''})} className="accent-indigo-400" />Create a new login</label><label className="flex items-center gap-2"><input type="radio" name="new-account-mode" checked={accountDraft.mode !== 'create'} onChange={() => setAccountDraft({...accountDraft,mode:'existing',password:'',confirmPassword:''})} className="accent-indigo-400" />Link an existing login</label></fieldset>}
                                                 {accountDraft.isNew && accountDraft.mode !== 'create' && <div><label htmlFor="settings-account-id" className="block text-xs font-bold text-slate-300 mb-1">Firebase Account ID</label><input id="settings-account-id" value={accountDraft.uid} disabled={settingsBusy} readOnly={accountDraft.createdLogin} onChange={event => setAccountDraft({ ...accountDraft, uid:event.target.value })} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" placeholder="Copy the UID from Firebase Authentication" /><p className="text-xs text-slate-400 mt-2">{accountDraft.createdLogin ? 'Your new login is saved in Firebase. Retry permissions to finish giving it dashboard access.' : 'For someone who already has a Firebase login. Copy their UID from Authentication → Users.'}</p></div>}
                                                 <div className="grid gap-3 sm:grid-cols-2">
