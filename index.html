@@ -2873,7 +2873,7 @@
             const [fileError, setFileError] = useState('');
             const fileInputRef = useRef(null);
             const inputRef = useRef(null), pickerRef = useRef(null), emojiRef = useRef(null);
-            const sendingRef = useRef(false), typingStopRef = useRef(null);
+            const sendingRef = useRef(false), typingStopRef = useRef(null), focusAfterSendRef = useRef(false);
             const stopTyping = () => { clearTimeout(typingStopRef.current); publishTyping(false); };
             const changeDraft = text => {
                 setDraft(text);
@@ -2885,6 +2885,12 @@
                 if (!open || !canSend) { setEmojiOpen(false); clearTimeout(typingStopRef.current); publishTyping(false); }
                 return () => { clearTimeout(typingStopRef.current); publishTyping(false); };
             }, [open, canSend, publishTyping]);
+            useEffect(() => {
+                if (sending || !focusAfterSendRef.current) return;
+                focusAfterSendRef.current = false;
+                // Wait for the enabled textarea to reach the DOM before restoring typing focus.
+                if (open && canSend && !selectedSticker) inputRef.current?.focus({preventScroll:true});
+            }, [sending, open, canSend, selectedSticker]);
             useEffect(() => {
                 if (!selectedFile || chatFilePreviewKind(chatFileType(selectedFile.name)) !== 'image') { setFilePreviewUrl(''); return; }
                 const url = URL.createObjectURL(selectedFile); setFilePreviewUrl(url);
@@ -2917,7 +2923,7 @@
                 const restore = () => { if (originalSticker) setSelectedSticker(originalSticker); else setDraft(original); };
                 try { if (!await sendMessage(messageText, originalFile)) restore(); else { setSelectedFile(null); setFileError(''); } }
                 catch { restore(); }
-                finally { sendingRef.current = false; setSending(false); if (open) inputRef.current?.focus({preventScroll:true}); }
+                finally { sendingRef.current = false; focusAfterSendRef.current = true; setSending(false); }
             };
             const pickerItems = filterChatPickerItems(pickerMode === 'emojis' ? TEAM_CHAT_EMOJIS : TEAM_CHAT_STICKERS, pickerQuery, pickerMode === 'stickers' ? stickerGroup : 'all');
             return <div className="border-t border-slate-800 bg-slate-900/80">
