@@ -992,7 +992,7 @@
         import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
         import { createRoot } from 'react-dom/client';
         import { initializeApp, deleteApp } from 'firebase/app';
-        import { getAuth, initializeAuth, inMemoryPersistence, validatePassword, createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+        import { getAuth, initializeAuth, inMemoryPersistence, validatePassword, createUserWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
         import { getFirestore, doc, setDoc as firebaseSetDoc, getDoc, getDocs, onSnapshot, collection, query, where, deleteDoc as firebaseDeleteDoc, runTransaction as firebaseRunTransaction, arrayUnion, serverTimestamp } from 'firebase/firestore';
         import { 
             Truck, Package, Clock, CheckCircle2, AlertCircle, Navigation, ShieldCheck, 
@@ -1493,6 +1493,55 @@
             || readIds.includes(teamMessageKey(message))
             || (message.seenBy || []).some(entry => entry?.uid === uid);
 
+        const scrollTeamChatViewport = (viewport, target = null) => {
+            if (!viewport) return;
+            const maximum = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+            let top = maximum;
+            if (target && viewport.contains(target)) {
+                const message = target.getBoundingClientRect(), panel = viewport.getBoundingClientRect();
+                top = viewport.scrollTop + message.top - panel.top - (viewport.clientHeight - message.height) / 2;
+            }
+            viewport.scrollTo({top:Math.max(0, Math.min(maximum, top)), behavior:'auto'});
+        };
+        const createTeamChatAutoScroller = (viewport, content, initialMessageId, initialUnreadTarget) => {
+            let latestId = initialMessageId, frame = null, disposed = false;
+            let followBottom = !initialUnreadTarget;
+            const queueScroll = (target = null) => {
+                if (disposed) return;
+                if (frame !== null) cancelAnimationFrame(frame);
+                frame = requestAnimationFrame(() => {
+                    frame = null;
+                    if (disposed) return;
+                    scrollTeamChatViewport(viewport, target);
+                    followBottom = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop <= 48;
+                });
+            };
+            const recordScroll = () => {
+                followBottom = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop <= 48;
+            };
+            const resized = () => { if (followBottom) queueScroll(); };
+            viewport.addEventListener('scroll', recordScroll, {passive:true});
+            viewport.addEventListener('load', resized, true);
+            const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resized) : null;
+            observer?.observe(viewport);
+            if (content) observer?.observe(content);
+            // Capture the element now: marking it read may clear the unread ref before the next frame.
+            queueScroll(initialUnreadTarget);
+            return {
+                showLatest(messageId) {
+                    if (disposed || messageId === latestId) return;
+                    latestId = messageId; followBottom = true; queueScroll();
+                },
+                dispose() {
+                    disposed = true;
+                    if (frame !== null) cancelAnimationFrame(frame);
+                    observer?.disconnect();
+                    viewport.removeEventListener('scroll', recordScroll);
+                    viewport.removeEventListener('load', resized, true);
+                }
+            };
+        };
+
         // Apply only this editor's changes to the latest saved record. Identified
         // rows merge individually so concurrent replies/likes are not discarded.
         const mergeConcurrentEdits = (base, local, remote) => {
@@ -1657,6 +1706,88 @@
                 const credential = await createUserWithEmailAndPassword(temporaryAuth, fields.email, fields.password);
                 return {uid:credential.user.uid, name:fields.name, email:fields.email};
             } catch (error) { throw new Error(accountCreationError(error)); }
+            finally {
+                if (temporaryAuth) await signOut(temporaryAuth).catch(() => {});
+                if (temporaryApp) await deleteApp(temporaryApp).catch(() => {});
+            }
+        };
+        const validatePasswordResetEmail = value => {
+            const email = String(value || '').trim();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter the email this person uses to sign in.');
+            return email;
+        };
+        const passwordResetError = error => ({
+            'auth/invalid-email':'Enter a valid login email address.',
+            'auth/network-request-failed':'The reset link could not be requested. Check your connection and try again.',
+            'auth/too-many-requests':'Too many reset requests. Please try again later.',
+            'auth/operation-not-allowed':'Password reset is not available for this login. Check Firebase Authentication.',
+            'auth/unauthorized-domain':'This website address is not authorized in Firebase Authentication.'
+        })[error?.code] || 'The reset link could not be requested. Please try again.';
+        const requestDashboardPasswordReset = async value => {
+            if (!isOwnerAccount(auth.currentUser)) throw new Error('Only Fadi can manage password resets here.');
+            const email = validatePasswordResetEmail(value);
+            try { await sendPasswordResetEmail(auth, email); }
+            catch (error) {
+                // Avoid revealing account existence when email enumeration protection is disabled.
+                if (error?.code !== 'auth/user-not-found') throw new Error(passwordResetError(error));
+            }
+            return email;
+        };
+        const validateDirectPasswordChange = draft => {
+            const uid = String(draft.uid || '').trim(), email = validatePasswordResetEmail(draft.email);
+            const currentPassword = String(draft.currentPassword || ''), password = String(draft.password || '');
+            if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid)) throw new Error('Choose a dashboard user first.');
+            if (!currentPassword) throw new Error('Enter this user’s current password, or choose Send reset link.');
+            if (password.length < 6) throw new Error('Enter a new password with at least 6 characters.');
+            if (password !== draft.confirmPassword) throw new Error('The two new passwords do not match.');
+            if (password === currentPassword) throw new Error('Choose a different new password.');
+            return {uid, email, currentPassword, password};
+        };
+        const directPasswordChangeError = error => ({
+            'auth/invalid-credential':'The login email or current password is incorrect. Check them or use Send reset link.',
+            'auth/wrong-password':'The login email or current password is incorrect. Check them or use Send reset link.',
+            'auth/user-not-found':'The login email or current password is incorrect. Check them or use Send reset link.',
+            'auth/invalid-email':'Enter a valid login email address.',
+            'auth/weak-password':'Choose a stronger new password that meets your Firebase password policy.',
+            'auth/password-does-not-meet-requirements':'Choose a new password that meets your Firebase password policy.',
+            'auth/requires-recent-login':'The login must be verified again. Re-enter the current password and try again.',
+            'auth/user-disabled':'This Firebase login is disabled. Check Firebase Authentication.',
+            'auth/too-many-requests':'Too many sign-in attempts. Please try again later or use Send reset link.',
+            'auth/network-request-failed':'The password change could not be confirmed. Check your connection. If the old password no longer works, use Send reset link.',
+            'auth/operation-not-allowed':'Email/password sign-in is disabled in Firebase Authentication.'
+        })[error?.code] || (['dashboard/password-policy','dashboard/password-target','dashboard/password-session'].includes(error?.code)
+            ? error.message : 'The password change could not be confirmed. Please try again, or use Send reset link.');
+        const changeDashboardPassword = async draft => {
+            const administrator = auth.currentUser;
+            if (!isOwnerAccount(administrator)) throw new Error('Only Fadi can change passwords here.');
+            const fields = validateDirectPasswordChange(draft);
+            let temporaryApp, temporaryAuth;
+            try {
+                let targetUser, targetAuth = auth;
+                if (fields.uid === OWNER_UID) {
+                    if (!administrator.email || fields.email.toLowerCase() !== administrator.email.toLowerCase())
+                        throw Object.assign(new Error('Use the email you are currently signed in with.'), {code:'dashboard/password-target'});
+                    targetUser = administrator;
+                } else {
+                    temporaryApp = initializeApp(firebaseConfig, 'dashboard-password-' + crypto.randomUUID());
+                    temporaryAuth = initializeAuth(temporaryApp, {persistence:inMemoryPersistence});
+                    targetAuth = temporaryAuth;
+                }
+                const policy = await validatePassword(targetAuth, fields.password);
+                if (!policy.isValid) throw Object.assign(new Error(passwordPolicyMessage(policy)), {code:'dashboard/password-policy'});
+                if (fields.uid === OWNER_UID) {
+                    await reauthenticateWithCredential(targetUser, EmailAuthProvider.credential(fields.email, fields.currentPassword));
+                } else {
+                    const credential = await signInWithEmailAndPassword(temporaryAuth, fields.email, fields.currentPassword);
+                    targetUser = credential.user;
+                    if (targetUser.uid !== fields.uid)
+                        throw Object.assign(new Error('That email belongs to a different account. No password was changed. Enter the selected user’s actual login email.'), {code:'dashboard/password-target'});
+                }
+                if (!isOwnerAccount(auth.currentUser))
+                    throw Object.assign(new Error('Your administrator session changed. Sign in again before changing a password.'), {code:'dashboard/password-session'});
+                await updatePassword(targetUser, fields.password);
+                return {uid:fields.uid, email:fields.email};
+            } catch (error) { throw new Error(directPasswordChangeError(error)); }
             finally {
                 if (temporaryAuth) await signOut(temporaryAuth).catch(() => {});
                 if (temporaryApp) await deleteApp(temporaryApp).catch(() => {});
@@ -3040,6 +3171,10 @@
             const [managedAccounts, setManagedAccounts] = useState([...TEAM_UIDS].map(uid => defaultAccessProfile(uid)));
             const [accountDraft, setAccountDraft] = useState(null);
             const [userToDelete, setUserToDelete] = useState(null);
+            const [passwordResetDraft, setPasswordResetDraft] = useState(null);
+            const [showEnteredPasswords, setShowEnteredPasswords] = useState(false);
+            const passwordResetPendingRef = useRef(false);
+            const passwordResetEmailRef = useRef(null);
             const [showDeletedUsers, setShowDeletedUsers] = useState(false);
             const userDeletionPendingRef = useRef(false);
             const userDeletionConfirmRef = useRef(null);
@@ -3144,6 +3279,9 @@
             const dashboardRef = useRef(null);
             const teamChatEndRef = useRef(null);
             const teamChatUnreadTargetRef = useRef(null);
+            const teamChatScrollRef = useRef(null);
+            const teamChatContentRef = useRef(null);
+            const teamChatAutoScrollerRef = useRef(null);
             const backgroundEditGestureRef = useRef(false);
             const dashboardSaveInFlightRef = useRef(false);
             const parkingScreenshotRef = useRef(null);
@@ -3741,7 +3879,7 @@
                     setAudioReady(window.Tone?.context.state === 'running');
                     pendingNotificationChime = null;
                     setSettingsReady(false); setAccessProfile(null); setIsSettingsOpen(false);
-                    setAccountDraft(null); setUserToDelete(null); setShowDeletedUsers(false); setAuditEvents([]); setImportedBackup(null); setRestorePreview(null);
+                    setAccountDraft(null); setPasswordResetDraft(null); setShowEnteredPasswords(false); setUserToDelete(null); setShowDeletedUsers(false); setAuditEvents([]); setImportedBackup(null); setRestorePreview(null);
                     setIsTeamTasksOpen(false); setTaskDraft(null); setTeamTasks([]); setTaskReadIds([]);
                     if (firebaseUser) {
                         let profile = null;
@@ -4955,7 +5093,7 @@
                 ringDraftDirtyRef.current = false; ringDraftBaselineRef.current = null; setRingDraftDirty(false); setRingDraft(savedDashboardRings);
                 setIsTeamTasksOpen(false);
                 setIsShiftNotificationOpen(false); setIsTeamChatOpen(false); setIsHeaderCalendarOpen(false);
-                setUserToDelete(null); setShowDeletedUsers(false);
+                setUserToDelete(null); setShowDeletedUsers(false); setPasswordResetDraft(null); setShowEnteredPasswords(false);
                 setSettingsError(''); setSettingsMessage(''); setSettingsTab('users'); setIsSettingsOpen(true);
             };
             const taskAssignees = useMemo(() => {
@@ -5170,6 +5308,61 @@
             useEffect(() => {
                 if (userToDelete && isSettingsOpen && settingsTab === 'users') userDeletionConfirmRef.current?.focus();
             }, [userToDelete, isSettingsOpen, settingsTab]);
+            useEffect(() => {
+                if (passwordResetDraft && isSettingsOpen && settingsTab === 'users') passwordResetEmailRef.current?.focus();
+            }, [passwordResetDraft?.uid, passwordResetDraft?.mode, isSettingsOpen, settingsTab]);
+            useEffect(() => {
+                setShowEnteredPasswords(false);
+                if (!isSettingsOpen) {
+                    setPasswordResetDraft(null);
+                    setAccountDraft(previous => previous && !previous.createdLogin ? { ...previous, password:'', confirmPassword:'' } : previous);
+                }
+            }, [isSettingsOpen, accountDraft?.uid, accountDraft?.mode]);
+            useEffect(() => {
+                if (settingsTab !== 'users') setPasswordResetDraft(null);
+            }, [settingsTab]);
+            const openPasswordReset = account => {
+                if (!isAdminUser || settingsBusy || !settingsReady) return;
+                setAccountDraft(null); setUserToDelete(null); setSettingsError(''); setSettingsMessage('');
+                setPasswordResetDraft({uid:account.uid, name:masterLists.nameOverrides?.[account.uid] || account.name || 'Team member',
+                    email:account.uid === auth.currentUser?.uid ? auth.currentUser.email || '' : account.email || '',
+                    mode:'direct', currentPassword:'', password:'', confirmPassword:'', showPasswords:false, requested:false, changed:false});
+            };
+            const sendUserPasswordReset = async event => {
+                event?.preventDefault();
+                if (!isAdminUser || !passwordResetDraft || passwordResetDraft.mode === 'direct' || passwordResetDraft.requested || settingsBusy || !settingsReady || passwordResetPendingRef.current) return;
+                const target = { ...passwordResetDraft };
+                try { validatePasswordResetEmail(target.email); }
+                catch (error) { setSettingsError(error.message); return; }
+                passwordResetPendingRef.current = true;
+                setSettingsBusy(true); setSettingsError(''); setSettingsMessage('');
+                try {
+                    const email = await requestDashboardPasswordReset(target.email);
+                    if (!isOwnerAccount(auth.currentUser)) return;
+                    setPasswordResetDraft(previous => previous?.uid === target.uid ? { ...previous, email, requested:true } : previous);
+                    setSettingsMessage('If ' + email + ' has an email/password login, a password-reset link has been requested. Check the inbox and spam folder. The password changes only after the user completes the reset.');
+                } catch (error) { if (isOwnerAccount(auth.currentUser)) setSettingsError(error.message); }
+                finally { passwordResetPendingRef.current = false; setSettingsBusy(false); }
+            };
+            const changeUserPasswordDirectly = async event => {
+                event?.preventDefault();
+                if (!isAdminUser || !passwordResetDraft || passwordResetDraft.mode !== 'direct' || passwordResetDraft.changed || settingsBusy || !settingsReady || passwordResetPendingRef.current) return;
+                const target = { ...passwordResetDraft };
+                try { validateDirectPasswordChange(target); }
+                catch (error) { setSettingsError(error.message); return; }
+                passwordResetPendingRef.current = true;
+                setSettingsBusy(true); setSettingsError(''); setSettingsMessage('');
+                try {
+                    await changeDashboardPassword(target);
+                    if (!isOwnerAccount(auth.currentUser)) return;
+                    setPasswordResetDraft(previous => previous?.uid === target.uid ? { ...previous, currentPassword:'', password:'', confirmPassword:'', showPasswords:false, changed:true } : previous);
+                    setSettingsMessage('Password changed for ' + target.name + '. Use the new password for their next sign-in.');
+                } catch (error) {
+                    if (!isOwnerAccount(auth.currentUser)) return;
+                    setPasswordResetDraft(previous => previous?.uid === target.uid ? { ...previous, currentPassword:'', password:'', confirmPassword:'', showPasswords:false } : previous);
+                    setSettingsError(error.message);
+                } finally { passwordResetPendingRef.current = false; setSettingsBusy(false); }
+            };
             const saveAccountPermissions = async () => {
                 if (!isAdminUser || !accountDraft || settingsBusy || !settingsReady) return;
                 const creatingLogin = accountDraft.isNew && accountDraft.mode === 'create' && !accountDraft.createdLogin;
@@ -6257,13 +6450,15 @@
             const newestTeamChatUnreadId = teamChatUnreadMessages.length ? String(teamChatUnreadMessages[teamChatUnreadMessages.length - 1].id || teamChatUnreadMessages[teamChatUnreadMessages.length - 1].timestamp || '') : '';
             const latestTeamChatMessageId = teamMessageKey(teamChatMessages.at(-1));
             useEffect(() => {
-                if (!isTeamChatOpen) return;
-                const scrollTimer = setTimeout(() => {
-                    const target = newestTeamChatUnreadId ? teamChatUnreadTargetRef.current : teamChatEndRef.current;
-                    target?.scrollIntoView({ behavior: 'auto', block: newestTeamChatUnreadId ? 'center' : 'end' });
-                }, 0);
-                return () => clearTimeout(scrollTimer);
-            }, [isTeamChatOpen, latestTeamChatMessageId]);
+                if (!isTeamChatOpen || !teamChatLoaded || !teamChatScrollRef.current) return;
+                const scroller = createTeamChatAutoScroller(teamChatScrollRef.current, teamChatContentRef.current,
+                    latestTeamChatMessageId, newestTeamChatUnreadId ? teamChatUnreadTargetRef.current : null);
+                teamChatAutoScrollerRef.current = scroller;
+                return () => { scroller.dispose(); teamChatAutoScrollerRef.current = null; };
+            }, [isTeamChatOpen, teamChatLoaded, user?.uid]);
+            useEffect(() => {
+                if (isTeamChatOpen && teamChatLoaded) teamChatAutoScrollerRef.current?.showLatest(latestTeamChatMessageId);
+            }, [isTeamChatOpen, teamChatLoaded, latestTeamChatMessageId]);
 
             const shiftNoteNotificationItems = getShiftNoteNotificationItems();
             const shiftNoteNotificationCount = shiftNoteNotificationItems.length;
@@ -6527,7 +6722,8 @@
                                                 </div>
                                                 <button type="button" onClick={() => setIsTeamChatOpen(false)} className="rounded-lg border border-slate-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">Close</button>
                                             </div>
-                                            <div data-popover-scroll="true" className="max-h-80 min-h-[220px] overflow-y-auto px-4 py-3 space-y-3 bg-slate-950/90">
+                                            <div ref={teamChatScrollRef} data-popover-scroll="true" style={{scrollBehavior:'auto'}} className="max-h-80 min-h-[220px] overflow-y-auto px-4 py-3 bg-slate-950/90">
+                                                <div ref={teamChatContentRef} className="space-y-3">
                                                 {teamChatMessages.length === 0 ? (
                                                     <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">No team messages yet.</div>
                                                 ) : (
@@ -6575,6 +6771,7 @@
                                                     })
                                                 )}
                                                 <div ref={teamChatEndRef} />
+                                                </div>
                                             </div>
                                             {teamChatError && <div className="border-t border-rose-900/40 bg-rose-950/30 px-4 py-2 text-[11px] font-semibold text-rose-300">{teamChatError}</div>}
                                             <TeamChatTypingIndicator sessions={teamChatTypingSessions} uid={user?.uid} names={masterLists.nameOverrides || {}} />
@@ -8384,8 +8581,23 @@
                                     {settingsMessage && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 text-sm text-emerald-200 break-words">{settingsMessage}</div>}
                                     {isAdminUser && settingsTab === 'users' && (
                                         <div className="space-y-4">
-                                            <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-bold text-white">Users & Permissions</h3><p className="text-xs text-slate-400 mt-1">Create team logins and choose which sections each person can edit.</p></div><button type="button" disabled={settingsBusy || !settingsReady} onClick={() => { setUserToDelete(null); setAccountDraft({ uid:'', name:'', email:'', password:'', confirmPassword:'', mode:'create', enabled:true, permissions:{...DEFAULT_STAFF_PERMISSIONS}, isNew:true }); setSettingsError(''); setSettingsMessage(''); }} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><PlusCircle className="w-4 h-4" />Add user</button></div>
+                                            <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-bold text-white">Users & Permissions</h3><p className="text-xs text-slate-400 mt-1">Create team logins and choose which sections each person can edit.</p></div><button type="button" disabled={settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setShowEnteredPasswords(false); setUserToDelete(null); setAccountDraft({ uid:'', name:'', email:'', password:'', confirmPassword:'', mode:'create', enabled:true, permissions:{...DEFAULT_STAFF_PERMISSIONS}, isNew:true }); setSettingsError(''); setSettingsMessage(''); }} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><PlusCircle className="w-4 h-4" />Add user</button></div>
                                             <p className="text-xs text-slate-400">Users with access can view the dashboard. Editing permissions control saved changes. Removing access signs that account out. Your administrator account stays protected.</p>
+                                            {passwordResetDraft && <form onSubmit={passwordResetDraft.mode === 'direct' ? changeUserPasswordDirectly : sendUserPasswordReset} aria-label="Change password" className="rounded-xl border border-slate-500/50 bg-slate-800/50 p-4 space-y-3">
+                                                <h4 className="font-bold text-white">Change password for {passwordResetDraft.name}</h4>
+                                                <fieldset disabled={settingsBusy} className="flex flex-wrap gap-3 text-xs text-slate-300"><legend className="mb-2 font-bold">Choose an option</legend>{[['direct','Change here'],['link','Send reset link']].map(([mode,label]) => <label key={mode} className="flex items-center gap-2 rounded-lg border border-slate-600 px-3 py-2"><input type="radio" name="password-change-mode" checked={passwordResetDraft.mode === mode} onChange={() => { setPasswordResetDraft({...passwordResetDraft,mode,currentPassword:'',password:'',confirmPassword:'',showPasswords:false,requested:false,changed:false}); setSettingsError(''); setSettingsMessage(''); }} className="accent-indigo-400" />{label}</label>)}</fieldset>
+                                                <p className="text-sm text-slate-300">{passwordResetDraft.mode === 'direct' ? 'Enter the current password and choose a new one here, without an email link.' : 'Send a reset link so this person can choose a new password from their email.'}</p>
+                                                <div><label htmlFor="settings-reset-email" className="block text-xs font-bold text-slate-300 mb-1">Actual login email (required)</label><input ref={passwordResetEmailRef} id="settings-reset-email" type="email" required autoComplete="off" value={passwordResetDraft.email} readOnly={passwordResetDraft.mode === 'direct' && passwordResetDraft.uid === user.uid} disabled={settingsBusy || passwordResetDraft.requested || passwordResetDraft.changed} onChange={event => { setPasswordResetDraft({ ...passwordResetDraft, email:event.target.value }); setSettingsError(''); }} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" placeholder="Email used to sign in" /></div>
+                                                <p className="text-xs text-slate-400">Check the actual sign-in email. A saved email label may be different.{passwordResetDraft.mode === 'link' ? ' The reset link applies to the login for the email entered here.' : ''}</p>
+                                                {passwordResetDraft.mode === 'direct' && !passwordResetDraft.changed && <>
+                                                    <div><label htmlFor="settings-current-password" className="block text-xs font-bold text-slate-300 mb-1">Current password (required)</label><input id="settings-current-password" type={passwordResetDraft.showPasswords ? 'text' : 'password'} required autoComplete="off" value={passwordResetDraft.currentPassword} disabled={settingsBusy} onChange={event => setPasswordResetDraft({...passwordResetDraft,currentPassword:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div>
+                                                    <div className="grid gap-3 sm:grid-cols-2"><div><label htmlFor="settings-new-password" className="block text-xs font-bold text-slate-300 mb-1">New password (required)</label><input id="settings-new-password" type={passwordResetDraft.showPasswords ? 'text' : 'password'} required minLength={6} autoComplete="new-password" value={passwordResetDraft.password} disabled={settingsBusy} onChange={event => setPasswordResetDraft({...passwordResetDraft,password:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div><div><label htmlFor="settings-new-password-confirm" className="block text-xs font-bold text-slate-300 mb-1">Confirm new password (required)</label><input id="settings-new-password-confirm" type={passwordResetDraft.showPasswords ? 'text' : 'password'} required minLength={6} autoComplete="new-password" value={passwordResetDraft.confirmPassword} disabled={settingsBusy} onChange={event => setPasswordResetDraft({...passwordResetDraft,confirmPassword:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div></div>
+                                                    <label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={passwordResetDraft.showPasswords} disabled={settingsBusy} onChange={event => setPasswordResetDraft({...passwordResetDraft,showPasswords:event.target.checked})} className="h-4 w-4 accent-indigo-400" />Show passwords entered here</label>
+                                                    <p className="text-xs text-slate-400">At least 6 characters; your Firebase password policy also applies. If you do not know the current password, choose Send reset link. Passwords are never saved in dashboard records.</p>
+                                                </>}
+                                                {passwordResetDraft.mode === 'link' && <p className="text-xs text-slate-400">Current passwords cannot be retrieved. The user chooses a new password from the reset email.</p>}
+                                                <div className="flex flex-wrap gap-3"><button type="submit" disabled={settingsBusy || !settingsReady || passwordResetDraft.requested || passwordResetDraft.changed} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{settingsBusy ? passwordResetDraft.mode === 'direct' ? 'Changing password…' : 'Requesting link…' : passwordResetDraft.changed ? 'Password changed' : passwordResetDraft.requested ? 'Reset link requested' : passwordResetDraft.mode === 'direct' ? 'Save new password' : 'Send reset link'}</button><button type="button" disabled={settingsBusy} onClick={() => { setPasswordResetDraft(null); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">{passwordResetDraft.requested || passwordResetDraft.changed ? 'Close password change' : 'Cancel password change'}</button></div>
+                                            </form>}
                                             {userToDelete && <div role="region" aria-label="Confirm user deletion" className="rounded-xl border border-rose-400/40 bg-rose-950/20 p-4 space-y-3">
                                                 <h4 className="font-bold text-slate-100">Delete {masterLists.nameOverrides?.[userToDelete.uid] || userToDelete.name || 'this user'} from the dashboard?</h4>
                                                 <p className="text-sm text-slate-300">Their dashboard access will stop and they will move to Deleted users. Previous notes, messages, and assignments stay saved. Their Firebase login is not deleted.</p>
@@ -8393,9 +8605,9 @@
                                                 <div className="flex flex-wrap gap-3"><button ref={userDeletionConfirmRef} type="button" onClick={confirmUserDeletion} disabled={settingsBusy || !settingsReady} className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{settingsBusy ? 'Deleting…' : 'Delete user'}</button><button type="button" onClick={() => setUserToDelete(null)} disabled={settingsBusy} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">Cancel deletion</button></div>
                                             </div>}
                                             <div className="grid gap-3 sm:grid-cols-2">
-                                                {currentDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-100 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="text-xs text-slate-400 mt-1 break-all">{account.email || (account.uid === OWNER_UID ? 'Administrator' : 'Team account')}</div><div className={`text-xs mt-2 ${account.enabled ? 'text-emerald-300' : 'text-rose-300'}`}>{account.uid === OWNER_UID ? 'Full administrator access' : account.enabled ? 'Dashboard access enabled' : 'Access removed'}</div></div><div className="flex shrink-0 flex-wrap gap-2"><button type="button" disabled={account.uid === OWNER_UID || settingsBusy || !settingsReady} onClick={() => { setUserToDelete(null); setAccountDraft({ ...account, permissions: { ...account.permissions }, isNew: false }); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-30">{account.uid === OWNER_UID ? 'Protected' : 'Manage'}</button>{account.uid !== OWNER_UID && <button type="button" aria-label={'Delete ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setAccountDraft(null); setUserToDelete(account); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-950/30 disabled:opacity-40">Delete</button>}</div></div>)}
+                                                {currentDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-100 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="text-xs text-slate-400 mt-1 break-all">{account.email || (account.uid === OWNER_UID ? 'Administrator' : 'Team account')}</div><div className={`text-xs mt-2 ${account.enabled ? 'text-emerald-300' : 'text-rose-300'}`}>{account.uid === OWNER_UID ? 'Full administrator access' : account.enabled ? 'Dashboard access enabled' : 'Access removed'}</div></div><div className="flex min-w-0 max-w-full flex-wrap gap-2"><button type="button" disabled={account.uid === OWNER_UID || settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setUserToDelete(null); setAccountDraft({ ...account, permissions: { ...account.permissions }, isNew: false }); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-30">{account.uid === OWNER_UID ? 'Protected' : 'Manage'}</button><button type="button" aria-label={'Change password for ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => openPasswordReset(account)} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-40">Change password</button>{account.uid !== OWNER_UID && <button type="button" aria-label={'Delete ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setAccountDraft(null); setUserToDelete(account); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-950/30 disabled:opacity-40">Delete</button>}</div></div>)}
                                             </div>
-                                            {deletedDashboardAccounts.length > 0 && <div className="space-y-3 border-t border-slate-700 pt-4"><button type="button" aria-expanded={showDeletedUsers} onClick={() => setShowDeletedUsers(value => !value)} className="text-xs font-bold text-slate-300 hover:text-white">{showDeletedUsers ? 'Hide' : 'Show'} deleted users ({deletedDashboardAccounts.length})</button>{showDeletedUsers && <><p className="text-xs text-slate-400">These users have no dashboard access. Restore opens their permissions for review before you save.</p><div className="grid gap-3 sm:grid-cols-2">{deletedDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-300 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="mt-1 text-xs text-slate-400 break-all">{account.email || 'Team account'}</div><div className="mt-2 text-xs text-rose-300">Deleted from dashboard · access blocked</div></div><button type="button" aria-label={'Restore ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setUserToDelete(null); setAccountDraft({ ...account, enabled:true, permissions:{...account.permissions}, isNew:false, restoringDashboardAccess:true }); setSettingsError(''); setSettingsMessage(''); }} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-40">Restore</button></div>)}</div></>}</div>}
+                                            {deletedDashboardAccounts.length > 0 && <div className="space-y-3 border-t border-slate-700 pt-4"><button type="button" aria-expanded={showDeletedUsers} onClick={() => setShowDeletedUsers(value => !value)} className="text-xs font-bold text-slate-300 hover:text-white">{showDeletedUsers ? 'Hide' : 'Show'} deleted users ({deletedDashboardAccounts.length})</button>{showDeletedUsers && <><p className="text-xs text-slate-400">These users have no dashboard access. Restore opens their permissions for review before you save.</p><div className="grid gap-3 sm:grid-cols-2">{deletedDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-300 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="mt-1 text-xs text-slate-400 break-all">{account.email || 'Team account'}</div><div className="mt-2 text-xs text-rose-300">Deleted from dashboard · access blocked</div></div><button type="button" aria-label={'Restore ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setUserToDelete(null); setAccountDraft({ ...account, enabled:true, permissions:{...account.permissions}, isNew:false, restoringDashboardAccess:true }); setSettingsError(''); setSettingsMessage(''); }} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-40">Restore</button></div>)}</div></>}</div>}
                                             {accountDraft && <div className="rounded-xl border border-indigo-400/40 bg-slate-800/50 p-4 space-y-4">
                                                 <h4 className="font-bold text-white">{accountDraft.restoringDashboardAccess ? 'Restore ' + accountDraft.name : accountDraft.createdLogin ? 'Finish dashboard access' : accountDraft.isNew ? 'Add user' : 'Permissions for ' + accountDraft.name}</h4>
                                                 {accountDraft.isNew && !accountDraft.createdLogin && <fieldset disabled={settingsBusy} className="flex flex-wrap gap-4 text-xs text-slate-300"><legend className="mb-2 font-bold">Login</legend><label className="flex items-center gap-2"><input type="radio" name="new-account-mode" checked={accountDraft.mode === 'create'} onChange={() => setAccountDraft({...accountDraft,mode:'create',uid:'',password:'',confirmPassword:''})} className="accent-indigo-400" />Create a new login</label><label className="flex items-center gap-2"><input type="radio" name="new-account-mode" checked={accountDraft.mode !== 'create'} onChange={() => setAccountDraft({...accountDraft,mode:'existing',password:'',confirmPassword:''})} className="accent-indigo-400" />Link an existing login</label></fieldset>}
@@ -8405,7 +8617,8 @@
                                                     <div><label htmlFor="settings-account-email" className="block text-xs font-bold text-slate-300 mb-1">{accountDraft.mode === 'create' || accountDraft.createdLogin ? 'Login email (required)' : 'Email label (optional)'}</label><input id="settings-account-email" type="email" value={accountDraft.email} disabled={settingsBusy} readOnly={accountDraft.createdLogin} onChange={event => setAccountDraft({...accountDraft,email:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" autoComplete="off" /></div>
                                                 </div>
                                                 {accountDraft.isNew && accountDraft.mode === 'create' && <>
-                                                    <div className="grid gap-3 sm:grid-cols-2"><div><label htmlFor="settings-account-password" className="block text-xs font-bold text-slate-300 mb-1">Password (required)</label><input id="settings-account-password" type="password" autoComplete="new-password" value={accountDraft.password || ''} disabled={settingsBusy} onChange={event => setAccountDraft({...accountDraft,password:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div><div><label htmlFor="settings-account-password-confirm" className="block text-xs font-bold text-slate-300 mb-1">Confirm password (required)</label><input id="settings-account-password-confirm" type="password" autoComplete="new-password" value={accountDraft.confirmPassword || ''} disabled={settingsBusy} onChange={event => setAccountDraft({...accountDraft,confirmPassword:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div></div>
+                                                    <div className="grid gap-3 sm:grid-cols-2"><div><label htmlFor="settings-account-password" className="block text-xs font-bold text-slate-300 mb-1">Password (required)</label><input id="settings-account-password" type={showEnteredPasswords ? "text" : "password"} autoComplete="new-password" value={accountDraft.password || ''} disabled={settingsBusy} onChange={event => setAccountDraft({...accountDraft,password:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div><div><label htmlFor="settings-account-password-confirm" className="block text-xs font-bold text-slate-300 mb-1">Confirm password (required)</label><input id="settings-account-password-confirm" type={showEnteredPasswords ? "text" : "password"} autoComplete="new-password" value={accountDraft.confirmPassword || ''} disabled={settingsBusy} onChange={event => setAccountDraft({...accountDraft,confirmPassword:event.target.value})} className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200" /></div></div>
+                                                    <label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={showEnteredPasswords} disabled={settingsBusy} onChange={event => setShowEnteredPasswords(event.target.checked)} className="h-4 w-4 accent-indigo-400" />Show entered passwords</label>
                                                     <p className="text-xs text-slate-400">At least 6 characters; your Firebase password policy also applies. Your admin login stays signed in. The password is sent only to Firebase Authentication, never saved in dashboard records.</p>
                                                 </>}
                                                 {!accountDraft.isNew && <p className="text-xs text-slate-400">The email label is for reference. Changing it does not change this person’s login email or password.</p>}
