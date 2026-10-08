@@ -846,6 +846,47 @@
             0%, 100% { transform: rotate(calc(-1 * var(--ring-tilt))); }
             50% { transform: rotate(var(--ring-tilt)); }
         }
+        @keyframes metricRingBreathe {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(var(--ring-swell)); }
+        }
+        @keyframes metricRingWobble {
+            0%, 100% { transform: rotate(0); }
+            20%, 60% { transform: rotate(calc(-3 * var(--ring-tilt))); }
+            40%, 80% { transform: rotate(calc(3 * var(--ring-tilt))); }
+        }
+        @keyframes metricRingSwing {
+            0%, 100% { transform: translateX(0) rotate(0); }
+            25% { transform: translateX(calc(2 * var(--ring-lift))) rotate(calc(-2 * var(--ring-tilt))); }
+            75% { transform: translateX(calc(-2 * var(--ring-lift))) rotate(calc(2 * var(--ring-tilt))); }
+        }
+        @keyframes metricRingWave {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(var(--ring-lift), var(--ring-lift)); }
+            50% { transform: translate(0, 0); }
+            75% { transform: translate(calc(-1 * var(--ring-lift)), var(--ring-drop)); }
+        }
+        @keyframes metricRingHop {
+            0%, 42%, 74%, 100% { transform: translateY(0) scale(1); }
+            22% { transform: translateY(calc(3 * var(--ring-lift))) scale(var(--ring-swell)); }
+            58% { transform: translateY(var(--ring-lift)); }
+        }
+        @keyframes metricRingTilt {
+            0%, 100% { transform: perspective(400px) rotateX(0) rotateY(0); }
+            25% { transform: perspective(400px) rotateX(calc(5 * var(--ring-tilt))) rotateY(calc(-5 * var(--ring-tilt))); }
+            75% { transform: perspective(400px) rotateX(calc(-5 * var(--ring-tilt))) rotateY(calc(5 * var(--ring-tilt))); }
+        }
+        @keyframes metricRingRotation {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        [data-ring-motion="breathe"] .metric-ring-motion { animation: metricRingBreathe 5s ease-in-out infinite; }
+        [data-ring-motion="wobble"] .metric-ring-motion { animation: metricRingWobble 3s ease-in-out infinite; }
+        [data-ring-motion="swing"] .metric-ring-motion { animation: metricRingSwing 4s ease-in-out infinite; }
+        [data-ring-motion="wave"] .metric-ring-motion { animation: metricRingWave 5s ease-in-out infinite; }
+        [data-ring-motion="hop"] .metric-ring-motion { animation: metricRingHop 3s ease-in-out infinite; }
+        [data-ring-motion="tilt"] .metric-ring-motion { animation: metricRingTilt 5s ease-in-out infinite; }
+        [data-ring-motion="rotation"] .metric-ring-motion { animation: metricRingRotation var(--ring-turn-duration, 13.8s) linear infinite; }
         @keyframes metricRingFirework {
             0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(.25); }
             4% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -981,7 +1022,65 @@
         .chat-typing-dots i:nth-child(3) { animation-delay: .32s; }
         @keyframes chat-typing-pulse { 0%, 70%, 100% { transform: scale(.7); opacity: .4; } 35% { transform: scale(1.3); opacity: 1; } }
         @media (prefers-reduced-motion: reduce) { .chat-typing-dots i { animation: none; } }
-    </style>
+    .morning-report .report-input { background:#141a22; border:1px solid #475569; border-radius:8px; padding:10px 11px; color:#e2e8f0; font-size:12px; outline:none; }
+.morning-report .report-input:focus { border-color:#94a3b8; box-shadow:0 0 0 2px rgba(148,163,184,.12); }
+.morning-report .report-input:disabled { opacity:.5; }
+.morning-report .report-card { padding:16px; border:1px solid rgba(100,116,139,.4); border-radius:12px; background:rgba(30,41,59,.4); }
+.morning-report .report-field { display:block; font-size:11px; color:#94a3b8; font-weight:600; }
+.morning-report .report-team-details dt { color:#94a3b8; }
+.morning-report .report-team-details dd { min-width:0; overflow-wrap:anywhere; color:#e2e8f0; }
+.morning-report .report-section-heading { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 16px; margin-bottom:12px; }
+.morning-report .report-section-heading h3 { font-size:13px; font-weight:600; color:#e2e8f0; }
+.morning-report .report-section-heading p { font-size:11px; color:#94a3b8; }
+.morning-report .report-table td { padding:10px 12px; }
+.morning-report .report-table .report-read-value { margin-top:0; color:inherit; font-size:inherit; font-weight:inherit; }
+.morning-report .report-edit-only, #morning-report-print-root { display:none; }
+.morning-report.report-is-editing .report-edit-only { display:block; }
+.morning-report.report-is-editing .report-read-value { display:none; }
+.morning-report .report-read-value { display:block; margin-top:12px; color:#e2e8f0; font-size:12px; font-weight:600; }
+.morning-report-export .report-edit-only, .morning-report-export .report-controls { display:none !important; }
+.morning-report-export .report-read-value { display:block !important; }
+.morning-report-export .report-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.morning-report-export .report-team-grid, .morning-report-export .report-check-grid, .morning-report-export .report-topic-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.morning-report-export .report-metrics-grid { grid-template-columns:repeat(5,minmax(0,1fr)); }
+.morning-report-export .report-table { min-width:0; }
+.morning-report-export .report-table-scroll { overflow:hidden; }
+.morning-report-export .report-header { padding:24px; }
+.morning-report-export .report-body { padding:24px; }
+@media print {
+    @page { size:letter portrait; margin:.4in; }
+    body.morning-report-printing > :not(#morning-report-print-root) { display:none !important; }
+    body.morning-report-printing { background:white !important; color:#111 !important; }
+    #morning-report-print-root { display:block; font-family:Arial,sans-serif; }
+    #morning-report-print-root #morning-report { border:0; background:white; border-radius:0; color:#111; }
+    #morning-report-print-root * { color:#111 !important; background:transparent !important; box-shadow:none !important; text-shadow:none !important; animation:none !important; }
+    #morning-report-print-root .report-edit-only, #morning-report-print-root .report-controls { display:none !important; }
+    #morning-report-print-root .report-read-value { display:block !important; }
+    #morning-report-print-root .report-header { padding:0 0 12px; margin-bottom:8px; border-color:#bbb; }
+    #morning-report-print-root .report-body { padding:0; }
+    #morning-report-print-root .report-body > section { margin-top:14px; }
+    #morning-report-print-root .report-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    #morning-report-print-root .report-team-grid, #morning-report-print-root .report-check-grid, #morning-report-print-root .report-topic-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+    #morning-report-print-root .report-metrics-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }
+    #morning-report-print-root .report-card, #morning-report-print-root .report-stat { padding:10px; border:1px solid #ccc; border-radius:6px; break-inside:avoid; }
+    #morning-report-print-root .report-team-details { margin-top:0; font-size:9px; grid-template-columns:51px 1fr; gap:4px; }
+    #morning-report-print-root .report-card h3 { font-size:10px; }
+    #morning-report-print-root .report-check { font-size:10px; }
+    #morning-report-print-root .report-print-time, #morning-report-print-root .report-check strong, #morning-report-print-root .report-topic-grid .report-read-value { margin-top:8px; font-size:10px; font-weight:600; }
+    #morning-report-print-root .report-example-label { font-size:9px; margin-top:4px; }
+    #morning-report-print-root .report-stat > div:last-child { font-size:16px; }
+    #morning-report-print-root .report-section-heading { margin-bottom:8px; }
+    #morning-report-print-root .report-section-heading h3 { font-size:11px; }
+    #morning-report-print-root .report-section-heading p { font-size:9px; }
+    #morning-report-print-root .report-table-scroll { overflow:visible; border-color:#ccc; border-radius:0; }
+    #morning-report-print-root .report-table { min-width:0; font-size:8px; }
+    #morning-report-print-root .report-table th, #morning-report-print-root .report-table td { padding:6px; border-color:#ccc; }
+    #morning-report-print-root .report-table th { font-size:8px; }
+    #morning-report-print-root thead { display:table-header-group; }
+    #morning-report-print-root tr { break-inside:avoid; }
+}
+
+</style>
     <script>
         (() => {
             // Keep phone overlays above the software keyboard and browser chrome.
@@ -2379,12 +2478,19 @@
             { id:'ember', name:'Ember', detail:'A warm amber glow', swatch:'#fb923c', spread:1.5, brightness:1.08, color:'rgba(255, 175, 90, .85)' },
             { id:'frost', name:'Frost', detail:'A cool icy halo', swatch:'#bae6fd', spread:.6, brightness:1.12, color:'rgba(120, 190, 255, .85)' }
         ];
+        const DASHBOARD_RING_MOVEMENT_STYLES = [
+            {id:'none',name:'Off / Steady'}, {id:'dance',name:'Dance'}, {id:'bounce',name:'Bounce'},
+            {id:'float',name:'Float'}, {id:'sway',name:'Sway'}, {id:'fireworks',name:'Fireworks'},
+            {id:'breathe',name:'Breathe'}, {id:'wobble',name:'Wobble'}, {id:'swing',name:'Swing'},
+            {id:'wave',name:'Wave'}, {id:'hop',name:'Double hop'}, {id:'tilt',name:'3D tilt'},
+            {id:'rotation',name:'Rotation'}
+        ];
         const normalizeDashboardRingSettings = saved => {
             const defaults = defaultDashboardRingSettings(), input = saved || {};
             const number = (key, min, max) => typeof input[key] === 'number' && Number.isFinite(input[key]) ? Math.min(max, Math.max(min, input[key])) : defaults[key];
             const choice = (key, options) => options.includes(input[key]) ? input[key] : defaults[key];
             return { enabled: typeof input.enabled === 'boolean' ? input.enabled : defaults.enabled,
-                motion: choice('motion', ['none','dance','bounce','float','sway','fireworks']), motionInterval: number('motionInterval', 1, 120),
+                motion: choice('motion', DASHBOARD_RING_MOVEMENT_STYLES.map(style => style.id)), motionInterval: number('motionInterval', 1, 120),
                 motionDuration: number('motionDuration', 5, 60), motionStrength: number('motionStrength', 0, 100),
                 glowMode: choice('glowMode', ['off','pulse','steady']), glowStyle: choice('glowStyle', DASHBOARD_RING_LIGHTING_STYLES.map(style => style.id)),
                 glowStrength: number('glowStrength', 0, 100), glowInterval: number('glowInterval', 5, 60),
@@ -2411,7 +2517,8 @@
                 '--ring-light-opacity': String(value.glowStrength / 100),
                 '--ring-glow-interval': `${value.glowInterval}s`, '--ring-lift': `${-3 * value.motionStrength / 30}px`,
                 '--ring-drop': `${2 * value.motionStrength / 30}px`, '--ring-tilt': `${1.2 * value.motionStrength / 30}deg`,
-                '--ring-swell': String(1 + .025 * value.motionStrength / 30) };
+                '--ring-swell': String(1 + .025 * value.motionStrength / 30),
+                '--ring-turn-duration': `${18 - value.motionStrength * .14}s` };
         };
         const getRotatedRingLighting = (settings, step) => {
             if (!settings.enabled || !settings.autoRotate || settings.glowMode === 'off' || settings.glowStrength === 0) return settings;
@@ -2470,7 +2577,7 @@
             return Math.min(desiredScale, 16384 / longestEdge, Math.sqrt((64 * 1024 * 1024) / (width * height)));
         };
 
-        const downloadScreenshotPng = async (element, fileName, options) => {
+        const downloadScreenshotPng = async (element, fileName, options, returnBlob = false) => {
             if (document.fonts?.ready) await document.fonts.ready;
             const scale = getScreenshotScale(options.width, options.height);
             let lastError;
@@ -2490,6 +2597,7 @@
                     if (canvas) { canvas.width = 0; canvas.height = 0; }
                 }
                 if (!blob) continue;
+                if (returnBlob) return blob;
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.download = fileName;
@@ -3095,9 +3203,10 @@
                             <summary className="cursor-pointer text-sm font-bold text-slate-300">More controls</summary>
                             <fieldset disabled={disabled || !settings.enabled} className="mt-4 space-y-5 disabled:opacity-50">
                                 <div className="space-y-4"><h4 className="text-xs font-bold text-slate-200">Glow details</h4><label className="block text-xs font-bold text-slate-300">Temperature: {warmth} {settings.temperature === 0 ? '' : `${Math.abs(settings.temperature)}%`}<input aria-label="Ring glow temperature" type="range" min="-100" max="100" step="5" value={settings.temperature} onInput={event => change({...settings,temperature:Number(event.currentTarget.value)})} className="mt-3 w-full accent-amber-400" /><span className="flex justify-between text-[10px] font-normal text-slate-500 mt-1"><span>Cool</span><span>Neutral</span><span>Warm</span></span></label><label className="block text-xs font-bold text-slate-300">Pulse every {settings.glowInterval} seconds<input aria-label="Ring glow pulse interval" disabled={settings.glowMode !== 'pulse'} type="range" min="5" max="60" step="5" value={settings.glowInterval} onInput={event => change({...settings,glowInterval:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400 disabled:opacity-40" /></label></div>
-                                <div className="border-t border-slate-700 pt-4 space-y-4"><h4 className="text-xs font-bold text-slate-200">Movement</h4><label className="block text-xs font-bold text-slate-300">Movement style<select aria-label="Ring movement style" value={settings.motion} onChange={event => change({...settings,motion:event.target.value})} className={fieldClass}><option value="none">Off / Steady</option><option value="dance">Dance</option><option value="bounce">Bounce</option><option value="float">Float</option><option value="sway">Sway</option><option value="fireworks">Fireworks</option></select></label>
+                                <div className="border-t border-slate-700 pt-4 space-y-4"><h4 className="text-xs font-bold text-slate-200">Movement</h4><label className="block text-xs font-bold text-slate-300">Movement style<select aria-label="Ring movement style" value={settings.motion} onChange={event => change({...settings,motion:event.target.value})} className={fieldClass}>{DASHBOARD_RING_MOVEMENT_STYLES.map(style => <option key={style.id} value={style.id}>{style.name}</option>)}</select></label>
                                     {settings.motion === 'fireworks' && <p className="text-xs text-slate-400">Colorful bursts around each ring. Strength controls their size.</p>}
-                                    <fieldset disabled={settings.motion === 'none'} className="space-y-4 disabled:opacity-40"><label className="block text-xs font-bold text-slate-300">Movement strength: {settings.motionStrength}%<input aria-label="Ring movement strength" type="range" min="0" max="100" step="5" value={settings.motionStrength} onInput={event => change({...settings,motionStrength:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400" /></label><label className="block text-xs font-bold text-slate-300">Repeat every {settings.motionInterval === 60 ? '1 hour' : `${settings.motionInterval} minutes`}<input aria-label="Ring movement repeat interval" type="range" min="1" max="120" step="1" value={settings.motionInterval} onInput={event => change({...settings,motionInterval:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400" /></label><label className="block text-xs font-bold text-slate-300">Move for {settings.motionDuration} seconds<input aria-label="Ring movement duration" type="range" min="5" max="60" step="5" value={settings.motionDuration} onInput={event => change({...settings,motionDuration:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400" /></label></fieldset>
+                                    {settings.motion === 'rotation' && <p className="text-xs text-slate-400">Slow clockwise rotation. Speed controls how fast the ring turns; scores stay upright.</p>}
+                                    <fieldset disabled={settings.motion === 'none'} className="space-y-4 disabled:opacity-40"><label className="block text-xs font-bold text-slate-300">{settings.motion === 'rotation' ? 'Rotation speed' : 'Movement strength'}: {settings.motionStrength}%<input aria-label="Ring movement strength" type="range" min="0" max="100" step="5" value={settings.motionStrength} onInput={event => change({...settings,motionStrength:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400" /></label><label className="block text-xs font-bold text-slate-300">Repeat every {settings.motionInterval === 60 ? '1 hour' : `${settings.motionInterval} minutes`}<input aria-label="Ring movement repeat interval" type="range" min="1" max="120" step="1" value={settings.motionInterval} onInput={event => change({...settings,motionInterval:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400" /></label><label className="block text-xs font-bold text-slate-300">Move for {settings.motionDuration} seconds<input aria-label="Ring movement duration" type="range" min="5" max="60" step="5" value={settings.motionDuration} onInput={event => change({...settings,motionDuration:Number(event.currentTarget.value)})} className="mt-3 w-full accent-indigo-400" /></label></fieldset>
                                     <label className="block text-xs font-bold text-slate-300">Mouse hover<select aria-label="Ring hover effect" value={settings.hoverEffect} onChange={event => change({...settings,hoverEffect:event.target.value})} className={fieldClass}><option value="none">Off / Steady</option><option value="highlight">Highlight score</option><option value="expand">Expand ring</option></select></label>
                                 </div>
                                 <label className="block border-t border-slate-700 pt-4 text-xs font-bold text-slate-300">Full ring presets<select aria-label="Ring look preset" value={preset} onChange={event => change({...DASHBOARD_RING_PRESETS.find(item => item.id === event.target.value).settings})} className={fieldClass}><option value="custom" disabled>Custom look</option>{DASHBOARD_RING_PRESETS.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
@@ -3240,6 +3349,204 @@
         };
 
 
+// Morning Report selections are saved with the selected day’s Overview data.
+const MORNING_MEETING_TOPICS = [
+    'Survey average', 'Survey count', 'On-time delivery', 'Accountability',
+    'Approaching customers', 'Delivery completion', 'Exchange rate',
+    'Uniforms and badges', 'Handling furniture with care', 'Delivery photos',
+    'How to treat customers', 'Route preparation'
+];
+const getMorningMeetingTopics = date => {
+    const day = Math.floor(Date.parse(date + 'T12:00:00Z') / 86400000);
+    const offset = ((day % MORNING_MEETING_TOPICS.length) + MORNING_MEETING_TOPICS.length) % MORNING_MEETING_TOPICS.length;
+    return [0, 1, 2].map(index => MORNING_MEETING_TOPICS[(offset + index * 3) % MORNING_MEETING_TOPICS.length]);
+};
+const getMorningReport = (data, date) => ({
+    nextDayArrival: { routeId: '', time: '' }, thresholdArrival: { routeId: '', time: '' },
+    lastOffDock: { routeId: '', time: '' }, doorInspection: 'Yes', uniformBadges: 'Yes',
+    standUpMeeting: 'Yes', urgentNotes: '',
+    ...(data.loadout?.morningReport || {}),
+    assignmentOverrides: data.loadout?.morningReport?.assignmentOverrides || {},
+    topics: Array.isArray(data.loadout?.morningReport?.topics) && data.loadout.morningReport.topics.length === 3 ? data.loadout.morningReport.topics : getMorningMeetingTopics(date)
+});
+const morningTeamLabel = route => 'Door ' + (route.door || '—') + ' · ' +
+    [route.driver || 'Driver unassigned', route.helper || 'Helper unassigned'].join(' / ');
+const getMorningReportSubject = date => {
+    const [year, month, day] = date.split('-');
+    return 'LSF PFL Morning Report ' + month + '.' + day + ',' + year;
+};
+const MorningReportTime = ({value, onChange, label}) => {
+    const [hour = '', minute = '00'] = String(value || '').split(':');
+    const hourNumber = Number(hour), period = hourNumber >= 12 ? 'PM' : 'AM';
+    const setHour = (displayHour, nextPeriod = period, nextMinute = minute) => {
+        if (!displayHour) return onChange('');
+        const h = Number(displayHour) % 12 + (nextPeriod === 'PM' ? 12 : 0);
+        onChange(String(h).padStart(2, '0') + ':' + nextMinute);
+    };
+    return <div className="report-time flex gap-2">
+        <select aria-label={label + ' hour'} value={value ? String(hourNumber % 12 || 12) : ''} onChange={event => setHour(event.target.value)} className="report-input min-w-0 flex-1">
+            <option value="">Hour</option>{Array.from({length:12}, (_,i) => <option key={i+1} value={i+1}>{i+1}</option>)}
+        </select>
+        <select aria-label={label + ' minute'} value={minute} disabled={!value} onChange={event => setHour(hourNumber % 12 || 12, period, event.target.value)} className="report-input min-w-0 flex-1">
+            {Array.from({length:60},(_,i) => <option key={i} value={String(i).padStart(2,'0')}>{String(i).padStart(2,'0')}</option>)}
+        </select>
+        <select aria-label={label + ' AM or PM'} value={period} disabled={!value} onChange={event => setHour(hourNumber % 12 || 12, event.target.value)} className="report-input min-w-0 flex-1"><option>AM</option><option>PM</option></select>
+    </div>;
+};
+// Pass the pending PNG to the clipboard immediately after the click. This
+// preserves the user gesture while the full-resolution screenshot is rendered.
+const copyMorningReportImage = async createImage => {
+    if (!navigator.clipboard?.write || !window.ClipboardItem || (ClipboardItem.supports && !ClipboardItem.supports('image/png'))) throw new Error('Image copying is unavailable.');
+    const image = createImage();
+    image.catch(() => {});
+    await navigator.clipboard.write([new ClipboardItem({'image/png':image})]);
+};
+const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateString, isEditing, reportRef, onCapture, onCopyImage, isCapturing, contractors}) => {
+    const report = getMorningReport(data, activeDate);
+    const [subjectCopyStatus, setSubjectCopyStatus] = useState('');
+    const [isPreparingEmail, setIsPreparingEmail] = useState(false);
+    const [copiedEmailSubject, setCopiedEmailSubject] = useState('');
+    useEffect(() => { setSubjectCopyStatus(''); setCopiedEmailSubject(''); }, [activeDate]);
+    const subject = getMorningReportSubject(activeDate);
+    const copySubject = async () => {
+        try {
+            if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(subject);
+            else {
+                const field = document.createElement('textarea');
+                field.value = subject; field.style.position = 'fixed'; field.style.left = '-10000px';
+                document.body.appendChild(field);
+                try { field.select(); if (!document.execCommand('copy')) throw new Error('Copy unavailable'); }
+                finally { field.remove(); }
+            }
+            setSubjectCopyStatus('Subject copied');
+        } catch { setSubjectCopyStatus('Copy unavailable. Select the subject below to copy it.'); }
+    };
+    const rows = getCountableRouteRows(data);
+    const morningRows = rows.filter(route => !isSameDayRoute(route));
+    const assignedRows = morningRows.filter(route => route.driver || route.helper);
+    const thresholdRows = assignedRows.filter(route => /\bthreshold\b/i.test(route.route || ''));
+    const nextDayRows = assignedRows.filter(route => !/\bthreshold\b/i.test(route.route || ''));
+    const update = (field,value) => isEditing && setData(previous => ({...previous, loadout:{...previous.loadout,
+        morningReport:{...getMorningReport(previous,activeDate),[field]:value}}}));
+    const updateAssignment = (routeId, field, value) => {
+        if (!isEditing || isCapturing) return;
+        setData(previous => {
+            const savedReport = getMorningReport(previous, activeDate);
+            const assignmentOverrides = {...savedReport.assignmentOverrides};
+            const row = {...assignmentOverrides[routeId]};
+            if ((field === 'contractor' && value === '') || (field === 'uniform' && value === 'Yes')) delete row[field];
+            else row[field] = value;
+            if (Object.keys(row).length) assignmentOverrides[routeId] = row;
+            else delete assignmentOverrides[routeId];
+            return {...previous, loadout:{...previous.loadout, morningReport:{...savedReport, assignmentOverrides}}};
+        });
+    };
+    const chooseTeam = (field,routeId) => {
+        const route = rows.find(row => String(row.id) === routeId);
+        update(field,{...report[field],routeId,driver:route?.driver || '',helper:route?.helper || '',contractor:route?.contractor || '',door:route?.door || ''});
+    };
+    const createOutlookEmail = async () => {
+        if (isPreparingEmail || isCapturing) return;
+        setIsPreparingEmail(true);
+        setCopiedEmailSubject('');
+        try {
+            await copyMorningReportImage(onCopyImage);
+            
+            setSubjectCopyStatus('Report image copied. Paste it into the Outlook message body.');
+            setCopiedEmailSubject(subject);
+            const link = document.createElement('a');
+            link.href = 'mailto:?subject=' + encodeURIComponent(subject);
+            document.body.appendChild(link);
+            try { link.click(); } finally { link.remove(); }
+        } catch {
+            setSubjectCopyStatus('The report image could not be copied. Try again, or use the camera to download the same image and insert it in Outlook.');
+        } finally { setIsPreparingEmail(false); }
+    };
+    const teamCheck = (field,title,options) => {
+        const selection = report[field] || {};
+        const current = rows.find(row => String(row.id) === selection.routeId);
+        const team = current || selection;
+        return <section className="report-card min-w-0" key={field}>
+            <div className="flex items-center gap-2 mb-4"><Clock className="h-4 w-4 text-slate-400" /><h3 className="text-sm font-semibold text-slate-100">{title}</h3></div>
+            <label className="report-field report-edit-only">Team<select aria-label={title + ' team'} className="report-input w-full mt-2" value={selection.routeId || ''} onChange={event => chooseTeam(field,event.target.value)}>
+                <option value="">Select a team</option>
+                {selection.routeId && !options.some(row=>String(row.id)===selection.routeId) && <option value={selection.routeId}>{morningTeamLabel(team)}</option>}
+                {options.map(row => <option key={row.id} value={row.id}>{morningTeamLabel(row)}</option>)}
+            </select></label>
+            <dl className="report-team-details grid grid-cols-[68px_1fr] gap-x-3 gap-y-2 mt-4 text-xs">
+                <dt>Driver</dt><dd>{team.driver || '—'}</dd><dt>Helper</dt><dd>{team.helper || '—'}</dd>
+                <dt>Contractor</dt><dd>{team.contractor || '—'}</dd><dt>Door</dt><dd>{team.door || '—'}</dd>
+            </dl>
+            <div className="report-edit-only mt-5"><div className="report-field mb-2">{field === 'lastOffDock' ? 'Departure time' : 'Arrival time'}</div>
+                <MorningReportTime label={title} value={selection.time || ''} onChange={time=>update(field,{...selection,time})} />
+            </div>
+            <p className="report-read-value report-print-time">{field === 'lastOffDock' ? 'Departure' : 'Arrival'}: {selection.time ? formatTime(selection.time) : '—'}</p>
+        </section>;
+    };
+    return <div className="morning-report animate-in fade-in duration-300">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs text-slate-400"><p>{isEditing ? 'Choose teams, times, and checks, then use Save above.' : 'Routes and MTD scores fill automatically. Double-click empty space or use the pencil above to edit.'}</p><p className="mt-2 select-text">Subject: {subject}</p><p role="status" className="mt-1 text-emerald-300">{subjectCopyStatus}{copiedEmailSubject && <> <a className="underline hover:text-white" href={'mailto:?subject='+encodeURIComponent(copiedEmailSubject)}>Open Outlook</a></>}</p></div>
+            <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={copySubject} className="px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg border border-slate-600 bg-slate-700/50">Copy Subject</button>
+                <button type="button" onClick={onCapture} disabled={isCapturing} title="Download Morning Report Screenshot" aria-label="Download Morning Report Screenshot" className="p-2 text-slate-300 hover:text-white disabled:opacity-50 rounded-lg border border-slate-600 bg-slate-700/50"><Camera className="h-4 w-4" /></button>
+                <button type="button" onClick={createOutlookEmail} disabled={isPreparingEmail || isCapturing} aria-label="Create Outlook Email" title="Copy the full report image and open an email draft" className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-700/50 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-700 disabled:opacity-50"><FileText className="h-4 w-4" />{isPreparingEmail ? 'Copying…' : 'Outlook Email'}</button>
+            </div>
+        </div>
+        <article ref={reportRef} id="morning-report" data-morning-report-screenshot="true" className={(isEditing ? 'report-is-editing ' : '') + "morning-report overflow-hidden rounded-2xl border border-slate-600/50 bg-[#1b1f25]"}>
+            <header className="report-header flex flex-wrap items-center justify-between gap-3 border-b border-slate-600/40 px-5 py-5 md:px-6">
+                <div className="flex items-center gap-3"><FileText className="h-7 w-7 text-slate-200" /><div><h2 className="text-xl font-bold text-white">LSF PFL Morning Report</h2><p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Geodis Final Mile · Pflugerville</p></div></div>
+                <div className="text-xs font-medium text-slate-300">{displayDateString}</div>
+            </header>
+            <div className="report-body space-y-6 p-5 md:p-6">
+                <section aria-label="Morning route summary" className="report-summary grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[['Next Day Total routes',morningRows.length],['Trucks on the road',morningRows.length]].map(([label,value])=><div key={label} className="report-stat rounded-xl border border-slate-600/40 bg-slate-800/50 px-4 py-3"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</div><div className="mt-2 text-2xl font-bold text-slate-100">{value}</div></div>)}
+                </section>
+                <section><div className="report-section-heading"><h3>Last team checks</h3><p>Last arriving teams and final dock departure.</p></div>
+                    <div className="report-team-grid grid grid-cols-1 lg:grid-cols-3 gap-3">{teamCheck('nextDayArrival','Next Day route arrival',nextDayRows)}{teamCheck('thresholdArrival','Threshold route arrival',thresholdRows)}{teamCheck('lastOffDock','Last team off the dock',assignedRows)}</div>
+                </section>
+                <section><div className="report-section-heading"><h3>Morning checks</h3></div>
+                    <div className="report-check-grid grid grid-cols-1 md:grid-cols-3 gap-3">{[['doorInspection','Door inspection performed?'],['uniformBadges','All teams in uniform with badges?'],['standUpMeeting','Stand-up meeting with all teams?']].map(([field,label])=><label key={field} className="report-card report-check text-sm text-slate-200"><span>{label}</span><select aria-label={label} value={report[field]} onChange={event=>update(field,event.target.value)} className="report-input report-edit-only mt-3 w-full"><option>Yes</option><option>No</option></select><strong className="report-read-value">{report[field]}</strong></label>)}</div>
+                </section>
+                <section><div className="report-section-heading"><h3>Today's meeting topics</h3><p>Three suggestions rotate daily. Change them to match what was discussed.</p></div>
+                    <div className="report-topic-grid grid grid-cols-1 md:grid-cols-3 gap-3">{report.topics.map((topic,index)=><label key={index} className="report-card report-field">Topic {index+1}<select aria-label={'Meeting topic '+(index+1)} className="report-input report-edit-only mt-3 w-full" value={topic} onChange={event=>update('topics',report.topics.map((value,i)=>i===index?event.target.value:value))}>{MORNING_MEETING_TOPICS.map(option=><option key={option} disabled={option!==topic&&report.topics.includes(option)}>{option}</option>)}</select><span className="report-read-value">{topic}</span></label>)}</div>
+                </section>
+                <section><div className="report-section-heading"><h3>Month-to-date scores</h3><p>From the MTD scores entered in Metrics.</p></div>
+                    <div className="report-metrics-grid grid grid-cols-2 md:grid-cols-5 gap-3">{[['Survey count','surveyCnt',''],['Survey average','surveyAvg',''],['On-time delivery','onTime','%'],['Completion','completion','%'],['Exchange rate','exchange','%']].map(([label,key,suffix])=><div key={key} className="report-stat rounded-xl border border-slate-600/40 bg-slate-800/50 px-4 py-3"><div className="text-[10px] font-semibold text-slate-400">{label}</div><div className={'mt-2 text-xl font-bold '+(key==='exchange'?'text-amber-300':'text-emerald-400')}>{metricsTotals ? (key==='surveyCnt'?metricsTotals[key]:Number(metricsTotals[key]||0).toFixed(2))+suffix : '—'}</div></div>)}</div>
+                </section>
+                <section><div className="flex flex-wrap items-center justify-between gap-3 mb-3"><div className="report-section-heading !mb-0"><h3>Route assignments</h3><p>Door, contractor, driver, and helper from Routes.</p></div>
+                    {isEditing && <p className="report-edit-only text-xs text-slate-400">Edits apply only to this report. Use Save above.</p>}
+                </div>
+                    <div className="report-table-scroll overflow-x-auto rounded-xl border border-slate-600/40">
+                        <table className="report-table w-full min-w-[740px] text-left text-xs"><thead className="bg-slate-900/60 text-[10px] uppercase tracking-wider text-slate-400"><tr>{['Door','Route','Contractor business','Driver','Helper','Uniform'].map(label=><th key={label} className="px-3 py-3 font-semibold">{label}</th>)}</tr></thead>
+                            <tbody>{rows.map(route=>{
+                                const override = report.assignmentOverrides[route.id] || {};
+                                const contractor = override.contractor ?? route.contractor ?? '';
+                                const uniform = override.uniform === 'No' ? 'No' : 'Yes';
+                                const contractorNames = [...new Set([...(contractors || []).map(item=>item.name), override.contractor].filter(Boolean))];
+                                const rowLabel = route.route || 'Door ' + (route.door || 'unassigned');
+                                return <tr key={route.id} className="border-t border-slate-600/30 text-slate-200"><td>{route.door||'—'}</td><td>{route.route||'—'}</td><td>
+                                    <select aria-label={'Report contractor for '+rowLabel} value={override.contractor ?? ''} disabled={!isEditing || isCapturing} onChange={event=>updateAssignment(route.id,'contractor',event.target.value)} className="report-input report-edit-only w-full"><option value="">Use Routes: {route.contractor || 'Unassigned'}</option>{contractorNames.map(name=><option key={name} value={name}>{name}</option>)}</select>
+                                    <span className="report-read-value">{contractor||'—'}</span>
+                                </td><td>{route.driver||'—'}</td><td>{route.helper||'—'}</td><td className={uniform==='Yes'?'text-emerald-400':'text-amber-300'}>
+                                    <select aria-label={'Report uniform for '+rowLabel} value={uniform} disabled={!isEditing || isCapturing} onChange={event=>updateAssignment(route.id,'uniform',event.target.value)} className="report-input report-edit-only w-full"><option>Yes</option><option>No</option></select>
+                                    <span className="report-read-value">{uniform}</span>
+                                </td></tr>;
+                            })}</tbody>
+                        </table>
+                    </div>
+                </section>
+                <section aria-labelledby="morning-report-urgent-notes-heading">
+                    <div className="report-section-heading"><h3 id="morning-report-urgent-notes-heading">Urgent Notes</h3><p>Explain delays, missing name badges, or other issues.</p></div>
+                    <div className="report-card">
+                        <textarea aria-label="Morning Report urgent notes" className="report-input report-edit-only w-full resize-y" rows={4} placeholder="Explain a delay or why a driver or helper does not have a name badge…" value={report.urgentNotes || ''} disabled={!isEditing || isCapturing} onChange={event=>update('urgentNotes',event.target.value)} />
+                        <p className="report-read-value !mt-0 !font-normal whitespace-pre-wrap break-words">{report.urgentNotes || 'No urgent notes added.'}</p>
+                    </div>
+                </section>
+            </div>
+        </article>
+    </div>;
+};
+
         const App = () => {
             const [user, setUser] = useState(null);
             const isAdminUser = isOwnerAccount(user);
@@ -3317,10 +3624,11 @@
             const [isEditingName, setIsEditingName] = useState(false);
             const [isEditMode, setIsEditing] = useState(false);
             const [activeTab, setActiveTab] = useState('overview');
+            const [routesSubTab, setRoutesSubTab] = useState('table');
             const ringMotionActive = useMetricRingMotion({ ...savedDashboardRings, enabled: savedDashboardRings.enabled && ringSettingsLoaded && activeTab === 'overview' });
             const displayedDashboardRings = useMetricRingLighting(savedDashboardRings, ringSettingsLoaded && activeTab === 'overview');
             const canEditSection = section => accountHasPermission(user, ({ notes: 'shiftNotes', driverHub: 'preload' })[section] || section, accessProfile);
-            const activeEditPermission = ({ notes: 'shiftNotes', driverHub: 'preload' })[activeTab] || activeTab;
+            const activeEditPermission = activeTab === 'routes' && routesSubTab === 'morning-report' ? 'overview' : (({ notes: 'shiftNotes', driverHub: 'preload' })[activeTab] || activeTab);
             const isEditing = isEditMode && accountHasPermission(user, activeEditPermission, accessProfile);
             const [isCapturing, setIsCapturing] = useState(false);
             const [isLoading, setIsLoading] = useState(true);
@@ -3372,6 +3680,7 @@
             const preloadScreenshotRef = useRef(null);
             const masterScreenshotRef = useRef(null);
             const routesScreenshotRef = useRef(null);
+            const morningReportScreenshotRef = useRef(null);
             const metricsScreenshotRef = useRef(null);
             const bonusScreenshotRef = useRef(null);
             const lastUserActivityRef = useRef(Date.now());
@@ -4361,7 +4670,7 @@
             const isDashboardBackgroundEvent = (event, allowDoubleClickSelection = false) => {
                 if (!user || isLoading || isCapturing || dashboardSaveInFlightRef.current || event.defaultPrevented) return false;
                 if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
-                if (isTeamTasksOpen || isSettingsOpen || isPreloadModalOpen || isParkingModalOpen || isMasterModalOpen || recordToDelete || isCreatingDriverCall || isHeaderCalendarOpen || !canEditSection(activeTab)) return false;
+                if (isTeamTasksOpen || isSettingsOpen || isPreloadModalOpen || isParkingModalOpen || isMasterModalOpen || recordToDelete || isCreatingDriverCall || isHeaderCalendarOpen || !canEditSection(activeEditPermission)) return false;
                 if (!allowDoubleClickSelection && window.getSelection()?.toString().trim()) return false;
 
                 const target = event.target;
@@ -5037,15 +5346,20 @@
                 }, 600); 
             };
 
-            const downloadPanelScreenshot = async (element, fileName) => {
-                if (!window.html2canvas || !element || isCapturing) return;
+            const downloadPanelScreenshot = async (element, fileName, output = 'download') => {
+                if (!window.html2canvas || !element || isCapturing) {
+                    if (output === 'blob') throw new Error('Screenshot is not ready.');
+                    return;
+                }
                 setIsCapturing(true);
                 let screenshotClone = null;
+                return new Promise((resolve, reject) => {
                 setTimeout(async () => {
                     try {
                         const isMasterPanel = element.matches('[data-master-screenshot-panel="true"]');
                         const isPreloadTable = element.matches('[data-preload-screenshot-table="true"]');
-                        const baseWidth = Math.ceil(isMasterPanel
+                        const isMorningReport = element.matches('[data-morning-report-screenshot="true"]');
+                        const baseWidth = Math.ceil(isMorningReport ? Math.max(1100, element.getBoundingClientRect().width) : isMasterPanel
                             ? element.getBoundingClientRect().width
                             : Math.max(element.offsetWidth, element.scrollWidth, element.getBoundingClientRect().width));
                         screenshotClone = element.cloneNode(true);
@@ -5074,6 +5388,11 @@
                         screenshotClone.querySelectorAll('[data-panel-screenshot-only="true"], [data-master-screenshot-only="true"]').forEach(node => {
                             node.style.display = 'flex';
                         });
+                        if (isMorningReport) {
+                            screenshotClone.classList.add('morning-report-export');
+                            screenshotClone.querySelectorAll('.report-edit-only').forEach(node => node.style.setProperty('display', 'none', 'important'));
+                            screenshotClone.querySelectorAll('.report-read-value').forEach(node => node.style.setProperty('display', 'block', 'important'));
+                        }
                         if (isPreloadTable) {
                             // Export the currently selected values as text, without dropdown arrows or inputs.
                             const liveControls = element.querySelectorAll('input, select, button');
@@ -5093,7 +5412,7 @@
                         }
                         // The master panel's scrolling parent is outside this copy. Preserve
                         // its card clipping and progress-bar heights instead of opening them.
-                        if (!isMasterPanel) screenshotClone.querySelectorAll('[class*="overflow"], [style*="overflow"], [class*="max-h"], [class*="h-full"], [class*="flex-1"], [class*="min-h-0"]').forEach(node => {
+                        if (!isMasterPanel && !isMorningReport) screenshotClone.querySelectorAll('[class*="overflow"], [style*="overflow"], [class*="max-h"], [class*="h-full"], [class*="flex-1"], [class*="min-h-0"]').forEach(node => {
                             node.style.overflow = 'visible';
                             node.style.maxHeight = 'none';
                             node.style.height = 'auto';
@@ -5108,14 +5427,14 @@
                         await new Promise(resolve => requestAnimationFrame(resolve));
                         await new Promise(resolve => setTimeout(resolve, 80));
                         const captureRect = screenshotClone.getBoundingClientRect();
-                        const captureWidth = Math.ceil(isMasterPanel || isPreloadTable
+                        const captureWidth = Math.ceil(isMasterPanel || isPreloadTable || isMorningReport
                             ? captureRect.width
                             : Math.max(screenshotClone.scrollWidth, captureRect.width, baseWidth));
-                        const captureHeight = isMasterPanel || isPreloadTable
+                        const captureHeight = isMasterPanel || isPreloadTable || isMorningReport
                             ? Math.ceil(captureRect.height)
                             : Math.ceil(Math.max(screenshotClone.scrollHeight, captureRect.height)) + 6;
-                        await downloadScreenshotPng(screenshotClone, fileName, {
-                            backgroundColor: isPreloadTable ? null : SCREENSHOT_BACKGROUND,
+                        const image = await downloadScreenshotPng(screenshotClone, fileName, {
+                            backgroundColor: isPreloadTable || isMorningReport ? null : SCREENSHOT_BACKGROUND,
                             useCORS: true,
                             logging: false,
                             allowTaint: true,
@@ -5125,18 +5444,22 @@
                             height: captureHeight,
                             windowWidth: captureWidth,
                             windowHeight: captureHeight
-                        });
+                        }, output === 'blob');
+                        resolve(image);
                     } catch (err) {
                         console.error('Screenshot export failed:', err);
-                        window.alert('The screenshot could not be downloaded. Please try again.');
+                        if (output === 'blob') reject(err);
+                        else { window.alert('The screenshot could not be downloaded. Please try again.'); resolve(); }
                     } finally {
                         if (screenshotClone && screenshotClone.parentNode) screenshotClone.parentNode.removeChild(screenshotClone);
                         setIsCapturing(false);
                     }
                 }, 200);
+                });
             };
 
             const handleDownloadRoutesScreenshot = () => downloadPanelScreenshot(routesScreenshotRef.current, `Geodis-Routes-Table-${activeDate}.png`);
+            const handleDownloadMorningReportScreenshot = () => downloadPanelScreenshot(morningReportScreenshotRef.current, `Morning-Report-${activeDate}.png`);
             const handleDownloadMetricsScreenshot = () => downloadPanelScreenshot(metricsScreenshotRef.current, `Geodis-Metrics-${metricsSubTab.toUpperCase()}-${activeDate}.png`);
             const handleDownloadBonusScreenshot = () => {
                 const bonusWeek = getBonusWeekBoundaries(activeDate);
@@ -6505,10 +6828,13 @@
                 return '';
             };
 
-            const hasUnsavedDashboardChanges = useMemo(() => {
-                const snapshot = dailySnapshotRef.current;
-                return officeDirtyRef.current || bonusDirtyRef.current || (snapshot.date === activeDate && describeSavedChanges(snapshot.data || {}, data).length > 0);
-            }, [data, activeDate, officeData, bonusData]);
+            const savedDailySnapshot = dailySnapshotRef.current;
+            const hasUnsavedDailyChanges = useMemo(() =>
+                savedDailySnapshot.date === activeDate && describeSavedChanges(savedDailySnapshot.data || {}, data).length > 0,
+                [data, activeDate, savedDailySnapshot]);
+            // Save completion clears these refs without changing Office/Bonus
+            // state again, so their current flags must be read on every render.
+            const hasUnsavedDashboardChanges = officeDirtyRef.current || bonusDirtyRef.current || hasUnsavedDailyChanges;
             const dashboardSaveStatus = getDashboardSaveStatus({
                 online: isBrowserOnline, connection: dashboardConnection,
                 pending: saveActivity.pending, pendingWrites: dashboardPendingWrites,
@@ -6821,7 +7147,7 @@
                                                         const seenNames = [...readersByUid.values()].filter(entry => entry.uid !== user?.uid)
                                                             .map(entry => masterLists.nameOverrides?.[entry.uid] || entry.name || 'User');
                                                         return (
-                                                            <div key={message.id || message.timestamp} ref={isNewestUnread ? teamChatUnreadTargetRef : null} data-chat-message-owner={mine ? 'self' : 'other'} className={`flex min-w-0 ${mine ? 'justify-end' : 'justify-start'}`}>
+                                                            <div key={message.id || message.timestamp} ref={isNewestUnread ? teamChatUnreadTargetRef : null} data-chat-message-id={messageKey} data-chat-message-owner={mine ? 'self' : 'other'} className={`flex min-w-0 ${mine ? 'justify-end' : 'justify-start'}`}>
                                                                 <div className={`group min-w-0 max-w-[90%] py-1 text-slate-100 ${mine ? 'text-right' : 'text-left'} ${editingChatId === message.id ? 'w-full' : ''}`}>
                                                                     <div className={`mb-1 flex items-center justify-between gap-3 ${mine ? 'flex-row-reverse' : ''}`}>
                                                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{mine ? 'You' : String(message.author || 'Team')}</span>
@@ -6839,7 +7165,7 @@
                                                                             </div>
                                                                         </div>
                                                                     ) : (
-                                                                        <div>
+                                                                        <div data-chat-message-body className="min-w-0">
                                                                             <ChatMessageText text={message.text} />
                                                                             {message.attachment && !message.pending && <ChatAttachmentCard attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={isTeamChatOpen} onPreview={setChatFilePreview} />}
                                                                             {message.pending && <span className="text-[9px] text-slate-400">Sending…</span>}
@@ -6869,7 +7195,7 @@
                                 <button onClick={handleDownloadScreenshot} className="p-1 bg-transparent border-0 text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer" title="Download Screenshot">
                                     <Camera className="w-4 h-4" />
                                 </button>
-                                <button disabled={!isEditMode && !canEditSection(activeTab)} onClick={() => { if (!dashboardSaveInFlightRef.current) { isEditMode ? handleSave() : canEditSection(activeTab) && setIsEditing(true); } }} className={`p-1 bg-transparent border-0 transition-all flex items-center justify-center cursor-pointer ${isEditing ?"text-emerald-300" :"text-slate-300 hover:text-white"}`} title={isEditing ?"Save Changes" :"Edit Dashboard"}>
+                                <button disabled={!isEditMode && !canEditSection(activeEditPermission)} onClick={() => { if (!dashboardSaveInFlightRef.current) { isEditMode ? handleSave() : canEditSection(activeEditPermission) && setIsEditing(true); } }} className={`p-1 bg-transparent border-0 transition-all flex items-center justify-center cursor-pointer ${isEditing ?"text-emerald-300" :"text-slate-300 hover:text-white"}`} title={isEditing ?"Save Changes" :"Edit Dashboard"}>
                                     {isEditing ? <Save className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
                                 </button>
                             <div data-header-calendar="true" className="dashboard-header-date relative flex items-center justify-center px-2 text-slate-300 font-bold text-xs bg-[radial-gradient(ellipse_at_center,rgba(15,23,42,0.50)_0%,rgba(15,23,42,0.34)_30%,rgba(15,23,42,0)_58%)]">
@@ -7355,16 +7681,21 @@
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap items-center justify-end gap-3">
-                                        <button onClick={() => setIsRoutesFullscreen(!isRoutesFullscreen)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title={isRoutesFullscreen ?"Restore Size" :"Maximize"}>
+                                        {routesSubTab === 'table' && <><button onClick={() => setIsRoutesFullscreen(!isRoutesFullscreen)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title={isRoutesFullscreen ?"Restore Size" :"Maximize"}>
                                             {isRoutesFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
                                         <button onClick={handleDownloadRoutesScreenshot} disabled={(!data.routeTable || data.routeTable.length === 0)} className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer" title="Download Routes Screenshot">
                                             <Camera className="w-4 h-4" />
                                         </button>
+                                        </>}
+                                        <nav aria-label="Routes sections" className="flex items-center gap-1 rounded-lg border border-slate-600/50 p-1">
+                                            <button type="button" aria-pressed={routesSubTab === 'table'} onClick={() => setRoutesSubTab('table')} className={"rounded-md px-3 py-2 text-xs font-semibold " + (routesSubTab === 'table' ? 'bg-slate-600/70 text-white' : 'text-slate-400 hover:text-white')}>Route Table</button>
+                                            <button type="button" aria-pressed={routesSubTab === 'morning-report'} onClick={() => { setRoutesSubTab('morning-report'); setIsRoutesFullscreen(false); }} className={"inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold " + (routesSubTab === 'morning-report' ? 'bg-slate-600/70 text-white' : 'text-slate-400 hover:text-white')}><FileText className="w-3.5 h-3.5" />Morning Report</button>
+                                        </nav>
                                         <button onClick={exportCurrentRoutesToCSV} disabled={(!data.routeTable || data.routeTable.length === 0)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-900/40 cursor-pointer">
                                             <Download className="w-4 h-4" /> Export CSV
                                         </button>
-                                        {isEditing && (
+                                        {isEditing && routesSubTab === 'table' && (
                                             <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newRow = { id: Date.now().toString() }; ROUTE_COLUMNS.forEach(col => { newRow[col.key] = col.type === 'checkbox' ? false : ''; }); nd.routeTable.push(newRow); setData(nd); }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-900/40 cursor-pointer">
                                                 <PlusCircle className="w-4 h-4" /> Add Route Row
                                             </button>
@@ -7372,6 +7703,9 @@
                                     </div>
                                 </div>
 
+                                {routesSubTab === 'morning-report' ? (
+                                    <MorningReport data={data} activeDate={activeDate} setData={setData} displayDateString={displayDateString} metricsTotals={data.metricsTracker?.mtdTotals || calculateMetricsTotals(data.metricsTracker?.mtd)} isEditing={isEditing} reportRef={morningReportScreenshotRef} onCapture={handleDownloadMorningReportScreenshot} onCopyImage={() => downloadPanelScreenshot(morningReportScreenshotRef.current, `Morning-Report-${activeDate}.png`, 'blob')} isCapturing={isCapturing} contractors={masterLists.contractors || []} />
+                                ) : (<>
                                 <DriverAssignmentAlert />
 
                                 {isEditing && (
@@ -7480,6 +7814,7 @@
                                         </table>
                                     </div>
                                 </div>
+                                </>)}
                             </div>
 
                         ) : activeTab === 'driver-hub' ? (
@@ -8605,7 +8940,7 @@
                                         </button>
                                     )}
                                 </div>
-                                {isAdminUser && <button type="button" onClick={openSettings} title="Settings" aria-label="Open Settings" className="dashboard-settings-button shrink-0 inline-flex items-center justify-center p-1.5 bg-transparent border-0 text-slate-300 hover:text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300"><Settings className="w-5 h-5" /></button>}
+                                {isAdminUser && <button type="button" onClick={openSettings} title="Settings" aria-label="Open Settings" className="dashboard-settings-button shrink-0 inline-flex items-center justify-center p-1.5 bg-transparent border-0 text-slate-300 hover:text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300"><Settings className="w-4 h-4" /></button>}
                                 {activeUsers.filter(u => u.uid !== user?.uid).map(u => {
                                     const userIsIdle = isPresenceIdle(u);
                                     const userIsAway = isPresenceAway(u);
