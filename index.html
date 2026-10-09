@@ -1123,7 +1123,7 @@
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+        import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
         import { createRoot } from 'react-dom/client';
         import { initializeApp, deleteApp } from 'firebase/app';
         import { getAuth, initializeAuth, inMemoryPersistence, validatePassword, createUserWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -1620,8 +1620,53 @@
         const getShiftNoteSeenKey = (uid, dateKey) => `geodis_shift_note_seen_${uid || 'local'}_${dateKey}`;
         const getShiftNoteNotificationSeenKey = (uid) => `geodis_shift_note_seen_${uid || 'local'}_all`;
         const getShiftNoteNotificationReadIdsKey = (uid) => `geodis_shift_note_read_ids_${uid || 'local'}`;
+        const getManagerNoteAckStorageKey = uid => `geodis_manager_note_ack_ids_${uid || 'local'}`;
+        const managerNoteAckKey = (dateKey, noteId) => `${dateKey}:${String(noteId)}`;
         const getTeamChatSeenKey = (uid) => `geodis_team_chat_seen_${uid || 'local'}`;
         const getTeamChatReadIdsKey = (uid) => `geodis_team_chat_read_ids_${uid || 'local'}`;
+        const getChatMentionReadIdsKey = uid => `geodis_chat_mention_read_ids_${uid || 'local'}`;
+        const chatMentionRecordId = (messageId, uid) => `${messageId}_${uid}`;
+        const chatMentionNotificationId = recordId => `mention-${recordId}`;
+        const hasChatMentionText = (text, name) => {
+            const escaped = String(name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            return Boolean(escaped) && new RegExp(`(^|\\s)@${escaped}(?=$|[^\\p{L}\\p{N}_-])`, 'iu').test(String(text || ''));
+        };
+        const getChatMentionMetadata = (text, recipients = []) => {
+            const selected = new Map();
+            recipients.forEach(({uid, name}) => {
+                if (/^[A-Za-z0-9_-]{1,128}$/.test(uid || '') && String(name || '').trim().length <= 100
+                    && hasChatMentionText(text, name)) selected.set(uid, String(name).trim());
+            });
+            const entries = [...selected].slice(0, 8);
+            return {mentionUids:entries.map(([uid]) => uid), mentionNames:Object.fromEntries(entries)};
+        };
+        const getChatMentionToken = (text, cursor) => {
+            const prefix = String(text || '').slice(0, cursor);
+            const match = /(?:^|\s)@([\p{L}\p{N}_. -]{0,60})$/u.exec(prefix);
+            return match ? {start:prefix.length - match[1].length - 1, end:cursor, query:match[1]} : null;
+        };
+        const getChatMentionSegments = (text, names = {}) => {
+            const labels = [...new Set(Object.values(names))].filter(Boolean).sort((a,b) => b.length - a.length);
+            if (!labels.length) return [{text, mention:false}];
+            const escaped = labels.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+            const pattern = new RegExp(`(^|\\s)(@(?:${escaped}))(?=$|[^\\p{L}\\p{N}_-])`, 'giu');
+            const parts = []; let last = 0;
+            for (const match of text.matchAll(pattern)) {
+                const start = match.index + match[1].length;
+                if (start > last) parts.push({text:text.slice(last, start), mention:false});
+                parts.push({text:match[2], mention:true}); last = start + match[2].length;
+            }
+            if (last < text.length) parts.push({text:text.slice(last), mention:false});
+            return parts;
+        };
+        const getUnreadChatMentions = (records, uid, readIds) => {
+            const read = new Set(readIds);
+            return records.filter(record => record.recipientUid === uid && record.message?.authorUid !== uid
+                && (record.message?.mentionUids || []).includes(uid) && !read.has(chatMentionNotificationId(record.id)))
+                .map(record => ({id:chatMentionNotificationId(record.id), type:'mention', messageId:record.message.id,
+                    chatMessage:record.message, timestamp:record.createdAt, dateLabel:'Team Chat',
+                    message:`${record.message.author || 'A teammate'} mentioned you in Team Chat`, preview:record.message.text}));
+        };
         const teamMessageKey = message => String(message?.id || message?.timestamp || '');
         const hasSeenTeamMessage = (message, uid, readIds) => !message || message.authorUid === uid
             || readIds.includes(teamMessageKey(message))
@@ -1725,6 +1770,12 @@
                 return /\bsame[\s-]*day\b/.test(routeName) || /\bsame[\s-]*s[\s-]*d\b/.test(routeName) || /\bs[\s-]*d\b/.test(routeName);
             };
 
+            const hasRouteCompletionEta = (route) => {
+                const eta = String(route?.timeOffDock || '').trim();
+                return /^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(eta)
+                    || /^(?:0?[1-9]|1[0-2]):[0-5]\d\s*(?:AM|PM)$/i.test(eta);
+            };
+
             const getAutoRouteCounts = (inputData) => {
                 const rows = getCountableRouteRows(inputData);
                 const sameDayRows = rows.filter(isSameDayRoute);
@@ -1734,6 +1785,7 @@
                     allRoutes: rows.length,
                     routes: normalRows.length,
                     sameDayRoutes: sameDayRows.length,
+                    completedRoutes: normalRows.filter(hasRouteCompletionEta).length,
                     orders: normalRows.reduce((sum, route) => sum + (Number(String(route?.stops || '').replace(/,/g, '')) || 0), 0)
                 };
             };
@@ -1928,7 +1980,12 @@
             }
         };
         const isManagerNote = note => note?.category === 'Manager Note';
-        const isHighPriorityNote = note => note?.category === 'URGENT' || (isManagerNote(note) && !note.acknowledgedAt);
+        const hasManagerNoteAcknowledgement = (note, uid) => !!uid && (note?.replies || []).some(reply =>
+            reply.system === true && reply.authorUid === uid && (reply.managerNoteAcknowledgement === true
+                || / acknowledged and removed the manager note alert\.$/.test(String(reply.text || ''))));
+        const isHighPriorityNote = (note, uid, dateKey, ackIds = []) => note?.category === 'URGENT'
+            || (isManagerNote(note) && !ackIds.includes(managerNoteAckKey(dateKey, note.id))
+                && !hasManagerNoteAcknowledgement(note, uid));
         const validateManagerNoteChanges = (before = [], after = []) => {
             if (isOwnerAccount(auth.currentUser)) return;
             const allowedActivity = new Set(['replies', 'likes', 'acknowledgedBy', 'acknowledgedAt']);
@@ -2205,6 +2262,33 @@
             : firebaseSetDoc(ref, fields, options);
         const deleteDoc = ref => BUSINESS_COLLECTIONS.includes(ref.path.split('/').at(-2))
             ? runTransaction(db, async transaction => { transaction.delete(ref); }) : firebaseDeleteDoc(ref);
+        const saveManagerNoteAcknowledgement = async ({ dateKey, noteId, uid, name, timestamp, replyId }) => {
+            requireTeamAccount();
+            if (auth.currentUser.uid !== uid) throw new Error('Your signed-in account changed. Please try again.');
+            const key = managerNoteAckKey(dateKey, noteId);
+            const noteRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', dateKey);
+            const stateRef = doc(db, 'artifacts', appId, 'public', 'data', 'notificationStates', uid);
+            await runTransaction(db, async transaction => {
+                const noteSnapshot = await transaction.get(noteRef);
+                const stateSnapshot = await transaction.get(stateRef);
+                const saved = noteSnapshot.exists() ? noteSnapshot.data() : {};
+                const note = (saved.shiftNotes || []).find(item => item.id === noteId);
+                if (!isManagerNote(note)) throw new Error('This Manager Note is no longer available.');
+                const ackIds = stateSnapshot.exists() && Array.isArray(stateSnapshot.data().managerNoteAckIds)
+                    ? stateSnapshot.data().managerNoteAckIds : [];
+                if (ackIds.includes(key)) return;
+                transaction.set(stateRef, { managerNoteAckIds: [...ackIds, key], updatedAt: timestamp }, { merge: true });
+                // Viewing accounts can acknowledge their own alert without editing Shift Notes.
+                if (accountHasPermission(auth.currentUser, 'shiftNotes') && !hasManagerNoteAcknowledgement(note, uid)) {
+                    const reply = { id: replyId, text: `${name} acknowledged this manager note.`,
+                        author: name, authorUid: uid, timestamp, system: true, managerNoteAcknowledgement: true };
+                    const shiftNotes = saved.shiftNotes.map(item => item.id === noteId
+                        ? { ...item, replies: [...(item.replies || []), reply] } : item);
+                    transaction.set(noteRef, { shiftNotes, lastUpdatedBy: name, lastUpdatedAt: timestamp }, { merge: true });
+                }
+            });
+            return key;
+        };
         const writeDashboardUserRemoval = async (uid, removing, actorName, restoredProfile = null) => {
             if (!isOwnerAccount(auth.currentUser)) throw new Error('Only Fadi can delete or restore dashboard users.');
             if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid) || uid === OWNER_UID) throw new Error('Your administrator account is protected.');
@@ -2225,7 +2309,8 @@
                     lastUpdatedBy:actorName, lastUpdatedAt:timestamp });
                 if (removing) removed[uid] = timestamp;
                 else delete removed[uid];
-                const updatedMaster = { ...master, deletedDashboardUsers:removed };
+                const updatedMaster = { ...master, deletedDashboardUsers:removed,
+                    ...(master.chatDirectory?.[uid] ? {chatDirectory:{...master.chatDirectory, [uid]:{name:profile.name, enabled:profile.enabled}}} : {}) };
                 transaction.set(accountRef, profile);
                 transaction.set(masterRef, updatedMaster);
                 return { profile, master:updatedMaster };
@@ -2964,7 +3049,7 @@
             </div>;
         };
 
-        const ChatMessageText = ({ text }) => {
+        const ChatMessageText = ({ text, mentionNames = {} }) => {
             const sticker = getTeamChatSticker(text);
             if (sticker) return <TeamChatSticker sticker={sticker} className="h-36 w-36 max-w-full" />;
             // Keep joined emoji, skin tones, flags and keycaps together when sizing them.
@@ -2973,7 +3058,7 @@
             return <div className="chat-message-text whitespace-pre-wrap break-words text-sm font-medium leading-relaxed">
                 {parts.map((part, index) => index % 2 === 1
                     ? <span key={index} className={`align-middle ${emojiOnly ? 'text-3xl leading-relaxed' : 'text-xl leading-normal'}`}>{part}</span>
-                    : part)}
+                    : getChatMentionSegments(part, mentionNames).map((segment, i) => segment.mention ? <span key={`${index}-${i}`} className="font-semibold text-indigo-200">{segment.text}</span> : segment.text))}
             </div>;
         };
 
@@ -3039,7 +3124,7 @@
             </div>;
         };
         // Keep every keystroke local to the composer instead of rendering the dashboard.
-        const TeamChatComposer = ({ open, canSend, sendMessage, publishTyping }) => {
+        const TeamChatComposer = ({ open, canSend, sendMessage, publishTyping, mentionUsers = [] }) => {
             const [draft, setDraft] = useState('');
             const [sending, setSending] = useState(false);
             const [emojiOpen, setEmojiOpen] = useState(false);
@@ -3049,10 +3134,19 @@
             const [selectedSticker, setSelectedSticker] = useState(null);
             const [selectedFile, setSelectedFile] = useState(null), [filePreviewUrl, setFilePreviewUrl] = useState('');
             const [fileError, setFileError] = useState('');
+            const [mentionRecipients, setMentionRecipients] = useState([]);
+            const [mentionToken, setMentionToken] = useState(null), [mentionIndex, setMentionIndex] = useState(0);
+            const mentionCaretRef = useRef(null);
+            const mentionMatches = mentionToken ? mentionUsers.filter(person => person.name.toLocaleLowerCase().startsWith(mentionToken.query.toLocaleLowerCase())).slice(0, 8) : [];
             const fileInputRef = useRef(null);
             const inputRef = useRef(null), pickerRef = useRef(null), emojiRef = useRef(null);
             const sendingRef = useRef(false), typingStopRef = useRef(null), focusAfterSendRef = useRef(false);
             const stopTyping = () => { clearTimeout(typingStopRef.current); publishTyping(false); };
+            useLayoutEffect(() => {
+                if (mentionCaretRef.current === null || !inputRef.current) return;
+                const cursor = mentionCaretRef.current; mentionCaretRef.current = null;
+                inputRef.current.focus({preventScroll:true}); inputRef.current.setSelectionRange(cursor, cursor);
+            }, [draft]);
             const changeDraft = text => {
                 setDraft(text);
                 clearTimeout(typingStopRef.current);
@@ -3060,7 +3154,7 @@
                 typingStopRef.current = setTimeout(() => publishTyping(false), 3500);
             };
             useEffect(() => {
-                if (!open || !canSend) { setEmojiOpen(false); clearTimeout(typingStopRef.current); publishTyping(false); }
+                if (!open || !canSend) { setEmojiOpen(false); setMentionToken(null); clearTimeout(typingStopRef.current); publishTyping(false); }
                 return () => { clearTimeout(typingStopRef.current); publishTyping(false); };
             }, [open, canSend, publishTyping]);
             useEffect(() => {
@@ -3092,14 +3186,24 @@
                 setSelectedSticker(null); changeDraft(draft.slice(0, start) + emoji + draft.slice(end)); setEmojiOpen(false);
                 requestAnimationFrame(() => { if (input?.isConnected) { input.focus({preventScroll:true}); input.setSelectionRange(start + emoji.length, start + emoji.length); } });
             };
+            const selectMention = person => {
+                if (!mentionToken) return;
+                if (!mentionRecipients.some(item => item.uid === person.uid) && getChatMentionMetadata(draft, mentionRecipients).mentionUids.length >= 8) { setFileError('You can mention up to 8 people in one message.'); return; }
+                const label = `@${person.name} `;
+                const next = draft.slice(0, mentionToken.start) + label + draft.slice(mentionToken.end);
+                const cursor = mentionToken.start + label.length;
+                mentionCaretRef.current = cursor;
+                setMentionRecipients(previous => [...previous.filter(item => item.uid !== person.uid), person]);
+                setMentionToken(null); changeDraft(next);
+            };
             const send = async () => {
                 if ((!draft.trim() && !selectedSticker && !selectedFile) || !canSend || sendingRef.current) return;
                 const original = draft, originalSticker = selectedSticker;
-                const originalFile = selectedFile;
+                const originalFile = selectedFile, originalMentions = mentionRecipients;
                 const messageText = originalSticker ? teamChatStickerText(originalSticker) : original.trim();
-                sendingRef.current = true; setSending(true); if (!originalSticker) setDraft(''); setSelectedSticker(null); setEmojiOpen(false); stopTyping();
-                const restore = () => { if (originalSticker) setSelectedSticker(originalSticker); else setDraft(original); };
-                try { if (!await sendMessage(messageText, originalFile)) restore(); else { setSelectedFile(null); setFileError(''); } }
+                sendingRef.current = true; setSending(true); if (!originalSticker) setDraft(''); setSelectedSticker(null); setEmojiOpen(false); setMentionToken(null); setMentionRecipients([]); stopTyping();
+                const restore = () => { setMentionRecipients(originalMentions); if (originalSticker) setSelectedSticker(originalSticker); else setDraft(original); };
+                try { if (!await sendMessage(messageText, originalFile, originalMentions)) restore(); else { setSelectedFile(null); setFileError(''); } }
                 catch { restore(); }
                 finally { sendingRef.current = false; focusAfterSendRef.current = true; setSending(false); }
             };
@@ -3113,6 +3217,10 @@
                 {fileError && <p role="alert" className="px-3 pt-2 text-[11px] text-rose-300">{fileError}</p>}
                 {selectedSticker && <div role="group" aria-label="Sticker preview" className="flex items-center gap-3 px-3 pt-2"><TeamChatSticker sticker={selectedSticker} className="h-20 w-20 shrink-0" /><div className="min-w-0 text-xs text-slate-300"><p className="font-semibold">{selectedSticker.label}</p><p className="mt-1 text-[11px] text-slate-400">Press Send to share this sticker.</p><button type="button" disabled={sending} onClick={() => { setSelectedSticker(null); requestAnimationFrame(() => inputRef.current?.focus({preventScroll:true})); }} className="mt-2 text-slate-300 underline underline-offset-2 hover:text-white">Remove sticker</button></div></div>}
                 <div className="relative flex items-end gap-2 px-3 py-3">
+                    {mentionToken && !emojiOpen && mentionMatches.length > 0 && <div id="team-chat-mention-picker" role="listbox" aria-label="Mention a teammate" className="absolute bottom-full left-3 right-3 z-20 mb-1 max-h-52 overflow-y-auto rounded-xl border border-slate-600 bg-slate-900 p-1 shadow-xl">
+                        <div className="px-3 py-2 text-[10px] text-slate-400">Choose who to notify · up to 8 people</div>
+                        {mentionMatches.map((person, index) => <button key={person.uid} id={`mention-option-${index}`} type="button" role="option" aria-selected={index === mentionIndex} onMouseDown={event => event.preventDefault()} onClick={() => selectMention(person)} className={`block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold ${index === mentionIndex ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>@{person.name}</button>)}
+                    </div>}
                     {emojiOpen && <div ref={pickerRef} id="team-chat-emoji-picker" role="group" aria-label="Emojis and stickers" className="absolute bottom-full left-3 right-3 z-10 mb-1 flex max-h-[min(21rem,45dvh)] flex-col overflow-hidden rounded-xl border border-slate-600 bg-slate-900 p-2 shadow-xl">
                         <div role="tablist" aria-label="Chat picker" className="flex shrink-0 gap-1 border-b border-slate-700 pb-2">{['emojis','stickers'].map(mode => <button key={mode} id={'chat-picker-' + mode} type="button" role="tab" aria-selected={pickerMode === mode} aria-controls="chat-picker-results" onClick={() => { setPickerMode(mode); setPickerQuery(''); }} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold capitalize ${pickerMode === mode ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{mode}</button>)}<button type="button" aria-label="Close emoji and sticker picker" onClick={() => { setEmojiOpen(false); emojiRef.current?.focus({preventScroll:true}); }} className="p-2 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button></div>
                         <label className="relative my-2 block shrink-0"><Search aria-hidden="true" className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" /><input aria-label={'Search ' + pickerMode} value={pickerQuery} onChange={event => setPickerQuery(event.target.value)} placeholder={'Search ' + pickerMode + '...'} className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-8 pr-2 text-xs text-slate-100 outline-none focus:border-slate-400" /></label>
@@ -3122,7 +3230,15 @@
                     <button ref={emojiRef} type="button" disabled={!canSend || sending} aria-label="Add emoji" title="Emojis and stickers" aria-expanded={emojiOpen} aria-controls="team-chat-emoji-picker" onClick={() => setEmojiOpen(value => !value)} className={`flex h-10 w-9 shrink-0 items-center justify-center rounded-lg transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300 ${emojiOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:text-white'}`}><Smile className="h-5 w-5" /></button>
                     <input ref={fileInputRef} type="file" accept={CHAT_FILE_ACCEPT} onChange={chooseFile} className="hidden" aria-label="Choose chat attachment" tabIndex={-1} />
                     <button type="button" disabled={!canSend || sending} aria-label="Attach file" title="Attach a file up to 500 KB" onClick={() => fileInputRef.current?.click()} className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-40"><Paperclip className="h-5 w-5" /></button>
-                    <textarea ref={inputRef} aria-label="Team message" disabled={!canSend || sending || Boolean(selectedSticker)} value={selectedSticker ? '' : draft} onChange={event => changeDraft(event.target.value)} onBlur={stopTyping} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} rows="2" placeholder={selectedSticker ? 'Sticker ready to send' : 'Write a team message...'} className="min-h-[42px] min-w-0 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500 disabled:opacity-60" />
+                    <textarea ref={inputRef} aria-label="Team message" aria-autocomplete="list" aria-controls={mentionMatches.length ? 'team-chat-mention-picker' : undefined} aria-activedescendant={mentionMatches.length ? `mention-option-${mentionIndex}` : undefined} disabled={!canSend || sending || Boolean(selectedSticker)} value={selectedSticker ? '' : draft} onChange={event => { changeDraft(event.target.value); setMentionToken(getChatMentionToken(event.target.value, event.target.selectionStart)); setMentionIndex(0); setEmojiOpen(false); }} onClick={event => { setMentionToken(getChatMentionToken(draft, event.target.selectionStart)); setMentionIndex(0); }} onBlur={stopTyping} onKeyDown={event => {
+                        if (event.nativeEvent.isComposing) return;
+                        if (mentionMatches.length && ['ArrowDown','ArrowUp','Enter','Tab'].includes(event.key) && !event.shiftKey) {
+                            event.preventDefault();
+                            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') setMentionIndex(index => (index + (event.key === 'ArrowDown' ? 1 : -1) + mentionMatches.length) % mentionMatches.length);
+                            else selectMention(mentionMatches[mentionIndex] || mentionMatches[0]);
+                        } else if (event.key === 'Escape') setMentionToken(null);
+                        else if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); }
+                    }} rows="2" placeholder={selectedSticker ? 'Sticker ready to send' : 'Write a team message... @ to mention'} className="min-h-[42px] min-w-0 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500 disabled:opacity-60" />
                     <button type="button" onClick={send} disabled={!canSend || sending || (!draft.trim() && !selectedSticker && !selectedFile)} className="rounded-xl bg-indigo-600 px-3 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">{sending ? 'Sending…' : 'Send'}</button>
                 </div>
             </div>;
@@ -3634,6 +3750,9 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
             const [isLoading, setIsLoading] = useState(true);
             const [shiftNoteSeenAt, setShiftNoteSeenAt] = useState('');
             const [shiftNoteReadIds, setShiftNoteReadIds] = useState([]);
+            const [managerNoteAckIds, setManagerNoteAckIds] = useState([]);
+            const managerNoteAckIdsRef = useRef([]);
+            const isPendingHighPriorityNote = note => isHighPriorityNote(note, user?.uid, activeDate, managerNoteAckIds);
             const [notificationStateLoaded, setNotificationStateLoaded] = useState(false);
             const [isShiftNotificationOpen, setIsShiftNotificationOpen] = useState(false);
             const [highlightedShiftNoteId, setHighlightedShiftNoteId] = useState(null);
@@ -3648,6 +3767,12 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
             const [chatFilePreview, setChatFilePreview] = useState(null);
             const [teamChatMessages, setTeamChatMessages] = useState([]);
             const [teamChatTypingSessions, setTeamChatTypingSessions] = useState([]);
+            const [chatMentionRecords, setChatMentionRecords] = useState([]), [chatMentionsLoaded, setChatMentionsLoaded] = useState(false);
+            const [chatMentionReadIds, setChatMentionReadIds] = useState([]);
+            const chatMentionReadIdsRef = useRef([]), chatMentionReadPendingRef = useRef(new Set());
+            const chatMentionSoundKnownRef = useRef(null), chatSoundedMessageIdsRef = useRef(new Set());
+            const [chatJumpMessage, setChatJumpMessage] = useState(null), [highlightedChatMessageId, setHighlightedChatMessageId] = useState(null);
+            const teamChatJumpTargetRef = useRef(null);
             const teamChatTypingStateRef = useRef({until:0,lastWrite:0,active:false});
             const pendingTeamChatMessagesRef = useRef(new Map());
             const teamChatReadIdsRef = useRef([]);
@@ -4230,7 +4355,7 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
             useEffect(() => {
                 const playUrgentChime = () => playNotificationChime([], 'shiftNotes', 'urgentNote');
 
-                const currentUrgentCount = (data.shiftNotes || []).filter(isHighPriorityNote).length;
+                const currentUrgentCount = (data.shiftNotes || []).filter(isPendingHighPriorityNote).length;
                 
                 if (isLoading || !soundSettingsLoaded) {
                     wasLoading.current = true;
@@ -4256,7 +4381,7 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                         urgentNoteCount.current = currentUrgentCount;
                     }
                 }
-            }, [data.shiftNotes, isEditing, isLoading, soundSettingsLoaded]);
+            }, [data.shiftNotes, isEditing, isLoading, soundSettingsLoaded, user?.uid, managerNoteAckIds, activeDate]);
 
             useEffect(() => {
                 let generation = 0;
@@ -5064,7 +5189,7 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                 const uniform = Math.min(Number(d.loadout?.uniformCount) || 0, routes);
                 const offDock = Math.min(Number(d.loadout?.offDockCount) || 0, routes);
                 const eta = Math.min(Number(d.loadout?.etaCount) || 0, routes);
-                const comp = Math.min(Number(d.loadout?.completedRoutesCount) || 0, routes);
+                const comp = autoRouteCounts.completedRoutes;
                 const missedDeliv = Number(d.midDay?.metrics?.[2]?.value) || 0;
                 const earlyViolations = Number(d.midDay?.earlyCount) || 0;
                 const missedEta = Math.max(0, routes - eta);
@@ -5088,12 +5213,12 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                 const claims = Number(d.loadout?.claimsOpen) || 0;
                 const claimsPerc = orders > 0 ? (claims / orders) * 100 : 0;
 
-                const checkedInCount = (d.routeTable || []).filter(r => r.checkedIn).length;
+                const checkedInCount = (d.routeTable || []).filter(r => r?.checkedIn).length;
                 const checkedInPerc = routes > 0 ? (checkedInCount / routes) * 100 : 0;
 
                 return { 
                     otd, executionScore, damageRate, offDockPerc, etaPerc, compPerc, uniformPerc, 
-                    routes, sameDayRoutes, orders, pickups, basicCount, thresholdCount, whiteGloveCount, missedDeliv, earlyViolations, escPerc, podPerc, notHomePerc, claimsPerc, checkedInCount, checkedInPerc 
+                    routes, sameDayRoutes, orders, pickups, basicCount, thresholdCount, whiteGloveCount, missedDeliv, earlyViolations, escPerc, podPerc, notHomePerc, claimsPerc, checkedInCount, checkedInPerc, completedRoutesCount: comp 
                 };
             };
 
@@ -5510,6 +5635,15 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                 activeUsers.forEach(account => { if (!accounts.has(account.uid)) accounts.set(account.uid, { ...account, enabled: true }); });
                 return [...accounts.values()].filter(account => account.enabled).map(account => ({ uid: account.uid, name: String(masterLists.nameOverrides?.[account.uid] || account.name || DEFAULT_ACCOUNT_NAMES[account.uid] || 'Team member').trim() })).sort((a, b) => a.name.localeCompare(b.name));
             }, [managedAccounts, accessProfile, activeUsers, masterLists.nameOverrides]);
+            const chatMentionUsers = useMemo(() => {
+                const names = new Map(taskAssignees.map(person => [person.uid, person]));
+                teamChatMessages.forEach(message => { if (!names.has(message.authorUid) && message.authorUid && message.author) names.set(message.authorUid, {uid:message.authorUid, name:message.author}); });
+                Object.entries(masterLists.nameOverrides || {}).forEach(([uid, name]) => { if (name) names.set(uid, {uid, name:String(name).trim()}); });
+                Object.entries(masterLists.chatDirectory || {}).forEach(([uid, person]) => { if (person?.name) names.set(uid, {uid, name:String(masterLists.nameOverrides?.[uid] || person.name).trim()}); });
+                return [...names.values()].filter(person => person.uid !== user?.uid && person.name
+                    && !masterLists.deletedDashboardUsers?.[person.uid] && masterLists.chatDirectory?.[person.uid]?.enabled !== false && managedAccounts.find(account => account.uid === person.uid)?.enabled !== false)
+                    .sort((a,b) => a.name.localeCompare(b.name));
+            }, [taskAssignees, teamChatMessages, masterLists.nameOverrides, masterLists.chatDirectory, masterLists.deletedDashboardUsers, managedAccounts, user?.uid]);
             const taskNotifications = useMemo(() => getTeamTaskNotifications(teamTasks, user?.uid, taskReadIds), [teamTasks, user?.uid, taskReadIds]);
             const openTeamTasks = () => {
                 if (!isAdminUser) return;
@@ -5799,7 +5933,18 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                         const restored = await writeDashboardUserRemoval(uid, false, getSavedDisplayName(user), profile);
                         masterSnapshotRef.current = { ...DEFAULT_MASTER_LISTS, ...restored.master };
                         setMasterLists(masterSnapshotRef.current);
-                    } else await setDoc(accountRef, profile);
+                    } else {
+                        const directory = await runTransaction(db, async transaction => {
+                            const masterRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
+                            const snapshot = await transaction.get(masterRef);
+                            const master = snapshot.exists() ? snapshot.data() : {};
+                            const chatDirectory = {...master.chatDirectory, [uid]:{name:profile.name, enabled:profile.enabled}};
+                            transaction.set(accountRef, profile);
+                            transaction.set(masterRef, {chatDirectory}, {merge:true});
+                            return chatDirectory;
+                        });
+                        setMasterLists(previous => ({...previous, chatDirectory:directory}));
+                    }
                     accessProfilesCache.set(uid, profile);
                     setAccountDraft(null); setSettingsMessage(loginCreated
                         ? 'Login and permissions created for ' + profile.name + '. ' + (profile.enabled ? 'They can sign in with ' + profile.email + ' and the password you entered.' : 'Dashboard access is disabled until you enable it.')
@@ -6270,12 +6415,29 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                 const firstName = cleanFirstName(current.name);
                 const timestamp = new Date().toISOString(), replyId = crypto.randomUUID();
                 try {
+                    const selectedNote = (data.shiftNotes || []).find(note => note.id === noteId);
+                    if (isManagerNote(selectedNote)) {
+                        if (!isPendingHighPriorityNote(selectedNote)) return;
+                        let key;
+                        if (db) {
+                            key = await saveManagerNoteAcknowledgement({ dateKey: activeDate, noteId,
+                                uid: current.uid, name: firstName, timestamp, replyId });
+                            if (auth.currentUser?.uid !== current.uid) return;
+                        } else {
+                            key = managerNoteAckKey(activeDate, noteId);
+                        }
+                        const nextIds = Array.from(new Set([...managerNoteAckIdsRef.current, key]));
+                        managerNoteAckIdsRef.current = nextIds;
+                        setManagerNoteAckIds(nextIds);
+                        localStorage.setItem(getManagerNoteAckStorageKey(current.uid), JSON.stringify(nextIds));
+                        return;
+                    }
                     await saveShiftNoteChange(noteId, note => {
-                        if (!isHighPriorityNote(note)) return note;
-                        return { ...note, category: isManagerNote(note) ? 'Manager Note' : 'Follow-up',
+                        if (isManagerNote(note) || !isHighPriorityNote(note)) return note;
+                        return { ...note, category: 'Follow-up',
                             acknowledgedBy: firstName, acknowledgedAt: timestamp,
                             replies: [...(note.replies || []), { id: replyId,
-                                text: `${firstName} acknowledged and removed the ${isManagerNote(note) ? 'manager note' : 'high priority'} alert.`,
+                                text: `${firstName} acknowledged and removed the high priority alert.`,
                                 author: firstName, authorUid: current.uid, timestamp, system: true }] };
                     });
                 } catch (error) { setSaveError('The alert could not be acknowledged. Please try again.'); }
@@ -6284,6 +6446,11 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
 
             useEffect(() => {
                 if (!user) return;
+                try {
+                    const stored = JSON.parse(localStorage.getItem(getManagerNoteAckStorageKey(user.uid)) || '[]');
+                    managerNoteAckIdsRef.current = Array.isArray(stored) ? stored : [];
+                } catch { managerNoteAckIdsRef.current = []; }
+                setManagerNoteAckIds(managerNoteAckIdsRef.current);
                 const localShiftSeenAt = localStorage.getItem(getShiftNoteNotificationSeenKey(user.uid)) || '';
                 const localTeamSeenAt = localStorage.getItem(getTeamChatSeenKey(user.uid)) || '';
                 setShiftNoteSeenAt(localShiftSeenAt);
@@ -6300,6 +6467,10 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                 try { teamChatReadIdsRef.current = JSON.parse(localStorage.getItem(getTeamChatReadIdsKey(user.uid)) || '[]'); }
                 catch { teamChatReadIdsRef.current = []; }
                 setTeamChatReadIds(teamChatReadIdsRef.current);
+                try { chatMentionReadIdsRef.current = JSON.parse(localStorage.getItem(getChatMentionReadIdsKey(user.uid)) || '[]'); }
+                catch { chatMentionReadIdsRef.current = []; }
+                if (!Array.isArray(chatMentionReadIdsRef.current)) chatMentionReadIdsRef.current = [];
+                setChatMentionReadIds(chatMentionReadIdsRef.current);
                 if (!db) {
                     setNotificationStateLoaded(true);
                     return;
@@ -6328,6 +6499,10 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                 }).catch(error => console.error('Failed to merge notification state:', error));
                 const unsubscribeNotificationState = onSnapshot(stateRef, (docSnap) => {
                     const sharedState = docSnap.exists() ? docSnap.data() : {};
+                    const sharedManagerAckIds = Array.isArray(sharedState.managerNoteAckIds) ? sharedState.managerNoteAckIds : [];
+                    managerNoteAckIdsRef.current = Array.from(new Set([...managerNoteAckIdsRef.current, ...sharedManagerAckIds]));
+                    setManagerNoteAckIds(managerNoteAckIdsRef.current);
+                    localStorage.setItem(getManagerNoteAckStorageKey(user.uid), JSON.stringify(managerNoteAckIdsRef.current));
                     setTaskReadIds(Array.isArray(sharedState.taskReadIds) ? sharedState.taskReadIds : []);
                     const sharedReadIds = Array.isArray(sharedState.shiftNoteReadIds) ? sharedState.shiftNoteReadIds : [];
                     const sharedShiftSeenAt = sharedState.shiftNoteNotificationsReadAt || localShiftSeenAt || '';
@@ -6338,9 +6513,14 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                     const sharedChatReadIds = Array.isArray(sharedState.teamChatReadIds) ? sharedState.teamChatReadIds : [];
                     setTeamChatReadIds(prev => {
                         const merged = Array.from(new Set([...prev, ...sharedChatReadIds]));
-                        teamChatReadIdsRef.current = merged;
+                    teamChatReadIdsRef.current = merged;
                         return merged.length === prev.length ? prev : merged;
                     });
+                    if (!docSnap.metadata?.hasPendingWrites) {
+                        chatMentionReadIdsRef.current = Array.from(new Set([...chatMentionReadIdsRef.current, ...(Array.isArray(sharedState.chatMentionReadIds) ? sharedState.chatMentionReadIds : [])]));
+                        setChatMentionReadIds(chatMentionReadIdsRef.current);
+                        localStorage.setItem(getChatMentionReadIdsKey(user.uid), JSON.stringify(chatMentionReadIdsRef.current));
+                    }
                     setTeamChatReadVersion(sharedState.teamChatReadVersion || 0);
                     localStorage.setItem(getTeamChatReadIdsKey(user.uid), JSON.stringify(sharedChatReadIds));
                     setTeamChatSeenAt(sharedTeamSeenAt);
@@ -6359,6 +6539,54 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                 uid: user?.uid || 'local',
                 name: getSavedDisplayName(user)
             });
+
+            useEffect(() => {
+                setChatMentionRecords([]); setChatMentionsLoaded(false);
+                chatMentionSoundKnownRef.current = null; chatSoundedMessageIdsRef.current.clear(); chatMentionReadPendingRef.current.clear();
+                if (!db || !user) return;
+                const mentionsQuery = query(collection(db, 'artifacts', appId, 'public', 'data', 'teamChatMentions'), where('recipientUid', '==', user.uid));
+                return onSnapshot(mentionsQuery, snapshot => {
+                    const records = snapshot.docs.map(item => ({...item.data(), id:item.id}));
+                    if (chatMentionSoundKnownRef.current === null) chatMentionSoundKnownRef.current = new Set(records.map(item => item.id));
+                    setChatMentionRecords(records); setChatMentionsLoaded(true);
+                }, error => { console.error('Team Chat mentions unavailable:', error); setTeamChatError('Mention notifications could not load. Refresh or ask Fadi to check the dashboard connection.'); });
+            }, [user?.uid]);
+
+            const saveChatMentionReadIds = async ids => {
+                const newIds = [...new Set(ids)].filter(id => !chatMentionReadIdsRef.current.includes(id) && !chatMentionReadPendingRef.current.has(id));
+                if (!user || !db || !newIds.length) return;
+                newIds.forEach(id => chatMentionReadPendingRef.current.add(id));
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notificationStates', user.uid), {
+                        chatMentionReadIds:arrayUnion(...newIds), updatedAt:new Date().toISOString()
+                    }, {merge:true});
+                    const next = [...new Set([...chatMentionReadIdsRef.current, ...newIds])];
+                    chatMentionReadIdsRef.current = next; setChatMentionReadIds(next);
+                    localStorage.setItem(getChatMentionReadIdsKey(user.uid), JSON.stringify(next));
+                } catch (error) { setTeamChatError('The mention could not be marked read. Please try again.'); }
+                finally { newIds.forEach(id => chatMentionReadPendingRef.current.delete(id)); }
+            };
+
+            useEffect(() => {
+                if (!isTeamChatOpen) { setChatJumpMessage(null); setHighlightedChatMessageId(null); return; }
+                if (!teamChatLoaded || !chatJumpMessage) return;
+                const frame = requestAnimationFrame(() => scrollTeamChatViewport(teamChatScrollRef.current, teamChatJumpTargetRef.current));
+                const timer = setTimeout(() => setHighlightedChatMessageId(null), 4500);
+                return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
+            }, [isTeamChatOpen, chatJumpMessage, teamChatLoaded]);
+
+            useEffect(() => {
+                if (!isTeamChatOpen || !isDashboardVisible || !notificationStateLoaded || !chatMentionsLoaded || !teamChatLoaded || !teamChatScrollRef.current) return;
+                const unread = getUnreadChatMentions(chatMentionRecords, user?.uid, chatMentionReadIds);
+                const idsByMessage = new Map(unread.filter(item => !chatJumpMessage || item.messageId === chatJumpMessage.id).map(item => [item.messageId, item.id]));
+                const observer = new IntersectionObserver(entries => {
+                    const seen = entries.filter(entry => entry.isIntersecting && entry.intersectionRect.height >= Math.min(30, entry.boundingClientRect.height))
+                        .map(entry => idsByMessage.get(entry.target.dataset.chatMessageId)).filter(Boolean);
+                    if (seen.length) saveChatMentionReadIds(seen);
+                }, {root:teamChatScrollRef.current, threshold:[0, .2, 1]});
+                teamChatScrollRef.current.querySelectorAll('[data-chat-message-id]').forEach(element => { if (idsByMessage.has(element.dataset.chatMessageId)) observer.observe(element); });
+                return () => observer.disconnect();
+            }, [isTeamChatOpen, isDashboardVisible, notificationStateLoaded, chatMentionsLoaded, teamChatLoaded, chatMentionRecords, chatMentionReadIds, teamChatMessages, chatJumpMessage, user?.uid]);
 
             useEffect(() => {
                 if (!user || !db) return;
@@ -6484,8 +6712,14 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                         const target = messages.find(message => message.id === editingChatId);
                         if (!target || target.authorUid !== user.uid) throw new Error('Message unavailable');
                         if (!text && !isChatAttachment(target.attachment, target.id, target.authorUid)) throw new Error('Write a message.');
-                        transaction.set(chatRef, { messages: messages.map(message => message.id === editingChatId
-                            ? { ...message, text, editedAt: new Date().toISOString() } : message) }, { merge: true });
+                        const metadata = getChatMentionMetadata(text, (target.mentionUids || []).map(uid => ({uid, name:target.mentionNames?.[uid]})));
+                        const updated = { ...target, text, editedAt: new Date().toISOString(), ...(target.mentionUids ? metadata : {}) };
+                        transaction.set(chatRef, { messages: messages.map(message => message.id === editingChatId ? updated : message) }, { merge: true });
+                        (target.mentionUids || []).filter(uid => uid !== user.uid).forEach(uid => {
+                            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'teamChatMentions', chatMentionRecordId(target.id, uid));
+                            if (metadata.mentionUids.includes(uid)) transaction.set(ref, {message:updated, recipientUid:uid, createdAt:target.timestamp});
+                            else transaction.delete(ref);
+                        });
                     });
                     setEditingChatId(null);
                     setEditingChatText('');
@@ -6496,7 +6730,7 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                 }
             };
 
-            const sendTeamChatMessage = async (text, file = null) => {
+            const sendTeamChatMessage = async (text, file = null, recipients = []) => {
                 if ((!String(text || '').trim() && !file) || !db || !canEditSection('chat')) return false;
                 const current = getCurrentShiftUser();
                 const message = {
@@ -6506,6 +6740,8 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                     authorUid: current.uid,
                     timestamp: new Date().toISOString()
                 };
+                const metadata = getChatMentionMetadata(message.text, recipients.filter(person => person.uid !== current.uid && chatMentionUsers.some(candidate => candidate.uid === person.uid)));
+                if (metadata.mentionUids.length) Object.assign(message, metadata);
                 let fileRecord = null;
                 if (file) {
                     try {
@@ -6528,6 +6764,8 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                         const messages = [...existing, message].slice(-150);
                         // The file and message commit together; failed sends leave no orphan upload.
                         if (fileRecord) transaction.set(doc(db, ...message.attachment.path.split('/')), fileRecord);
+                        metadata.mentionUids.forEach(uid => transaction.set(doc(db, 'artifacts', appId, 'public', 'data', 'teamChatMentions', chatMentionRecordId(message.id, uid)),
+                            {message, recipientUid:uid, createdAt:message.timestamp}));
                         transaction.set(chatRef, {
                             messages,
                             updatedAt: message.timestamp,
@@ -6706,9 +6944,10 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
             const markShiftNotesSeen = () => {
                 if (!user) return;
                 const timestamp = new Date().toISOString();
-                const allIds = shiftNoteNotificationItems.map(item => item.id);
+                const allIds = shiftNoteNotificationItems.filter(item => item.type !== 'mention').map(item => item.id);
                 const next = Array.from(new Set([...shiftReadIdsRef.current, ...allIds]));
                 saveShiftNoteReadState(next, timestamp);
+                saveChatMentionReadIds(shiftNoteNotificationItems.filter(item => item.type === 'mention').map(item => item.id));
             };
 
             const shiftNoteSearchAllEntries = useMemo(() => collectShiftNoteSearchEntries(historyData, activeDate, { shiftNotes: data.shiftNotes }, 'all'), [historyData, activeDate, data.shiftNotes]);
@@ -6741,6 +6980,12 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
             };
 
             const openShiftNoteFromNotification = (item) => {
+                if (item?.type === 'mention') {
+                    setChatJumpMessage(item.chatMessage); setHighlightedChatMessageId(item.messageId);
+                    setIsShiftNotificationOpen(false); setIsTeamChatOpen(true);
+                    saveChatMentionReadIds([item.id]);
+                    return;
+                }
                 const noteId = item?.noteId;
                 const dateKey = item?.dateKey;
                 clearShiftNoteSearch('current');
@@ -6862,32 +7107,43 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
             useEffect(() => {
                 if (!isTeamChatOpen || !teamChatLoaded || !teamChatScrollRef.current) return;
                 const scroller = createTeamChatAutoScroller(teamChatScrollRef.current, teamChatContentRef.current,
-                    latestTeamChatMessageId, newestTeamChatUnreadId ? teamChatUnreadTargetRef.current : null);
+                    latestTeamChatMessageId, chatJumpMessage ? teamChatJumpTargetRef.current : newestTeamChatUnreadId ? teamChatUnreadTargetRef.current : null);
                 teamChatAutoScrollerRef.current = scroller;
                 return () => { scroller.dispose(); teamChatAutoScrollerRef.current = null; };
             }, [isTeamChatOpen, teamChatLoaded, user?.uid]);
             useEffect(() => {
-                if (isTeamChatOpen && teamChatLoaded) teamChatAutoScrollerRef.current?.showLatest(latestTeamChatMessageId);
+                if (isTeamChatOpen && teamChatLoaded && !chatJumpMessage) teamChatAutoScrollerRef.current?.showLatest(latestTeamChatMessageId);
             }, [isTeamChatOpen, teamChatLoaded, latestTeamChatMessageId]);
 
-            const shiftNoteNotificationItems = getShiftNoteNotificationItems();
+            const chatMentionNotificationItems = notificationStateLoaded ? getUnreadChatMentions(chatMentionRecords, user?.uid, chatMentionReadIds) : [];
+            const shiftNoteItems = getShiftNoteNotificationItems();
+            const shiftNoteNotificationItems = [...shiftNoteItems, ...chatMentionNotificationItems].sort((a,b) => Date.parse(b.timestamp || 0) - Date.parse(a.timestamp || 0));
+            const displayedTeamChatMessages = chatJumpMessage && !teamChatMessages.some(message => message.id === chatJumpMessage.id)
+                ? [chatJumpMessage, ...teamChatMessages] : teamChatMessages;
             const shiftNoteNotificationCount = shiftNoteNotificationItems.length;
-            const shiftNoteNotificationSignature = shiftNoteNotificationItems.map(item => item.id).join('|');
+            const shiftNoteNotificationSignature = shiftNoteItems.map(item => item.id).join('|');
             useEffect(() => {
                 if (!soundSettingsLoaded || !teamChatLoaded || teamChatSoundSignature.current === null) return;
                 const knownIds = teamChatSoundSignature.current;
-                const newIncoming = teamChatMessages.some(message => !knownIds.has(teamMessageKey(message))
-                    && message.authorUid !== user?.uid && !hasCurrentUserSeenTeamMessage(message));
+                const newIncoming = teamChatMessages.filter(message => !knownIds.has(teamMessageKey(message))
+                    && message.authorUid !== user?.uid && !hasCurrentUserSeenTeamMessage(message) && !chatSoundedMessageIdsRef.current.has(teamMessageKey(message)));
                 teamChatSoundSignature.current = new Set(teamChatMessages.map(teamMessageKey));
-                if (newIncoming) playNotificationChime(['E5', 'B5'], 'chat');
+                if (newIncoming.length) { newIncoming.forEach(message => chatSoundedMessageIdsRef.current.add(teamMessageKey(message))); playNotificationChime(['E5', 'B5'], 'chat'); }
             }, [teamChatMessages, teamChatLoaded, user?.uid, soundSettingsLoaded]);
 
             useEffect(() => {
+                if (!chatMentionsLoaded || !notificationStateLoaded || !soundSettingsLoaded || chatMentionSoundKnownRef.current === null) return;
+                const incoming = chatMentionNotificationItems.filter(item => !chatMentionSoundKnownRef.current.has(item.id.slice(8)) && !chatSoundedMessageIdsRef.current.has(item.messageId));
+                chatMentionSoundKnownRef.current = new Set(chatMentionRecords.map(record => record.id));
+                if (incoming.length) { incoming.forEach(item => chatSoundedMessageIdsRef.current.add(item.messageId)); playNotificationChime(['E5', 'B5'], 'chat'); }
+            }, [chatMentionRecords, chatMentionsLoaded, notificationStateLoaded, soundSettingsLoaded, user?.uid]);
+
+            useEffect(() => {
                 if (isLoading || !notificationStateLoaded || !soundSettingsLoaded) return;
-                const ids = new Set(shiftNoteNotificationItems.map(item => item.id));
+                const ids = new Set(shiftNoteItems.map(item => item.id));
                 const previous = shiftNoteNotificationSoundSignature.current;
                 if (previous !== null && shiftNoteNotificationSoundDate.current === activeDate) {
-                    const incoming = shiftNoteNotificationItems.find(item => !previous.has(item.id));
+                    const incoming = shiftNoteItems.find(item => !previous.has(item.id));
                     if (incoming) playNotificationChime(['G5', 'C6'], 'shiftNotes', incoming.type === 'like' ? 'shiftLike' : 'shiftReply');
                 }
                 shiftNoteNotificationSoundSignature.current = ids;
@@ -7074,18 +7330,18 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                             </div>
                             <div className="dashboard-header-actions flex items-center justify-end gap-2 shrink-0">
                                 <div className="relative">
-                                    <button onClick={() => { setIsShiftNotificationOpen(prev => !prev); setIsTeamChatOpen(false); }} className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${shiftNoteNotificationCount > 0 ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`} title="Shift Notes Notifications">
+                                    <button aria-label={shiftNoteNotificationCount ? `Notifications, ${shiftNoteNotificationCount} unread` : 'Notifications'} onClick={() => { setIsShiftNotificationOpen(prev => !prev); setIsTeamChatOpen(false); }} className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${shiftNoteNotificationCount > 0 ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`} title="Notifications">
                                         <Bell className="w-4 h-4" />
                                         {shiftNoteNotificationCount > 0 && (
                                             <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{shiftNoteNotificationCount > 9 ? '9+' : shiftNoteNotificationCount}</span>
                                         )}
                                     </button>
                                     {isShiftNotificationOpen && (
-                                        <div role="dialog" aria-label="Shift Notes notifications" data-dashboard-edit-ignore="true" className="dashboard-header-popover absolute right-0 top-8 z-[120] w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                        <div role="dialog" aria-label="Notifications" data-dashboard-edit-ignore="true" className="dashboard-header-popover absolute right-0 top-8 z-[120] w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
                                             <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
                                                 <div>
                                                     <div className="text-xs font-black uppercase tracking-widest text-white">Notifications</div>
-                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Shift Notes</div>
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Shift Notes &amp; Mentions</div>
                                                 </div>
                                                 {shiftNoteNotificationCount > 0 && (
                                                     <button type="button" onClick={markShiftNotesSeen} className="rounded-lg border border-slate-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">Mark Read</button>
@@ -7095,14 +7351,14 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                             <div data-popover-scroll="true" className="max-h-80 overflow-y-auto">
                                                 {shiftNoteNotificationItems.length === 0 ? (
                                                     <div className="px-4 py-8 text-center text-xs font-bold text-slate-500">
-                                                        <div>No new likes or replies.</div>
+                                                        <div>No new notifications.</div>
                                                     </div>
                                                 ) : (
                                                     shiftNoteNotificationItems.map(item => (
                                                         <button key={item.id} type="button" onClick={() => openShiftNoteFromNotification(item)} className="w-full border-b border-slate-800 px-4 py-3 text-left hover:bg-slate-900/80 transition-colors cursor-pointer last:border-b-0">
                                                             <div className="flex items-start gap-3">
                                                                 <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${item.type === 'like' ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'}`}>
-                                                                    {item.type === 'like' ? <ThumbsUp className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                                                                    {item.type === 'like' ? <ThumbsUp className="h-4 w-4" /> : item.type === 'mention' ? <span className="text-base font-bold">@</span> : <MessageSquare className="h-4 w-4" />}
                                                                 </span>
                                                                 <span className="min-w-0 flex-1">
                                                                     <span className="block text-xs font-black text-slate-100">{item.message}</span>
@@ -7134,10 +7390,10 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                             </div>
                                             <div ref={teamChatScrollRef} data-popover-scroll="true" style={{scrollBehavior:'auto'}} className="max-h-80 min-h-[220px] overflow-y-auto px-4 py-3 bg-slate-950/90">
                                                 <div ref={teamChatContentRef} className="space-y-3">
-                                                {teamChatMessages.length === 0 ? (
+                                                {displayedTeamChatMessages.length === 0 ? (
                                                     <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">No team messages yet.</div>
                                                 ) : (
-                                                    teamChatMessages.map(message => {
+                                                    displayedTeamChatMessages.map(message => {
                                                         const mine = message.authorUid === (user?.uid || 'local');
                                                         const messageKey = String(message.id || message.timestamp || '');
                                                         const isNewestUnread = Boolean(newestTeamChatUnreadId && messageKey === newestTeamChatUnreadId);
@@ -7147,7 +7403,7 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                                         const seenNames = [...readersByUid.values()].filter(entry => entry.uid !== user?.uid)
                                                             .map(entry => masterLists.nameOverrides?.[entry.uid] || entry.name || 'User');
                                                         return (
-                                                            <div key={message.id || message.timestamp} ref={isNewestUnread ? teamChatUnreadTargetRef : null} data-chat-message-id={messageKey} data-chat-message-owner={mine ? 'self' : 'other'} className={`flex min-w-0 ${mine ? 'justify-end' : 'justify-start'}`}>
+                                                            <div key={message.id || message.timestamp} ref={element => { if (isNewestUnread) teamChatUnreadTargetRef.current = element; if (message.id === chatJumpMessage?.id) teamChatJumpTargetRef.current = element; }} data-chat-message-id={messageKey} data-chat-message-owner={mine ? 'self' : 'other'} data-mention-highlighted={highlightedChatMessageId === message.id ? 'true' : undefined} className={`flex min-w-0 ${mine ? 'justify-end' : 'justify-start'} ${highlightedChatMessageId === message.id ? 'rounded-lg bg-indigo-500/10 ring-1 ring-indigo-400/50' : ''}`}>
                                                                 <div className={`group min-w-0 max-w-[90%] py-1 text-slate-100 ${mine ? 'text-right' : 'text-left'} ${editingChatId === message.id ? 'w-full' : ''}`}>
                                                                     <div className={`mb-1 flex items-center justify-between gap-3 ${mine ? 'flex-row-reverse' : ''}`}>
                                                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{mine ? 'You' : String(message.author || 'Team')}</span>
@@ -7166,7 +7422,8 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                                                         </div>
                                                                     ) : (
                                                                         <div data-chat-message-body className="min-w-0">
-                                                                            <ChatMessageText text={message.text} />
+                                                                            <ChatMessageText text={message.text} mentionNames={message.mentionNames} />
+                                                                            {chatJumpMessage?.id === message.id && !teamChatMessages.some(item => item.id === message.id) && <div className="mt-1 text-[9px] text-slate-400">Earlier mentioned message · {new Date(message.timestamp).toLocaleDateString()}</div>}
                                                                             {message.attachment && !message.pending && <ChatAttachmentCard attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={isTeamChatOpen} onPreview={setChatFilePreview} />}
                                                                             {message.pending && <span className="text-[9px] text-slate-400">Sending…</span>}
                                                                             {message.editedAt && <span className="text-[9px] text-slate-400">Edited</span>}
@@ -7185,7 +7442,7 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                             </div>
                                             {teamChatError && <div className="border-t border-rose-900/40 bg-rose-950/30 px-4 py-2 text-[11px] font-semibold text-rose-300">{teamChatError}</div>}
                                             <TeamChatTypingIndicator sessions={teamChatTypingSessions} uid={user?.uid} names={masterLists.nameOverrides || {}} />
-                                            <TeamChatComposer key={user?.uid || 'local'} open={isTeamChatOpen} canSend={canSendTeamChat} sendMessage={sendTeamChatMessage} publishTyping={publishTeamChatTyping} />
+                                            <TeamChatComposer key={user?.uid || 'local'} open={isTeamChatOpen} canSend={canSendTeamChat} sendMessage={sendTeamChatMessage} publishTyping={publishTeamChatTyping} mentionUsers={chatMentionUsers} />
                                         </div>
                                 </div>
                                 {isAdminUser && <button type="button" onClick={openTeamTasks} aria-label={taskNotifications.length ? `Team Tasks, ${taskNotifications.length} unread alerts` : 'Team Tasks'} title="Team Tasks" className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${taskNotifications.length ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`}>
@@ -7364,16 +7621,16 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                         </div>
                                 </div>
 
-                                {data.shiftNotes?.some(isHighPriorityNote) && (
+                                {data.shiftNotes?.some(isPendingHighPriorityNote) && (
                                     <div className="mb-6 space-y-3">
-                                        {data.shiftNotes.filter(isHighPriorityNote).map(note => (
+                                        {data.shiftNotes.filter(isPendingHighPriorityNote).map(note => (
                                             <div key={note.id} data-note-alert={isManagerNote(note) ? 'manager' : 'urgent'} className="relative overflow-hidden bg-rose-950/40 border border-rose-500/50 rounded-xl p-4 shadow-[0_0_20px_rgba(225,29,72,0.15)] animate-in slide-in-from-top-2 flex gap-4 items-start">
                                                 <div className="bg-rose-500/20 p-2 rounded-lg text-rose-400 animate-pulse"><AlertTriangle className="w-6 h-6" /></div>
                                                 <div className="flex-1 min-w-0">
                                                     <h3 className="text-rose-400 font-black tracking-widest text-xs uppercase mb-1 flex items-center gap-2">{isManagerNote(note) ? 'Manager Note Alert' : 'High Priority Alert'}</h3>
                                                     <p className="text-rose-100 text-sm font-medium whitespace-pre-wrap">{String(note.text)}</p>
                                                 </div>
-                                                <button disabled={!canEditSection('notes')} onClick={() => acknowledgeUrgentNote(note.id)} className="ml-auto shrink-0 self-center px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-400/40 text-rose-100 hover:bg-rose-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer disabled:opacity-40">Acknowledge</button>
+                                                <button disabled={isManagerNote(note) ? !user : !canEditSection('notes')} onClick={() => acknowledgeUrgentNote(note.id)} className="ml-auto shrink-0 self-center px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-400/40 text-rose-100 hover:bg-rose-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer disabled:opacity-40">Acknowledge</button>
                                             </div>
                                         ))}
                                     </div>
@@ -7524,25 +7781,25 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md flex justify-between items-center relative overflow-hidden group">
+                                        <div role="region" aria-label="Completed Routes" className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md flex justify-between items-center relative overflow-hidden group">
                                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none"><CheckCircle2 className="w-24 h-24 text-slate-100" /></div>
                                             <div className="flex flex-col relative z-10 w-full">
                                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Route className="w-3.5 h-3.5 text-emerald-400" /> Completed routes</span>
                                                 {isEditing ? (
                                                     <div className="flex items-center gap-2 mt-1">
-                                                        <input className="w-16 bg-slate-900 text-lg font-bold p-1 rounded focus:ring-1 focus:ring-indigo-500 outline-none border border-slate-600 text-white text-center placeholder-slate-500" inputMode="numeric" pattern="[0-9]*" placeholder="0" value={formatEditableZeroNumber(data.loadout?.completedRoutesCount)} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.loadout.completedRoutesCount = String(Math.min(parseEditableNumber(e.target.value), Number(currentKPI.routes || 0))); setData(nd); }} />
-                                                        <span className="text-[10px] text-slate-500 font-bold uppercase">of {currentKPI.routes}</span>
+                                                        <div className="w-16 bg-slate-900/50 text-lg font-bold p-1 rounded border border-slate-700 text-slate-400 text-center cursor-not-allowed" title="Counted automatically from ETA in the Routes tab">{currentKPI.completedRoutesCount}</div>
+                                                        <span className="text-[10px] text-slate-500 font-bold uppercase">of {currentKPI.routes} (Auto)</span>
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-baseline gap-2 mt-1">
-                                                        <span className="text-3xl font-black text-white">{Math.max(0, currentKPI.routes - (Number(data.loadout?.completedRoutesCount) || 0))}</span>
+                                                        <span className="text-3xl font-black text-white">{Math.max(0, currentKPI.routes - currentKPI.completedRoutesCount)}</span>
                                                         <span className="text-[11px] font-bold text-amber-400 uppercase tracking-widest flex items-center gap-1"><Clock className="w-3 h-3" /> Remaining</span>
                                                     </div>
                                                 )}
                                             </div>
                                             <div className="text-right flex flex-col items-end gap-1.5 mt-1 relative z-10 shrink-0">
                                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-700/60 pb-1.5 w-full text-right">Progress</div>
-                                                <div className="text-[11px] font-black text-emerald-400 uppercase tracking-wide">{Number(data.loadout?.completedRoutesCount) || 0} / {currentKPI.routes} Done</div>
+                                                <div className="text-[11px] font-black text-emerald-400 uppercase tracking-wide">{currentKPI.completedRoutesCount} / {currentKPI.routes} Done</div>
                                                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{toFixedSafe(currentKPI.compPerc)}% Completed</div>
                                             </div>
                                         </div>
