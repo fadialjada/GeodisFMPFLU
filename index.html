@@ -903,6 +903,62 @@
         }
         [data-screenshot-surface="true"] .metric-ring-fireworks { display: none !important; }
         @media (hover: none) { .chat-message-edit { opacity: 1 !important; } }
+        /* Team Chat stays a popup; these styles do not change other header panels. */
+        .team-chat-panel {
+            display: flex;
+            flex-direction: column;
+            width: 560px;
+            max-width: calc(100vw - 2rem);
+            max-height: calc(100dvh - 7rem);
+        }
+        .team-chat-panel > * { flex-shrink: 0; }
+        .team-chat-panel .team-chat-messages {
+            flex: 1 1 auto;
+            min-height: 0;
+            height: clamp(260px, 48dvh, 420px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding: 24px;
+        }
+        .team-chat-conversation { display: flex; flex-direction: column; gap: 24px; }
+        .team-chat-panel .chat-message-text { font-size: 15px; line-height: 1.65; font-weight: 400; }
+        .team-chat-composer { padding: 14px 18px 16px; }
+        .team-chat-compose-controls {
+            display: grid;
+            grid-template-columns: 36px 36px minmax(0, 1fr) auto;
+            gap: 6px;
+            align-items: center;
+        }
+        .team-chat-compose-controls > textarea {
+            grid-column: 1 / -1;
+            grid-row: 1;
+            width: 100%;
+            min-height: 70px;
+            padding: 12px 14px;
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 1.5;
+        }
+        .team-chat-send { grid-column: 4; min-height: 36px; }
+        .team-chat-panel .chat-message-edit { transition: opacity 120ms ease; }
+        @media (max-width: 767px), (max-width: 1023px) and (pointer: coarse) {
+            .team-chat-panel {
+                max-height: calc(var(--phone-viewport-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1.5rem);
+            }
+            .team-chat-panel .team-chat-messages {
+                height: 48dvh;
+                padding: 18px;
+            }
+            .team-chat-conversation { gap: 22px; }
+            .team-chat-composer { padding: 12px; }
+            .team-chat-panel .team-chat-titlebar { padding: 16px 18px; }
+            .team-chat-panel .team-chat-message { max-width: 92%; }
+        }
+        @media (max-width: 767px) and (max-height: 500px), (max-width: 1023px) and (max-height: 500px) and (pointer: coarse) {
+            .team-chat-panel .team-chat-titlebar { padding: 10px 16px; }
+            .team-chat-composer { padding: 8px 12px; }
+            .team-chat-compose-controls > textarea { min-height: 52px; height: 52px; padding: 8px 12px; }
+        }
         .metric-ring-value {
             display: inline-block;
             opacity: 0.58;
@@ -3208,7 +3264,7 @@
                 finally { sendingRef.current = false; focusAfterSendRef.current = true; setSending(false); }
             };
             const pickerItems = filterChatPickerItems(pickerMode === 'emojis' ? TEAM_CHAT_EMOJIS : TEAM_CHAT_STICKERS, pickerQuery, pickerMode === 'stickers' ? stickerGroup : 'all');
-            return <div className="border-t border-slate-800 bg-slate-900/80">
+            return <div className="team-chat-composer border-t border-slate-800 bg-slate-900/80">
                 {selectedFile && <div role="group" aria-label="Attachment preview" className="flex items-center gap-3 px-3 pt-3">
                     {filePreviewUrl ? <img src={filePreviewUrl} alt={'Selected file: ' + selectedFile.name} className="h-14 w-14 shrink-0 rounded-lg object-cover" /> : <FileText className="h-9 w-9 shrink-0 text-slate-400" />}
                     <div className="min-w-0 flex-1"><p className="break-words text-xs font-semibold text-slate-100">{selectedFile.name}</p><p className="mt-1 text-[10px] text-slate-400">{chatFileSize(selectedFile.size)} · Add a message or send the file.</p></div>
@@ -3216,7 +3272,7 @@
                 </div>}
                 {fileError && <p role="alert" className="px-3 pt-2 text-[11px] text-rose-300">{fileError}</p>}
                 {selectedSticker && <div role="group" aria-label="Sticker preview" className="flex items-center gap-3 px-3 pt-2"><TeamChatSticker sticker={selectedSticker} className="h-20 w-20 shrink-0" /><div className="min-w-0 text-xs text-slate-300"><p className="font-semibold">{selectedSticker.label}</p><p className="mt-1 text-[11px] text-slate-400">Press Send to share this sticker.</p><button type="button" disabled={sending} onClick={() => { setSelectedSticker(null); requestAnimationFrame(() => inputRef.current?.focus({preventScroll:true})); }} className="mt-2 text-slate-300 underline underline-offset-2 hover:text-white">Remove sticker</button></div></div>}
-                <div className="relative flex items-end gap-2 px-3 py-3">
+                <div className="team-chat-compose-controls relative">
                     {mentionToken && !emojiOpen && mentionMatches.length > 0 && <div id="team-chat-mention-picker" role="listbox" aria-label="Mention a teammate" className="absolute bottom-full left-3 right-3 z-20 mb-1 max-h-52 overflow-y-auto rounded-xl border border-slate-600 bg-slate-900 p-1 shadow-xl">
                         <div className="px-3 py-2 text-[10px] text-slate-400">Choose who to notify · up to 8 people</div>
                         {mentionMatches.map((person, index) => <button key={person.uid} id={`mention-option-${index}`} type="button" role="option" aria-selected={index === mentionIndex} onMouseDown={event => event.preventDefault()} onClick={() => selectMention(person)} className={`block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold ${index === mentionIndex ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>@{person.name}</button>)}
@@ -3239,7 +3295,7 @@
                         } else if (event.key === 'Escape') setMentionToken(null);
                         else if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); }
                     }} rows="2" placeholder={selectedSticker ? 'Sticker ready to send' : 'Write a team message... @ to mention'} className="min-h-[42px] min-w-0 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500 disabled:opacity-60" />
-                    <button type="button" onClick={send} disabled={!canSend || sending || (!draft.trim() && !selectedSticker && !selectedFile)} className="rounded-xl bg-indigo-600 px-3 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">{sending ? 'Sending…' : 'Send'}</button>
+                    <button type="button" onClick={send} disabled={!canSend || sending || (!draft.trim() && !selectedSticker && !selectedFile)} className="team-chat-send rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">{sending ? 'Sending…' : 'Send'}</button>
                 </div>
             </div>;
         };
@@ -7380,16 +7436,16 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                             <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{teamChatUnreadCount > 9 ? '9+' : teamChatUnreadCount}</span>
                                         )}
                                     </button>
-                                        <div role="dialog" aria-label="Team Chat" style={{display:isTeamChatOpen ? undefined : 'none'}} data-dashboard-edit-ignore="true" className="dashboard-header-popover absolute right-0 top-8 z-[120] w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
-                                            <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+                                        <div role="dialog" aria-label="Team Chat" style={{display:isTeamChatOpen ? undefined : 'none'}} data-dashboard-edit-ignore="true" className="team-chat-panel dashboard-header-popover absolute right-0 top-8 z-[120] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                            <div className="team-chat-titlebar flex items-center justify-between gap-3 border-b border-slate-800 px-6 py-4">
                                                 <div>
-                                                    <div className="text-xs font-black uppercase tracking-widest text-white">Team Chat</div>
-                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Local group chat</div>
+                                                    <div className="text-base font-bold text-white">Team Chat</div>
+                                                    <div className="mt-0.5 text-xs font-normal text-slate-400">Messages for your team</div>
                                                 </div>
-                                                <button type="button" onClick={() => setIsTeamChatOpen(false)} className="rounded-lg border border-slate-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">Close</button>
+                                                <button type="button" aria-label="Close" title="Close Team Chat" onClick={() => setIsTeamChatOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"><X className="h-5 w-5" /></button>
                                             </div>
-                                            <div ref={teamChatScrollRef} data-popover-scroll="true" style={{scrollBehavior:'auto'}} className="max-h-80 min-h-[220px] overflow-y-auto px-4 py-3 bg-slate-950/90">
-                                                <div ref={teamChatContentRef} className="space-y-3">
+                                            <div ref={teamChatScrollRef} data-popover-scroll="true" style={{scrollBehavior:'auto'}} className="team-chat-messages bg-slate-950/90">
+                                                <div ref={teamChatContentRef} className="team-chat-conversation">
                                                 {displayedTeamChatMessages.length === 0 ? (
                                                     <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">No team messages yet.</div>
                                                 ) : (
@@ -7404,12 +7460,12 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                                             .map(entry => masterLists.nameOverrides?.[entry.uid] || entry.name || 'User');
                                                         return (
                                                             <div key={message.id || message.timestamp} ref={element => { if (isNewestUnread) teamChatUnreadTargetRef.current = element; if (message.id === chatJumpMessage?.id) teamChatJumpTargetRef.current = element; }} data-chat-message-id={messageKey} data-chat-message-owner={mine ? 'self' : 'other'} data-mention-highlighted={highlightedChatMessageId === message.id ? 'true' : undefined} className={`flex min-w-0 ${mine ? 'justify-end' : 'justify-start'} ${highlightedChatMessageId === message.id ? 'rounded-lg bg-indigo-500/10 ring-1 ring-indigo-400/50' : ''}`}>
-                                                                <div className={`group min-w-0 max-w-[90%] py-1 text-slate-100 ${mine ? 'text-right' : 'text-left'} ${editingChatId === message.id ? 'w-full' : ''}`}>
-                                                                    <div className={`mb-1 flex items-center justify-between gap-3 ${mine ? 'flex-row-reverse' : ''}`}>
-                                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{mine ? 'You' : String(message.author || 'Team')}</span>
+                                                                <div className={`team-chat-message group min-w-0 max-w-[84%] text-slate-100 ${mine ? 'text-right' : 'text-left'} ${editingChatId === message.id ? 'w-full' : ''}`}>
+                                                                    <div className={`mb-1.5 flex items-center gap-3 ${mine ? 'flex-row-reverse' : ''}`}>
+                                                                        <span className="text-xs font-semibold text-slate-300">{mine ? 'You' : String(message.author || 'Team')}</span>
                                                                         <div className="flex items-center gap-2">
                                                                             {mine && !message.pending && !getTeamChatSticker(message.text) && canSendTeamChat && editingChatId !== message.id && <button type="button" onClick={() => { setEditingChatId(message.id); setEditingChatText(message.text || ''); }} className="chat-message-edit text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Edit your message">Edit</button>}
-                                                                            <span className="text-[9px] font-bold text-slate-500">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>
+                                                                            <span className="text-[11px] font-normal text-slate-500">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>
                                                                         </div>
                                                                     </div>
                                                                     {editingChatId === message.id ? (
@@ -7430,7 +7486,7 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
                                                                         </div>
                                                                     )}
                                                                     {mine && seenNames.length > 0 && (
-                                                                        <div className="mt-1 text-[9px] font-bold text-indigo-200/70">Seen by {seenNames.join(', ')}</div>
+                                                                        <div className="mt-1.5 text-[11px] font-normal text-slate-400">Seen by {seenNames.join(', ')}</div>
                                                                     )}
                                                                 </div>
                                                             </div>
