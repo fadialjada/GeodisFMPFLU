@@ -1114,6 +1114,19 @@
 .team-assignment-report .ta-table th:last-child { width:35%; }
 .team-assignment-report .ta-table small { display:block; color:var(--ta-muted); font-size:12px; }
 .team-assignment-report .ta-empty { text-align:center; color:var(--ta-muted); }
+.team-assignment-report .ta-preload-assignment { margin-top:18px; padding:14px 18px; text-align:center; }
+.team-assignment-report .ta-preload-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.15fr); gap:24px; align-items:center; }
+.team-assignment-report .ta-preload-layout > * { min-width:0; }
+.team-assignment-report .ta-preload-contractor { text-align:left; align-self:start; }
+.team-assignment-report .ta-preload-contractor h3 { font-size:14px; line-height:1.3; margin:0 0 9px; }
+.team-assignment-report .ta-preload-layout dl { margin:0; }
+.team-assignment-report .ta-preload-layout dt { font-size:12px; color:var(--ta-muted); }
+.team-assignment-report .ta-preload-layout dd { margin:0; font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+.team-assignment-report .ta-preload-contractor dl { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 8px; }
+.team-assignment-report .ta-preload-contractor dd { font-size:15px; }
+.team-assignment-report .ta-preload-assignees > div, .team-assignment-report .ta-preload-loading dl > div { display:flex; justify-content:center; flex-wrap:wrap; gap:4px 8px; align-items:baseline; margin-bottom:7px; }
+.team-assignment-report .ta-preload-loading p { font-size:12px; color:var(--ta-muted); margin:0 0 7px; overflow-wrap:anywhere; }
+.team-assignment-report .ta-preload-loading strong { color:var(--ta-text); font-weight:600; }
 .team-assignment-report .ta-uniform-guide { margin-top:18px; }
 .team-assignment-report .ta-poster { display:block; width:100%; height:auto; margin:12px auto 0; border-radius:10px; }
 .team-assignment-report .ta-notes { margin-top:18px; font-size:18px; line-height:1.65; }
@@ -1138,6 +1151,7 @@
     .team-assignment-report:not(.team-assignment-export) .ta-table th, .team-assignment-report:not(.team-assignment-export) .ta-table td { padding-left:5px; padding-right:5px; }
     .team-assignment-report:not(.team-assignment-export) .ta-table { font-size:13px; }
     .team-assignment-report:not(.team-assignment-export) .ta-table small { font-size:11px; }
+    .team-assignment-report:not(.team-assignment-export) .ta-preload-layout { grid-template-columns:minmax(0,1fr); gap:14px; }
     .team-assignment-report .ta-input { font-size:16px; }
 }
 
@@ -1254,7 +1268,7 @@
             Table as TableIcon, Trash2, Route, Settings, ClipboardPaste, Award, DollarSign,
             PlusCircle, X, Loader2, ActivitySquare, MessageSquare, User, Share2,
             FileText, History, Maximize, Minimize, Bell, ThumbsUp, Smile, Search, ClipboardList,
-            Heart, Coffee, PartyPopper, Hand, Moon, Sparkles, Pizza, Cookie, Mic, Paperclip
+            Heart, Coffee, PartyPopper, Hand, Moon, Sparkles, Pizza, Cookie, Mic, Paperclip, MoreHorizontal
         } from 'lucide-react';
 
         let firebaseConfig = {
@@ -1600,8 +1614,41 @@
 
         const normalizeAssignmentName = (name) => String(name || '').trim().replace(/\s+/g, ' ');
 
-        const calculateDriverAssignmentWarnings = (currentData, historyRecords, activeDateStr) => {
+        const getRouteAssignmentSignature = rows => JSON.stringify((rows || []).map((row,index) => [
+            String(row.id ?? index), normalizeAssignmentName(row.driver).toLowerCase(), normalizeAssignmentName(row.helper).toLowerCase()
+        ]).filter(([,driver,helper]) => driver || helper).sort((a,b) => a[0].localeCompare(b[0])));
+
+        const getChangedRouteAssignmentPeople = (previousRows, nextRows) => {
+            const assignments = rows => new Map((rows || []).map((row,index) => [String(row.id ?? index), row]));
+            const before = assignments(previousRows), after = assignments(nextRows), people = new Set();
+            new Set([...before.keys(), ...after.keys()]).forEach(id => {
+                ['driver','helper'].forEach(role => {
+                    const previous = normalizeAssignmentName(before.get(id)?.[role]).toLowerCase();
+                    const next = normalizeAssignmentName(after.get(id)?.[role]).toLowerCase();
+                    if (previous === next) return;
+                    if (previous) people.add(previous);
+                    if (next) people.add(next);
+                });
+            });
+            return [...people];
+        };
+
+        // Only local route controls create this context; shared snapshots never do.
+        const createLocalRouteAssignmentEdit = (previous, previousRows, nextRows, uid, date, token) => {
+            if (!uid) return null;
+            const ownsPrevious = previous?.uid === uid && previous?.date === date;
+            const changedPeople = getChangedRouteAssignmentPeople(previousRows, nextRows);
+            if (!changedPeople.length) return ownsPrevious ? previous : null;
+            return { uid, date, token, signature: getRouteAssignmentSignature(nextRows),
+                people: [...new Set([...(ownsPrevious ? previous.people : []), ...changedPeople])] };
+        };
+
+        const isLocalRouteAssignmentEditCurrent = (edit, uid, date, rows) => Boolean(uid && edit?.uid === uid
+            && edit?.date === date && edit.signature === getRouteAssignmentSignature(rows));
+
+        const calculateDriverAssignmentWarnings = (currentData, historyRecords, activeDateStr, personKeys = null) => {
             const sameDay = [], consecutive = [];
+            const peopleToCheck = personKeys === null ? null : new Set(Array.from(personKeys, name => normalizeAssignmentName(name).toLowerCase()));
             const selectedDay = Date.parse(activeDateStr + 'T00:00:00Z');
             if (!/^\d{4}-\d{2}-\d{2}$/.test(activeDateStr) || !Number.isFinite(selectedDay)
                 || new Date(selectedDay).toISOString().slice(0, 10) !== activeDateStr) return { sameDay, consecutive };
@@ -1609,6 +1656,9 @@
             // UTC calendar days avoid losing a day at daylight-saving changes.
             const dayKey = day => new Date(day).toISOString().slice(0, 10);
             const dayLabel = day => new Date(day).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
+            // Assignment limits start over on Monday; other weeks do not extend this one.
+            const weekStart = selectedDay - ((new Date(selectedDay).getUTCDay() + 6) % 7) * 86400000;
+            const weekEnd = weekStart + 6 * 86400000;
             const records = new Map((historyRecords || []).map(record => [record.date, record]));
             // Unsaved edits on the selected date take precedence over saved history.
             records.set(activeDateStr, currentData);
@@ -1635,14 +1685,16 @@
             const selectedPeople = peopleOn(selectedDay);
             const selectedLabel = new Date(selectedDay).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'short', day: 'numeric' });
             selectedCounts.forEach(({ name, role, count }) => {
+                if (peopleToCheck && !peopleToCheck.has(normalizeAssignmentName(name).toLowerCase())) return;
                 if (count > 1) sameDay.push(`${name} is assigned as ${role} on ${count} routes on ${selectedLabel}.`);
             });
             selectedPeople.forEach((name, personKey) => {
-                let firstDay = selectedDay, lastDay = selectedDay;
-                while (peopleOn(firstDay - 86400000).has(personKey)) firstDay -= 86400000;
-                while (peopleOn(lastDay + 86400000).has(personKey)) lastDay += 86400000;
-                const count = (lastDay - firstDay) / 86400000 + 1;
-                if (count > 6) consecutive.push(`${name} is assigned for ${count} consecutive days (${dayLabel(firstDay)} – ${dayLabel(lastDay)}). Confirm before overriding the six-day limit.`);
+                if (peopleToCheck && !peopleToCheck.has(personKey)) return;
+                let count = 0;
+                for (let day = weekStart; day <= weekEnd; day += 86400000) {
+                    if (peopleOn(day).has(personKey)) count++;
+                }
+                if (count > 6) consecutive.push(`${name} is assigned on all ${count} days this week (${dayLabel(weekStart)} – ${dayLabel(weekEnd)}). At least one rest day is required each Monday–Sunday week. The count starts again on Monday.`);
             });
             return { sameDay, consecutive };
         };
@@ -2471,6 +2523,148 @@
         };
 
 
+        // A preload is linked to one saved row and one day, never to its SU alone.
+        const getLinkedPreloadTeam = (rows = [], dateKey) => {
+            const linked = rows.filter(row => row?.preloadArrival?.date === dateKey && row.preloadArrival?.assignmentId);
+            return linked.length === 1 ? linked[0] : null;
+        };
+        const parsePreloadEtaMinutes = value => {
+            const text = String(value || '').trim();
+            const clock = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+            if (!clock) return null;
+            let hour = Number(clock[1]);
+            const minute = Number(clock[2]), period = clock[3]?.toUpperCase();
+            if (minute > 59 || (period ? hour < 1 || hour > 12 : hour > 23)) return null;
+            if (period) hour = hour % 12 + (period === 'PM' ? 12 : 0);
+            return hour * 60 + minute;
+        };
+        const preloadClockLabel = minutes => minutes == null ? 'Not entered' :
+            `${Math.floor(minutes / 60) % 12 || 12}:${String(minutes % 60).padStart(2, '0')} ${minutes >= 720 ? 'PM' : 'AM'}`;
+        const preloadClockValue = minutes => minutes == null ? '' :
+            `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+        const getPreloadClock = (now = new Date()) => {
+            const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+            return { dateKey: now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }),
+                minutes: (Number(parts.find(part => part.type === 'hour')?.value) % 24) * 60 + Number(parts.find(part => part.type === 'minute')?.value) };
+        };
+        const hasLinkedPreloadArrived = (team, notes = [], schedule = {}) => Boolean(team && (
+            team.preloadArrival.confirmedAt || notes.some(note => note.preloadArrivalConfirmed && note.preloadAssignmentId === team.preloadArrival.assignmentId)
+            || (String(schedule.status || '').toLowerCase() === 'arrived' && schedule.lastUpdatedAt >= team.preloadArrival.assignedAt)));
+        const getPreloadArrivalAlert = ({ rows = [], notes = [], schedule = {}, dateKey, clock }) => {
+            if (dateKey !== clock.dateKey) return null;
+            const team = getLinkedPreloadTeam(rows, dateKey);
+            if (!team || hasLinkedPreloadArrived(team, notes, schedule)) return null;
+            const eta = parsePreloadEtaMinutes(team.timeOffDock), now = clock.minutes;
+            const nextUnknown = Number(team.preloadArrival.unknownUntil) || 1020;
+            let kind, tone, due;
+            if (eta != null && eta > 1080) { kind = now < eta ? 'late-eta' : 'late-check'; tone = 'red'; due = eta; }
+            else if (now > 1080) { kind = 'overdue'; tone = 'red'; due = eta ?? nextUnknown; }
+            else if (eta != null) {
+                if (now < eta) return null;
+                kind = 'arrival'; tone = 'green'; due = eta;
+            } else {
+                if (now < 990 || (team.preloadArrival.unknownUntil && now < nextUnknown)) return null;
+                kind = now < 1020 ? 'missing-eta' : 'arrival'; tone = now < 1020 ? 'amber' : 'green';
+                due = kind === 'missing-eta' ? 990 : nextUnknown;
+            }
+            return { team: { ...team, door: schedule.door ?? '' }, loadingDate: dateKey, eta, kind, tone, due,
+                signature: `${dateKey}:${team.preloadArrival.assignmentId}:${kind}:${due}`,
+                title: kind === 'missing-eta' ? 'Preload team ETA needed' : kind === 'late-eta' ? 'Preload team may arrive late'
+                    : tone === 'red' ? 'Preload arrival not confirmed' : 'Preload arrival check',
+                message: kind === 'missing-eta' ? 'Please enter the expected warehouse arrival time, or tell us the team is still on route.'
+                    : kind === 'late-eta' ? 'The entered ETA is after the 6:00 PM arrival deadline. Confirm only when the team is at the warehouse.'
+                    : tone === 'red' ? 'Arrival has not been confirmed. Update their ETA or confirm that the team is at the warehouse.'
+                    : 'Has the assigned preload team arrived at the warehouse?' };
+        };
+        const nextUnknownPreloadCheck = minutes => Math.min(1439, minutes < 1020 ? 1020 : (Math.floor(minutes / 30) + 1) * 30);
+        const makePreloadAssignmentRows = (rows, rowId, dateKey, actorUid, timestamp, assignmentId) => rows.map(row => {
+            if (!row) return row;
+            const { preloadArrival, ...rest } = row;
+            return rowId != null && String(row.id) === String(rowId)
+                ? { ...rest, preloadArrival: { date: dateKey, assignmentId, assignedAt: timestamp, assignedBy: actorUid } } : rest;
+        });
+        const reconcilePreloadAssignmentRows = (baseline, draft, merged, dateKey) => {
+            const before = getLinkedPreloadTeam(baseline, dateKey), selected = getLinkedPreloadTeam(draft, dateKey);
+            const changed = (before?.preloadArrival.assignmentId || '') !== (selected?.preloadArrival.assignmentId || '');
+            if (!changed) return { rows: merged, changed: false, selected: getLinkedPreloadTeam(merged, dateKey) };
+            if (selected && !merged.some(row => row && String(row.id) === String(selected.id))) throw new Error('That route was removed by another user. Refresh Routes and choose the preload team again.');
+            const savedSelection = getLinkedPreloadTeam(merged, dateKey);
+            const metadata = selected && savedSelection?.preloadArrival.assignmentId === selected.preloadArrival.assignmentId
+                ? savedSelection.preloadArrival : selected?.preloadArrival;
+            // Resolve two concurrent selections as one assignment, rather than merging two tagged rows.
+            const rows = merged.map(row => {
+                if (!row) return row;
+                const { preloadArrival, ...rest } = row;
+                return selected && String(row.id) === String(selected.id) ? { ...rest, preloadArrival: metadata } : rest;
+            });
+            return { rows, changed: true, selected: getLinkedPreloadTeam(rows, dateKey) };
+        };
+        const mergeDailyRecapEdits = (baseline, local, remote, dateKey) => {
+            const merged = mergeConcurrentEdits(baseline || {}, local, remote);
+            const before = getLinkedPreloadTeam(baseline?.routeTable, dateKey);
+            const mine = getLinkedPreloadTeam(local?.routeTable, dateKey);
+            const selectionChanged = (before?.preloadArrival.assignmentId || '') !== (mine?.preloadArrival.assignmentId || '');
+            const saved = getLinkedPreloadTeam(remote?.routeTable, dateKey);
+            const choice = selectionChanged ? mine : saved;
+            const selected = choice && saved?.preloadArrival.assignmentId === choice.preloadArrival.assignmentId ? saved : choice;
+            // Treat the designation as one shared choice. A live update must not
+            // merge different assignments or carry an old team's confirmation forward.
+            return { ...merged, routeTable: (merged.routeTable || []).map(row => {
+                if (!row) return row;
+                const { preloadArrival, ...rest } = row;
+                return selected && String(row.id) === String(selected.id)
+                    ? { ...rest, preloadArrival: selected.preloadArrival } : rest;
+            }) };
+        };
+        const savePreloadArrivalChange = async ({ dateKey, rowId, assignmentId, action, etaValue, actorUid, actorName, timestamp }) => {
+            requirePermission('routes'); requirePermission('preload');
+            if (action === 'confirm') requirePermission('shiftNotes');
+            const clock = getPreloadClock(new Date(timestamp));
+            if (dateKey !== clock.dateKey) throw new Error('Arrival checks are available for today only.');
+            if (actorUid !== auth.currentUser?.uid) throw new Error('Your login changed. Please reopen the reminder.');
+            if (!['eta', 'unknown', 'confirm'].includes(action)) throw new Error('Choose an arrival action.');
+            const eta = action === 'eta' ? parsePreloadEtaMinutes(etaValue) : null;
+            if (action === 'eta' && eta == null) throw new Error('Enter a valid warehouse arrival time.');
+            const recapRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', dateKey);
+            const scheduleRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', dateKey);
+            return runTransaction(db, async transaction => {
+                const recapSnap = await transaction.get(recapRef), scheduleSnap = await transaction.get(scheduleRef);
+                if (actorUid !== auth.currentUser?.uid) throw new Error('Your login changed. Please reopen the reminder.');
+                requirePermission('routes'); requirePermission('preload');
+                if (action === 'confirm') requirePermission('shiftNotes');
+                const recap = recapSnap.exists() ? recapSnap.data() : {}, schedule = scheduleSnap.exists() ? scheduleSnap.data() : {};
+                const team = getLinkedPreloadTeam(recap.routeTable, dateKey);
+                if (!team || String(team.id) !== String(rowId) || team.preloadArrival.assignmentId !== assignmentId)
+                    throw new Error('The preload assignment changed. Reopen the reminder for the current team.');
+                if (hasLinkedPreloadArrived(team, recap.shiftNotes, schedule)) return { recap, schedule };
+                const nextTeam = { ...team, preloadArrival: { ...team.preloadArrival } };
+                delete nextTeam.preloadArrival.unknownUntil;
+                let nextSchedule = schedule, notes = recap.shiftNotes || [];
+                if (action === 'eta') nextTeam.timeOffDock = preloadClockValue(eta);
+                if (action === 'unknown') {
+                    nextTeam.timeOffDock = '';
+                    nextTeam.preloadArrival.unknownUntil = nextUnknownPreloadCheck(clock.minutes);
+                }
+                if (action === 'confirm') {
+                    nextTeam.preloadArrival.confirmedAt = timestamp;
+                    nextTeam.preloadArrival.confirmedBy = actorName;
+                    nextTeam.preloadArrival.confirmedByUid = actorUid;
+                    const details = [team.contractor, team.driver && `Driver ${team.driver}`, team.helper && `Helper ${team.helper}`,
+                        schedule.door && `Door ${schedule.door}`].filter(Boolean).join(' · ');
+                    notes = [...notes, { id: `preload-arrival:${dateKey}:${assignmentId}`, category: 'General', author: actorName, authorUid: actorUid,
+                        timestamp, text: `Preload arrival — ${details} — confirmed by ${actorName} at ${preloadClockLabel(clock.minutes)} Central.`,
+                        system: true, preloadArrivalConfirmed: true, preloadArrivalDate: dateKey, preloadAssignmentId: assignmentId, replies: [] }];
+                    nextSchedule = { ...schedule, status: 'Arrived', lastUpdatedBy: actorName, lastUpdatedAt: timestamp };
+                }
+                const patch = { routeTable: recap.routeTable.map(row => row && String(row.id) === String(rowId) ? nextTeam : row),
+                    lastUpdatedBy: actorName, lastUpdatedAt: timestamp };
+                if (action === 'confirm') patch.shiftNotes = notes;
+                transaction.set(recapRef, patch, { merge: true });
+                if (action === 'confirm') transaction.set(scheduleRef, nextSchedule, { merge: true });
+                return { recap: { ...recap, ...patch }, schedule: nextSchedule };
+            });
+        };
+
         // Preserve concurrent activity and save each staff note edit separately,
         // so Firestore can prove that no existing note or author was removed.
         const saveDailyRecapDocument = async (ref, draft, baseline) => {
@@ -2485,7 +2679,25 @@
             await runTransaction(db, async transaction => {
                 const snapshot = await transaction.get(ref);
                 const latest = snapshot.exists() ? snapshot.data() : {};
-                let merged = mergeConcurrentEdits(baseline || {}, draft, latest);
+                let merged = mergeDailyRecapEdits(baseline || {}, draft, latest, ref.id);
+                const preloadSelection = reconcilePreloadAssignmentRows(baseline?.routeTable || [], draft.routeTable || [], merged.routeTable || [], ref.id);
+                const savedTeam = getLinkedPreloadTeam(latest.routeTable, ref.id), selectedTeam = preloadSelection.selected;
+                const assignmentChanged = (savedTeam?.preloadArrival.assignmentId || '') !== (selectedTeam?.preloadArrival.assignmentId || '');
+                const sameAssignment = selectedTeam && savedTeam?.preloadArrival.assignmentId === selectedTeam.preloadArrival.assignmentId;
+                const contractorChanged = sameAssignment && (selectedTeam.contractor || '') !== (savedTeam.contractor || '');
+                if (assignmentChanged || contractorChanged) {
+                    requirePermission('routes'); requirePermission('preload');
+                    if (assignmentChanged || contractorChanged) requirePermission('preloadAssignments');
+                    merged.routeTable = preloadSelection.rows;
+                    const preloadRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', ref.id);
+                    const preloadSnap = await transaction.get(preloadRef);
+                    const existingPreload = preloadSnap.exists() ? preloadSnap.data() : { contractor: '', door: '' };
+                    transaction.set(preloadRef, { ...existingPreload,
+                        ...(assignmentChanged && selectedTeam ? { contractor: selectedTeam.contractor || '' } : {}),
+                        ...(contractorChanged ? { contractor: selectedTeam.contractor || '' } : {}),
+                        ...(assignmentChanged ? { status: 'Pending' } : {}),
+                        lastUpdatedBy: draft.lastUpdatedBy, lastUpdatedAt: draft.lastUpdatedAt }, { merge: true });
+                }
                 if (owner || accountHasPermission(auth.currentUser, 'routes') || accountHasPermission(auth.currentUser, 'overview')) merged = withAutoRouteMetrics(merged);
                 if (!owner && !snapshot.exists()) {
                     for (const [field, key] of [['routeTable','routes'],['metricsTracker','metrics'],['midDay','overview'],['endOfDay','overview']]) {
@@ -2596,7 +2808,7 @@
             ['compliance12', '12:00 PM route update', 'The noon compliance reminder.', 'standard'],
             ['preloadMessage', '12:30 PM preload message', 'The reminder to send the preload message.', 'standard'],
             ['compliance17', '5:00 PM route update', 'The afternoon compliance reminder.', 'standard'],
-            ['preloadArrival', 'Preload team arrival', 'The 5:00 PM arrival check and its 5:30, 6:00 and 6:30 PM snoozes.', 'standard'],
+            ['preloadArrival', 'Preload team arrival', 'Missing ETA at 4:30 PM, arrival checks at the saved ETA, and late-arrival warnings after 6:00 PM Central.', 'standard'],
             ['compliance19', '7:00 PM end-of-day update', 'The evening compliance reminder.', 'standard'],
             ['urgentNote', 'Urgent / Manager Note', 'A newly saved urgent Shift Note or Manager Note.', 'urgent'],
             ['driverAssignment', 'Driver assignment warning', 'A new warning displayed in Routes.', 'silent'],
@@ -3799,9 +4011,10 @@ const getTeamAssignmentReport = data => {
         includeGuide: saved.includeGuide !== false
     };
 };
-const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isEditing, isCapturing, reportRef, onCapture}) => {
+const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSchedule = {}, setData, isEditing, isCapturing, reportRef, onCapture}) => {
     const report = getTeamAssignmentReport(data);
     const rows = getCountableRouteRows(data);
+    const preloadTeam = getLinkedPreloadTeam(data.routeTable || [], activeDate);
     const update = (field,value) => {
         if (!isEditing || isCapturing) return;
         setData(previous => ({...previous,loadout:{...previous.loadout,
@@ -3835,6 +4048,19 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                         </table>
                     </div>
                 </section>
+                {preloadTeam && <section className="ta-block ta-preload-assignment" aria-labelledby="ta-preload-heading">
+                    <div className="ta-preload-layout">
+                        <div className="ta-preload-contractor">
+                            <h3 id="ta-preload-heading">Preload assignment</h3>
+                            <dl><dt>Contractor:</dt><dd>{preloadTeam.contractor || 'Not assigned'}</dd></dl>
+                        </div>
+                        <dl className="ta-preload-assignees">{[['Driver',preloadTeam.driver],['Helper',preloadTeam.helper]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value || 'Not assigned'}</dd></div>)}</dl>
+                        <div className="ta-preload-loading">
+                            <dl><div><dt>Loading date</dt><dd><time dateTime={activeDate}>{displayDateString}</time></dd></div></dl>
+                            <p>Route ready for loading at <strong>5:00 PM</strong> · Dock door <strong>{preloadSchedule?.door || 'Not assigned'}</strong></p>
+                        </div>
+                    </div>
+                </section>}
                 {report.includeGuide && <section className="ta-uniform-guide" aria-labelledby="ta-guide-heading">
                     <div className="ta-block ta-guide-banner"><h3 id="ta-guide-heading">Uniform guide</h3></div>
                     <img className="ta-poster" src={TEAM_ASSIGNMENT_UNIFORM_GUIDE} width={1774} height={887} alt="Uniform Standard: black cap with no logos, tucked polo and black undershirt, GEODIS badge with the model's portrait clipped to the outer left sleeve, solid black belt, black cargo pants or shorts with black shoes and socks, and matching driver and helper uniforms." />
@@ -3854,6 +4080,72 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
         </article>
     </div>;
 };
+
+        const RouteContractorCell = ({ isPreload, children }) => (
+            <div className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap w-full">
+                {children}
+                {isPreload && <span data-panel-screenshot-ignore="true" role="img" aria-label="Preload team" title="Preload team" className="inline-block w-1.5 h-1.5 shrink-0 rounded-full bg-emerald-400" />}
+            </div>
+        );
+
+        const PreloadArrivalReminder = ({ alert, busy, error, canUpdate, canConfirm, onAction }) => {
+            const [editingEta, setEditingEta] = useState(false), [etaDraft, setEtaDraft] = useState(''), [inputError, setInputError] = useState('');
+            useEffect(() => { setEditingEta(false); setInputError(''); }, [alert?.team.preloadArrival.assignmentId]);
+            if (!alert) return null;
+            const { team, tone, eta, title, message, kind, loadingDate } = alert;
+            const loadingDateLabel = new Date(`${loadingDate}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+            const colors = tone === 'red' ? 'bg-rose-500/15 border-rose-500/50 text-rose-200'
+                : tone === 'amber' ? 'bg-amber-500/15 border-amber-500/45 text-amber-200' : 'bg-emerald-500/15 border-emerald-500/45 text-emerald-200';
+            const openEta = () => { setEtaDraft(preloadClockValue(eta)); setInputError(''); setEditingEta(true); };
+            const saveEta = async event => {
+                event.preventDefault();
+                if (parsePreloadEtaMinutes(etaDraft) == null) { setInputError('Enter the expected arrival time.'); return; }
+                if (await onAction('eta', etaDraft)) setEditingEta(false);
+            };
+            const unknown = async () => { if (await onAction('unknown')) setEditingEta(false); };
+            const button = 'px-3 py-2 rounded-lg border border-current/25 hover:bg-white/10 transition-colors text-xs font-semibold disabled:opacity-50 disabled:cursor-wait';
+            return <section aria-label="Preload arrival reminder" data-preload-tone={tone} className={`dashboard-reminder mb-6 border p-4 rounded-xl ${colors}`}>
+                <div className="flex items-start gap-3"><Clock className="w-6 h-6 shrink-0 mt-0.5" /><div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-sm">{title}</h3><p className="text-sm mt-1">{message}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 py-3 border-y border-white/10 text-slate-200">
+                        <div className="min-w-0" data-preload-details="team">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Assigned team</h4>
+                            <p className="font-semibold text-sm break-words mb-2">{team.contractor || 'Contractor not assigned'}</p>
+                            <dl className="space-y-1 text-sm">{[['Driver', team.driver], ['Helper', team.helper]].map(([label, value]) =>
+                                <div key={label} className="flex gap-2 min-w-0"><dt className="text-slate-400 shrink-0">{label}:</dt><dd className="min-w-0 break-words">{value || 'Not assigned'}</dd></div>)}
+                            </dl>
+                        </div>
+                        <div className="min-w-0" data-preload-details="loading">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Loading details</h4>
+                            <p className="font-semibold text-sm mb-2">Next-day preload</p>
+                            <dl className="space-y-1 text-sm">
+                                <div className="flex gap-2"><dt className="text-slate-400 shrink-0">Door:</dt><dd className="font-semibold break-words">{team.door || 'Not assigned'}</dd></div>
+                                <div className="flex flex-wrap gap-x-2"><dt className="text-slate-400">Loading date:</dt><dd>Today · {loadingDateLabel}</dd></div>
+                            </dl>
+                        </div>
+                        <div className="min-w-0 sm:col-span-2 lg:col-span-1" data-preload-details="timing">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Team arrival</h4>
+                            <p className="text-sm">ETA: <strong className="text-base">{preloadClockLabel(eta)}</strong><span className="text-xs text-slate-400"> · Central</span></p>
+                            <p className="text-xs mt-2 text-slate-300">Route ready for loading at <strong>5:00 PM Central</strong>.</p>
+                            {tone === 'red' && <p className="text-xs mt-2 font-semibold text-rose-200">Arrival deadline: 6:00 PM Central</p>}
+                        </div>
+                    </div>
+                    {(error || inputError) && <p role="alert" className="mt-2 text-sm font-semibold">{error || inputError}</p>}
+                    {editingEta ? <form onSubmit={saveEta} className="mt-3 flex flex-wrap items-end gap-2">
+                        <label className="text-xs">Expected warehouse arrival (Central)<input autoFocus type="time" aria-label="Expected warehouse arrival" value={etaDraft} onChange={event => { setEtaDraft(event.target.value); setInputError(''); }} disabled={busy} style={{ colorScheme: 'dark' }} className="block mt-1 p-2 rounded-lg bg-slate-900 border border-slate-500 text-slate-100 text-sm" /></label>
+                        <button type="submit" disabled={busy || !canUpdate} className={button}>{busy ? 'Saving…' : 'Use ETA'}</button>
+                        <button type="button" onClick={unknown} disabled={busy || !canUpdate} className={button}>Still on route · ETA unknown</button>
+                        <button type="button" onClick={() => setEditingEta(false)} disabled={busy} className={button}>Cancel</button>
+                    </form> : <div className="flex flex-wrap gap-2 mt-3">
+                        <button type="button" onClick={openEta} disabled={busy || !canUpdate} className={button}>{kind === 'missing-eta' ? 'Add ETA' : 'Not Yet · Update ETA'}</button>
+                        {kind === 'missing-eta' && <button type="button" onClick={unknown} disabled={busy || !canUpdate} className={button}>Still on route · ETA unknown</button>}
+                        {kind !== 'missing-eta' && <button type="button" onClick={() => onAction('confirm')} disabled={busy || !canConfirm} className={button}>{busy ? 'Saving…' : 'Confirm Arrived'}</button>}
+                    </div>}
+                    {!canUpdate && <p className="text-xs mt-2">A team member with Routes and Preload access can update this reminder.</p>}
+                </div></div>
+            </section>;
+        };
+
 
         const App = () => {
             const [user, setUser] = useState(null);
@@ -4010,6 +4302,14 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
             const [isHeaderCalendarOpen, setIsHeaderCalendarOpen] = useState(false);
             const [headerCalendarMonth, setHeaderCalendarMonth] = useState(openDates[0].slice(0, 7));
             const [data, setData] = useState(DEFAULT_DATA);
+            const [localRouteAssignmentEdit, setLocalRouteAssignmentEdit] = useState(null);
+            useEffect(() => { setLocalRouteAssignmentEdit(null); }, [user?.uid, activeDate, isEditMode]);
+            const applyLocalRouteTableChange = nextRows => {
+                if (!user || !isEditing || activeTab !== 'routes' || routesSubTab !== 'table' || !canEditSection('routes') || isLoading) return;
+                const token = crypto.randomUUID();
+                setLocalRouteAssignmentEdit(previous => createLocalRouteAssignmentEdit(previous, data.routeTable, nextRows, user.uid, activeDate, token));
+                setData(previous => ({ ...previous, routeTable: nextRows }));
+            };
             const [historyData, setHistoryData] = useState([]);
             const [activeUsers, setActiveUsers] = useState([]);
             const [editingOnlineUserId, setEditingOnlineUserId] = useState(null);
@@ -4063,26 +4363,6 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                 };
             };
             const getComplianceAckKey = (alertId, dateKey = getChicagoDateKey()) => `geodis_compliance_ack_${dateKey}_${alertId}`;
-            const getPreloadArrivalConfirmKey = (dateKey = getChicagoDateKey()) => `geodis_preload_arrival_confirmed_${dateKey}`;
-            const getPreloadArrivalSnoozeKey = (dateKey = getChicagoDateKey()) => `geodis_preload_arrival_snooze_until_${dateKey}`;
-            const timeToMinutes = (value = '') => {
-                const [hour = '0', minute = '0'] = String(value).split(':');
-                return (Number(hour) || 0) * 60 + (Number(minute) || 0);
-            };
-            const formatReminderClock = (value = '') => {
-                const [hour = '0', minute = '0'] = String(value).split(':');
-                const date = new Date();
-                date.setHours(Number(hour) || 0, Number(minute) || 0, 0, 0);
-                return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            };
-            const getNextPreloadArrivalSnooze = () => {
-                const { hours, mins } = getChicagoTimeParts();
-                const nowMinutes = hours * 60 + mins;
-                if (nowMinutes < timeToMinutes('17:30')) return { value: '17:30', label: '5:30 PM' };
-                if (nowMinutes < timeToMinutes('18:00')) return { value: '18:00', label: '6:00 PM' };
-                if (nowMinutes < timeToMinutes('18:30')) return { value: '18:30', label: '6:30 PM' };
-                return null;
-            };
             const getAssignmentAckStorageKey = (alertKey) => `geodis_assignment_ack_${alertKey}`;
 
             // Alerts State
@@ -4090,22 +4370,36 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
             const [isAcknowledgingPreload, setIsAcknowledgingPreload] = useState(false);
             const [preloadAckError, setPreloadAckError] = useState('');
             const preloadAckInFlight = useRef(false);
-            const [showPreloadArrivalAlert, setShowPreloadArrivalAlert] = useState(false);
-            const [isConfirmingPreloadArrival, setIsConfirmingPreloadArrival] = useState(false);
+            const [preloadClock, setPreloadClock] = useState(getPreloadClock);
+            const [isSavingPreloadArrival, setIsSavingPreloadArrival] = useState(false);
             const [preloadArrivalError, setPreloadArrivalError] = useState('');
-            const preloadArrivalConfirmInFlight = useRef(false);
+            const preloadArrivalInFlight = useRef(false);
+            const preloadArrivalSounds = useRef(new Set());
+            useEffect(() => { preloadArrivalSounds.current.clear(); }, [user?.uid]);
+            const [preloadRouteMenuId, setPreloadRouteMenuId] = useState(null);
             const [preloadDismissed, setPreloadDismissed] = useState(() => {
                 const todayKey = getChicagoDateKey();
                 return localStorage.getItem(`geodis_preload_ack_${todayKey}`) === 'true';
             });
-            const [preloadArrivalConfirmed, setPreloadArrivalConfirmed] = useState(() => {
-                const todayKey = getChicagoDateKey();
-                return localStorage.getItem(getPreloadArrivalConfirmKey(todayKey)) === 'true';
+            const savedPreloadDay = dateKey => dailySnapshotRef.current.date === dateKey
+                ? dailySnapshotRef.current.data : historyData.find(day => day.date === dateKey);
+            const preloadArrivalAlert = isLoading ? null : getPreloadArrivalAlert({
+                rows: savedPreloadDay(activeDate)?.routeTable, notes: savedPreloadDay(activeDate)?.shiftNotes,
+                schedule: allPreloadSchedules[activeDate], dateKey: activeDate, clock: preloadClock
             });
-            const [preloadArrivalSnoozedUntil, setPreloadArrivalSnoozedUntil] = useState(() => {
-                const todayKey = getChicagoDateKey();
-                return localStorage.getItem(getPreloadArrivalSnoozeKey(todayKey)) || '';
-            });
+            const preloadScheduleForDay = dateKey => {
+                const schedule = allPreloadSchedules[dateKey] || { contractor: '', door: '', status: 'Pending' };
+                const team = getLinkedPreloadTeam(savedPreloadDay(dateKey)?.routeTable, dateKey);
+                return team ? { ...schedule, contractor: team.contractor || '' } : schedule;
+            };
+            useEffect(() => { setPreloadRouteMenuId(null); setPreloadArrivalError(''); }, [activeDate, user?.uid, isEditMode]);
+            const setPreloadRouteAssignment = rowId => {
+                if (!isEditing || !canEditSection('routes') || !canEditSection('preload') || !canEditSection('preloadAssignments')) return;
+                if (rowId != null && !getCountableRouteRows(data).some(row => String(row.id) === String(rowId))) return;
+                applyLocalRouteTableChange(makePreloadAssignmentRows(data.routeTable || [], rowId, activeDate,
+                    user.uid, new Date().toISOString(), crypto.randomUUID()));
+                setPreloadRouteMenuId(null);
+            };
             const [timeAlerts, setTimeAlerts] = useState({ show12: false, show17: false, show19: false });
             const [dismissedAlerts, setDismissedAlerts] = useState(() => {
                 const todayKey = getChicagoDateKey();
@@ -4257,14 +4551,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                     } else {
                         setShowPreloadAlert(false);
                     }
-                    const nowMinutes = hours * 60 + mins;
-                    const arrivalStartsAt = timeToMinutes('17:00');
-                    const arrivalSnoozeUntil = localStorage.getItem(getPreloadArrivalSnoozeKey(todayKey)) || '';
-                    const isArrivalConfirmed = localStorage.getItem(getPreloadArrivalConfirmKey(todayKey)) === 'true';
-                    const isArrivalSnoozed = arrivalSnoozeUntil && nowMinutes < timeToMinutes(arrivalSnoozeUntil);
-                    setPreloadArrivalSnoozedUntil(arrivalSnoozeUntil);
-                    setPreloadArrivalConfirmed(isArrivalConfirmed);
-                    setShowPreloadArrivalAlert(nowMinutes >= arrivalStartsAt && !isArrivalConfirmed && !isArrivalSnoozed);
+                    setPreloadClock(getPreloadClock());
 
                     // Route Update Alerts trigger at 12 PM, 5 PM (17), and 7 PM (19)
                     setTimeAlerts({ show12: hours >= 12, show17: hours >= 17, show19: hours >= 19 });
@@ -4277,8 +4564,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                     });
                 };
                 checkTime();
-                const timer = setInterval(checkTime, 60000);
-                return () => clearInterval(timer);
+                const timer = setInterval(checkTime, 30000);
+                const checkWhenVisible = () => { if (!document.hidden) checkTime(); };
+                document.addEventListener('visibilitychange', checkWhenVisible);
+                window.addEventListener('focus', checkTime);
+                return () => { clearInterval(timer); document.removeEventListener('visibilitychange', checkWhenVisible); window.removeEventListener('focus', checkTime); };
             }, []);
 
             const acknowledgePreloadReminder = async () => {
@@ -4339,91 +4629,40 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                 }
             };
 
-            const confirmPreloadArrival = async () => {
-                const todayKey = getChicagoDateKey();
-                if (activeDate !== todayKey || isLoading || preloadArrivalConfirmInFlight.current) return;
-                preloadArrivalConfirmInFlight.current = true;
-                setIsConfirmingPreloadArrival(true);
-                setPreloadArrivalError('');
+            const updatePreloadArrival = async (action, etaValue) => {
+                const alert = preloadArrivalAlert;
+                if (!alert || isLoading || preloadArrivalInFlight.current || activeDate !== getChicagoDateKey()) return false;
+                if (!canEditSection('routes') || !canEditSection('preload') || (action === 'confirm' && !canEditSection('notes'))) return false;
+                preloadArrivalInFlight.current = true;
+                setIsSavingPreloadArrival(true); setPreloadArrivalError('');
                 const currentUser = auth?.currentUser || user;
-                const currentUid = currentUser?.uid || 'local';
-                const confirmedBy = cleanFirstName((masterLists.nameOverrides || {})[currentUid] || userName || getDefaultUserName(currentUser));
-                const confirmedAt = new Date();
-                const timestamp = confirmedAt.toISOString();
-                const timeLabel = confirmedAt.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' });
-                const addConfirmationNote = (notes = []) => {
-                    const existingNote = notes.find(n => n.system && n.preloadArrivalDate === todayKey && n.preloadArrivalConfirmed === true);
-                    const note = existingNote || {
-                        id: Math.max(0, ...notes.map(n => Number(n.id) || 0)) + 1,
-                        text: `Preload arrival 5:00 PM was confirmed by ${confirmedBy} at ${timeLabel} Central.`,
-                        category: 'General',
-                        author: confirmedBy,
-                        authorUid: currentUid,
-                        timestamp,
-                        system: true,
-                        preloadArrivalConfirmed: true,
-                        preloadArrivalDate: todayKey,
-                        replies: []
-                    };
-                    return { note, notes: existingNote ? notes : [...notes, note] };
-                };
+                const actorName = cleanFirstName((masterLists.nameOverrides || {})[currentUser.uid] || userName || getDefaultUserName(currentUser));
+                const dateKey = activeDate;
                 try {
-                    if (db) {
-                        const recapRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', todayKey);
-                        const preloadRef = doc(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules', todayKey);
-                        await runTransaction(db, async transaction => {
-                            const recapSnap = await transaction.get(recapRef);
-                            const preloadSnap = await transaction.get(preloadRef);
-                            const recap = recapSnap.exists() ? recapSnap.data() : {};
-                            const preloadSchedule = preloadSnap.exists() ? preloadSnap.data() : {};
-                            const { notes } = addConfirmationNote(recap.shiftNotes || []);
-                            transaction.set(recapRef, {
-                                shiftNotes: notes,
-                                lastUpdatedBy: confirmedBy,
-                                lastUpdatedAt: timestamp
-                            }, { merge: true });
-                            transaction.set(preloadRef, {
-                                ...preloadSchedule,
-                                status: 'Arrived',
-                                lastUpdatedBy: confirmedBy,
-                                lastUpdatedAt: timestamp
-                            }, { merge: true });
-                        });
-                    } else {
-                        const { notes } = addConfirmationNote(data.shiftNotes || []);
-                        setData(prev => ({ ...prev, shiftNotes: notes }));
+                    const result = await savePreloadArrivalChange({ dateKey, rowId: alert.team.id,
+                        assignmentId: alert.team.preloadArrival.assignmentId, action, etaValue,
+                        actorUid: currentUser.uid, actorName, timestamp: new Date().toISOString() });
+                    // Merge against the latest listener baseline, preserving any unsaved dashboard work.
+                    if (dailySnapshotRef.current.date === dateKey && (!dailySnapshotRef.current.data?.lastUpdatedAt
+                        || result.recap.lastUpdatedAt >= dailySnapshotRef.current.data.lastUpdatedAt)) {
+                        const baseline = dailySnapshotRef.current.data;
+                        const incoming = normalizeMetricsNameData({ ...baseline, ...result.recap });
+                        dailySnapshotRef.current = { date: dateKey, data: incoming };
+                        setData(local => mergeDailyRecapEdits(baseline, local, incoming, dateKey));
                     }
-                    setAllPreloadSchedules(prev => ({
-                        ...prev,
-                        [todayKey]: {
-                            ...(prev[todayKey] || { contractor: '', door: '' }),
-                            status: 'Arrived',
-                            lastUpdatedBy: confirmedBy,
-                            lastUpdatedAt: timestamp
-                        }
-                    }));
-                    localStorage.setItem(getPreloadArrivalConfirmKey(todayKey), 'true');
-                    localStorage.removeItem(getPreloadArrivalSnoozeKey(todayKey));
-                    setPreloadArrivalConfirmed(true);
-                    setPreloadArrivalSnoozedUntil('');
-                    setShowPreloadArrivalAlert(false);
-                } catch(e) {
-                    console.error("Failed to sync preload arrival confirmation:", e);
-                    setPreloadArrivalError('Could not save the arrival confirmation. Please try again.');
+                    setHistoryData(previous => previous.map(day => day.date === dateKey && (!day.lastUpdatedAt || result.recap.lastUpdatedAt >= day.lastUpdatedAt)
+                        ? { ...day, ...result.recap, date: dateKey } : day));
+                    if (action === 'confirm') setAllPreloadSchedules(previous => previous[dateKey]?.lastUpdatedAt > result.schedule.lastUpdatedAt ? previous
+                        : { ...previous, [dateKey]: result.schedule });
+                    setPreloadClock(getPreloadClock());
+                    return true;
+                } catch (error) {
+                    console.error('Could not save preload arrival:', error);
+                    setPreloadArrivalError(error.message || 'Could not save the arrival update. Please try again.');
+                    return false;
                 } finally {
-                    preloadArrivalConfirmInFlight.current = false;
-                    setIsConfirmingPreloadArrival(false);
+                    preloadArrivalInFlight.current = false; setIsSavingPreloadArrival(false);
                 }
-            };
-
-            const snoozePreloadArrivalReminder = () => {
-                const todayKey = getChicagoDateKey();
-                const nextSnooze = getNextPreloadArrivalSnooze();
-                if (!nextSnooze) return;
-                localStorage.setItem(getPreloadArrivalSnoozeKey(todayKey), nextSnooze.value);
-                setPreloadArrivalSnoozedUntil(nextSnooze.value);
-                setShowPreloadArrivalAlert(false);
-                playedAlerts.current[1730] = false;
             };
 
             const acknowledgeComplianceReminder = async (alertId, label, timeStr) => {
@@ -4537,12 +4776,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                 const notes = data.shiftNotes || [], arrived = isPreloadArrivedStatus(allPreloadSchedules[today]?.status);
                 const messageDone = preloadDismissed || arrived || notes.some(note => note.system && note.preloadReminder === true && note.preloadDate === today);
                 if (isViewingToday && showPreloadAlert && !messageDone && !playedAlerts.current[1230] && playDashboardSound('preloadMessage')) playedAlerts.current[1230] = true;
-                if (!showPreloadArrivalAlert) playedAlerts.current[1730] = false;
-                const arrivalDone = preloadArrivalConfirmed || arrived || notes.some(note => note.system && note.preloadArrivalConfirmed === true && note.preloadArrivalDate === today);
-                if (isViewingToday && showPreloadArrivalAlert && !arrivalDone && !playedAlerts.current[1730] && playDashboardSound('preloadArrival')) playedAlerts.current[1730] = true;
+                if (isViewingToday && preloadArrivalAlert && !preloadArrivalSounds.current.has(preloadArrivalAlert.signature)
+                    && playDashboardSound('preloadArrival')) preloadArrivalSounds.current.add(preloadArrivalAlert.signature);
                 if (getChicagoTimeParts().hours < 12) playedAlerts.current = { 12: false, 1230: false, 1730: false, 17: false, 19: false };
-            }, [timeAlerts, showPreloadAlert, showPreloadArrivalAlert, activeDate, user?.uid, isLoading, soundSettingsLoaded, audioReady,
-                dismissedAlerts, preloadDismissed, preloadArrivalConfirmed, data.loadout?.compliance, data.shiftNotes, allPreloadSchedules]);
+            }, [timeAlerts, showPreloadAlert, preloadArrivalAlert?.signature, activeDate, user?.uid, isLoading, soundSettingsLoaded, audioReady,
+                dismissedAlerts, preloadDismissed, data.loadout?.compliance, data.shiftNotes, allPreloadSchedules]);
 
             // Sound Trigger: Urgent Notes
             useEffect(() => {
@@ -4722,7 +4960,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                         const sameDay = previous.date === activeDate;
                         const wasEditing = dailyEditingRef.current;
                         setData(local => sameDay && (wasEditing || describeSavedChanges(previous.data || {}, local).length > 0)
-                            ? mergeConcurrentEdits(previous.data, local, incoming) : incoming);
+                            ? mergeDailyRecapEdits(previous.data, local, incoming, activeDate) : incoming);
                         setIsLoading(false);
                     }, error => {
                         clearTimeout(cacheTimer);
@@ -4988,7 +5226,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
             const isDashboardBackgroundEvent = (event, allowDoubleClickSelection = false) => {
                 if (!user || isLoading || isCapturing || dashboardSaveInFlightRef.current || event.defaultPrevented) return false;
                 if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
-                if (isTeamTasksOpen || isSettingsOpen || isPreloadModalOpen || isParkingModalOpen || isMasterModalOpen || recordToDelete || isCreatingDriverCall || isHeaderCalendarOpen || !canEditSection(activeEditPermission)) return false;
+                if (preloadRouteMenuId != null || isTeamTasksOpen || isSettingsOpen || isPreloadModalOpen || isParkingModalOpen || isMasterModalOpen || recordToDelete || isCreatingDriverCall || isHeaderCalendarOpen || !canEditSection(activeEditPermission)) return false;
                 if (!allowDoubleClickSelection && window.getSelection()?.toString().trim()) return false;
 
                 const target = event.target;
@@ -5212,7 +5450,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                     const nd = JSON.parse(JSON.stringify(data));
                     if (!nd.routeTable) nd.routeTable = [];
                     nd.routeTable = [...nd.routeTable, ...parsedRoutes];
-                    setData(nd);
+                    applyLocalRouteTableChange(nd.routeTable);
                     setRoutePasteFeedback(`✅ Successfully extracted ${parsedRoutes.length} routes!`);
                 } else {
                     setRoutePasteFeedback(`❌ Could not detect route data. Check Excel format.`);
@@ -7358,9 +7596,13 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
             }, [shiftNoteNotificationSignature, isLoading, notificationStateLoaded, activeDate, soundSettingsLoaded]);
 
             const toFixedSafe = (val, dec = 1) => { const num = Number(val); return isNaN(num) ? '0.0' : num.toFixed(dec); };
-            const driverAssignmentWarnings = useMemo(() => calculateDriverAssignmentWarnings({ routeTable: data.routeTable }, historyData, activeDate), [data.routeTable, historyData, activeDate]);
+            const ownsLocalRouteAssignmentEdit = isLocalRouteAssignmentEditCurrent(localRouteAssignmentEdit, user?.uid, activeDate, data.routeTable);
+            const driverAssignmentWarnings = useMemo(() => calculateDriverAssignmentWarnings({ routeTable: data.routeTable }, historyData, activeDate,
+                ownsLocalRouteAssignmentEdit ? localRouteAssignmentEdit.people : []), [data.routeTable, historyData, activeDate, ownsLocalRouteAssignmentEdit, localRouteAssignmentEdit]);
             const preloadAssignmentWarnings = calculatePreloadAssignmentWarnings(allPreloadSchedules, getOfficeWeekBoundaries(preloadActiveDate).days);
-            const driverAssignmentAlertKey = ['routes-date', activeDate, ...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.consecutive].join('|');
+            const driverAssignmentAlertKey = ['routes-edit', user?.uid, activeDate, localRouteAssignmentEdit?.token, ...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.consecutive].join('|');
+            const showDriverAssignmentAlert = !isLoading && isEditing && activeTab === 'routes' && routesSubTab === 'table' && ownsLocalRouteAssignmentEdit
+                && (driverAssignmentWarnings.sameDay.length + driverAssignmentWarnings.consecutive.length) > 0 && !isAssignmentAlertAcknowledged(driverAssignmentAlertKey);
             const preloadAssignmentAlertKey = ['preload', preloadActiveDate, ...preloadAssignmentWarnings].join('|');
 
             // Assignment/schedule alerts stay silent by default; an admin can enable them.
@@ -7369,18 +7611,18 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
             const officeSoundHasWarnings = Object.keys(officeSoundWarnings.coverage).length > 0 || Object.values(officeSoundWarnings.conflicts).some(items => items.length > 0);
             const officeSoundWarningKey = officeSoundBoundaries.startStr + '|' + JSON.stringify(officeSoundWarnings);
             useEffect(() => {
-                if (!user || isLoading || !soundSettingsLoaded || isEditing) return;
+                if (!user || isLoading || !soundSettingsLoaded) return;
                 const warnings = [
-                    ['driverAssignment', driverAssignmentAlertKey, activeTab === 'routes' && (driverAssignmentWarnings.sameDay.length + driverAssignmentWarnings.consecutive.length) > 0 && !isAssignmentAlertAcknowledged(driverAssignmentAlertKey)],
-                    ['preloadAssignment', preloadAssignmentAlertKey, isPreloadModalOpen && preloadAssignmentWarnings.length > 0 && !isAssignmentAlertAcknowledged(preloadAssignmentAlertKey)],
-                    ['officeConflict', officeSoundWarningKey, activeTab === 'office' && officeSoundHasWarnings && dismissedOfficeWarningKey !== officeSoundWarningKey]
+                    ['driverAssignment', driverAssignmentAlertKey, showDriverAssignmentAlert],
+                    ['preloadAssignment', preloadAssignmentAlertKey, !isEditing && isPreloadModalOpen && preloadAssignmentWarnings.length > 0 && !isAssignmentAlertAcknowledged(preloadAssignmentAlertKey)],
+                    ['officeConflict', officeSoundWarningKey, !isEditing && activeTab === 'office' && officeSoundHasWarnings && dismissedOfficeWarningKey !== officeSoundWarningKey]
                 ];
                 warnings.forEach(([eventKey, signature, visible]) => {
                     const key = eventKey + '|' + signature;
                     if (visible && !warningSoundsPlayed.current.has(key) && playDashboardSound(eventKey)) warningSoundsPlayed.current.add(key);
                 });
             }, [user?.uid, isLoading, soundSettingsLoaded, isEditing, activeTab, isPreloadModalOpen, audioReady,
-                driverAssignmentAlertKey, preloadAssignmentAlertKey, officeSoundWarningKey, officeSoundHasWarnings, dismissedOfficeWarningKey, acknowledgedAssignmentAlerts]);
+                driverAssignmentAlertKey, showDriverAssignmentAlert, preloadAssignmentAlertKey, officeSoundWarningKey, officeSoundHasWarnings, dismissedOfficeWarningKey, acknowledgedAssignmentAlerts]);
 
             const TrendIndicator = ({ current, previous, inverse = false, isPercent = true }) => {
                 const curr = Number(current) || 0;
@@ -7399,7 +7641,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
 
             const DriverAssignmentAlert = () => {
                 const warnings = [...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.consecutive];
-                if (warnings.length === 0 || isAssignmentAlertAcknowledged(driverAssignmentAlertKey)) return null;
+                if (!showDriverAssignmentAlert) return null;
 
                 return (
                     <div className="mb-4 bg-rose-950/40 border border-rose-500/40 text-rose-100 p-4 rounded-xl shadow-[0_0_15px_rgba(244,63,94,0.18)] animate-in slide-in-from-top-2">
@@ -7774,7 +8016,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                                             <span className="font-medium text-sm">Reminder: Send today’s preload message to the designated driver.</span>
                                             {preloadAckError && <p role="alert" className="mt-2 text-sm font-semibold text-rose-300">{preloadAckError}</p>}
                                             {(() => {
-                                                const todayPreload = allPreloadSchedules[getChicagoDateKey()] || { contractor: '', status: 'Pending', door: '' };
+                                                const todayPreload = preloadScheduleForDay(getChicagoDateKey());
                                                 return todayPreload.contractor ? (
                                                     <div className="mt-1.5 font-black text-indigo-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
                                                         <Truck className="w-3 h-3" /> Today's Assignment: {todayPreload.contractor} {todayPreload.door ? `(Door ${todayPreload.door})` : ''}
@@ -7786,35 +8028,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                                     </div>
                                 )}
 
-                                {/* Preload Arrival Check */}
-                                {activeDate === getChicagoDateKey() && showPreloadArrivalAlert && !preloadArrivalConfirmed && !(data.shiftNotes || []).some(n => n.system && n.preloadArrivalConfirmed === true && n.preloadArrivalDate === activeDate) && !isPreloadArrivedStatus(allPreloadSchedules[getChicagoDateKey()]?.status) && (
-                                    <div className="dashboard-reminder mb-6 bg-emerald-500/15 border border-emerald-500/45 text-emerald-200 p-4 rounded-xl flex items-center gap-4 shadow-[0_0_15px_rgba(16,185,129,0.16)] animate-in slide-in-from-top-2 relative">
-                                        <div className="bg-emerald-500/20 p-2 rounded-lg animate-pulse"><Clock className="w-6 h-6" /></div>
-                                        <div className="min-w-0 flex-1">
-                                            <h3 className="font-black tracking-widest text-xs uppercase mb-0.5">Preload Arrival Check: 5:00 PM</h3>
-                                            <span className="font-medium text-sm">Confirm the preload team has arrived. If they have not arrived yet, snooze to the next check.</span>
-                                            {preloadArrivalError && <p role="alert" className="mt-2 text-sm font-semibold text-rose-300">{preloadArrivalError}</p>}
-                                            {preloadArrivalSnoozedUntil && (
-                                                <p className="mt-1 text-[11px] font-bold text-emerald-300/80 uppercase tracking-wider">Next check: {formatReminderClock(preloadArrivalSnoozedUntil)}</p>
-                                            )}
-                                            {(() => {
-                                                const todayPreload = allPreloadSchedules[getChicagoDateKey()] || { contractor: '', status: 'Pending', door: '' };
-                                                return todayPreload.contractor ? (
-                                                    <div className="mt-1.5 font-black text-indigo-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                                                        <Truck className="w-3 h-3" /> Today's Preload: {todayPreload.contractor} {todayPreload.door ? `(Door ${todayPreload.door})` : ''}
-                                                    </div>
-                                                ) : null;
-                                            })()}
-                                        </div>
-                                        {(() => {
-                                            const nextSnooze = getNextPreloadArrivalSnooze();
-                                            return nextSnooze ? (
-                                                <button onClick={snoozePreloadArrivalReminder} className="px-3 py-1.5 rounded-lg bg-slate-500/15 border border-slate-300/25 text-slate-100 hover:bg-slate-500/25 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer" title={`Remind again at ${nextSnooze.label}`}>Not Yet</button>
-                                            ) : null;
-                                        })()}
-                                        <button onClick={confirmPreloadArrival} disabled={isConfirmingPreloadArrival} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/30 transition-colors text-[10px] font-black uppercase tracking-widest cursor-pointer disabled:opacity-50 disabled:cursor-wait" title="Confirm the preload team arrived">{isConfirmingPreloadArrival ? 'Saving…' : 'Confirm Arrived'}</button>
-                                    </div>
-                                )}
+                                {/* Preload ETA and arrival are shared for the exact saved assignment. */}
+                                <PreloadArrivalReminder alert={preloadArrivalAlert} busy={isSavingPreloadArrival} error={preloadArrivalError}
+                                    canUpdate={canEditSection('routes') && canEditSection('preload')}
+                                    canConfirm={canEditSection('routes') && canEditSection('preload') && canEditSection('notes')}
+                                    onAction={updatePreloadArrival} />
 
                                 <div className="dashboard-data-stamp mb-4 text-slate-400 text-[10px] font-bold uppercase tracking-widest px-1 flex justify-between items-center">
                                     <div>Viewing Data for: <span className="text-indigo-400">{String(displayDateString)}</span></div>
@@ -8098,8 +8316,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                                                 const tomorrowDateObj = new Date(activeDateObjOverview.getTime() + 86400000);
                                                 const tomorrowDateStr = tomorrowDateObj.toISOString().split('T')[0];
                                                 
-                                                const todayPreload = allPreloadSchedules[activeDate] || { contractor: '', status: 'Pending', door: '' };
-                                                const tomorrowPreload = allPreloadSchedules[tomorrowDateStr] || { contractor: '', status: 'Pending', door: '' };
+                                                const todayPreload = preloadScheduleForDay(activeDate);
+                                                const tomorrowPreload = preloadScheduleForDay(tomorrowDateStr);
 
                                                 return (
                                                     <>
@@ -8161,7 +8379,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                                             <Download className="w-4 h-4" /> Export CSV
                                         </button>
                                         {isEditing && routesSubTab === 'table' && (
-                                            <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newRow = { id: Date.now().toString() }; ROUTE_COLUMNS.forEach(col => { newRow[col.key] = col.type === 'checkbox' ? false : ''; }); nd.routeTable.push(newRow); setData(nd); }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-900/40 cursor-pointer">
+                                            <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newRow = { id: Date.now().toString() }; ROUTE_COLUMNS.forEach(col => { newRow[col.key] = col.type === 'checkbox' ? false : ''; }); nd.routeTable.push(newRow); applyLocalRouteTableChange(nd.routeTable); }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-900/40 cursor-pointer">
                                                 <PlusCircle className="w-4 h-4" /> Add Route Row
                                             </button>
                                         )}
@@ -8171,9 +8389,26 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                                 {routesSubTab === 'morning-report' ? (
                                     <MorningReport data={data} activeDate={activeDate} setData={setData} displayDateString={displayDateString} metricsTotals={data.metricsTracker?.mtdTotals || calculateMetricsTotals(data.metricsTracker?.mtd)} isEditing={isEditing} reportRef={morningReportScreenshotRef} onCapture={handleDownloadMorningReportScreenshot} onCopyImage={() => downloadPanelScreenshot(morningReportScreenshotRef.current, `Morning-Report-${activeDate}.png`, 'blob')} isCapturing={isCapturing} contractors={masterLists.contractors || []} />
                                 ) : routesSubTab === 'team-assignment' ? (
-                                    <TeamAssignmentReport data={data} activeDate={activeDate} displayDateString={displayDateString} setData={setData} isEditing={isEditing} isCapturing={isCapturing} reportRef={teamAssignmentScreenshotRef} onCapture={handleDownloadTeamAssignmentScreenshot} />
+                                    <TeamAssignmentReport data={data} activeDate={activeDate} displayDateString={displayDateString} preloadSchedule={preloadScheduleForDay(activeDate)} setData={setData} isEditing={isEditing} isCapturing={isCapturing} reportRef={teamAssignmentScreenshotRef} onCapture={handleDownloadTeamAssignmentScreenshot} />
                                 ) : (<>
                                 <DriverAssignmentAlert />
+                                {isEditing && canEditSection('preload') && canEditSection('preloadAssignments') && <p className="mb-3 text-xs text-slate-400">Use the three dots beside a route to assign the preload team for this date. Enter its ETA in Routes, then Save.</p>}
+                                {isEditing && preloadRouteMenuId != null && (() => {
+                                    const row = (data.routeTable || []).find(item => item.id === preloadRouteMenuId);
+                                    if (!row) return null;
+                                    const selected = row.preloadArrival?.date === activeDate;
+                                    return <div data-dashboard-edit-ignore="true" className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/65 p-4" onClick={event => { event.stopPropagation(); setPreloadRouteMenuId(null); }}>
+                                        <section role="dialog" aria-modal="true" aria-label="Preload team options" className="w-full max-w-sm rounded-xl border border-slate-600 bg-slate-800 p-5 shadow-2xl" onClick={event => event.stopPropagation()}>
+                                            <h3 className="font-bold text-slate-100">Preload team · {activeDate}</h3>
+                                            <p className="text-sm text-slate-300 mt-2">{row.serviceUnit} · {row.route}<br />{row.contractor}<br />{row.driver || 'No driver'} · {row.helper || 'No helper'}</p>
+                                            <p className="text-xs text-slate-400 mt-3">This links only this row. Save Routes to share the assignment and ETA with the team.</p>
+                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                <button type="button" disabled={!selected && !getCountableRouteRows({ routeTable: [row] }).length} onClick={() => setPreloadRouteAssignment(selected ? null : row.id)} className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold disabled:opacity-50">{selected ? 'Remove preload link' : 'Assign as preload team'}</button>
+                                                <button type="button" onClick={() => setPreloadRouteMenuId(null)} className="px-3 py-2 rounded-lg bg-slate-700 text-slate-200 text-sm">Cancel</button>
+                                            </div>
+                                        </section>
+                                    </div>;
+                                })()}
 
                                 {isEditing && (
                                     <div className="shrink-0 mb-4 bg-slate-800/80 border border-emerald-500/30 rounded-xl p-4 shadow-inner">
@@ -8230,9 +8465,12 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                                                                 const listItems = masterLists[col.list] || [];
                                                                 const isNotInList = val && !listItems.find(i => i.name === val);
                                                                 const hoverTitle = getRoutePersonPhoneTitle(col, val) || getRouteContractorOwnerTitle(col, val);
+                                                                const CellContent = col.key === 'contractor' ? RouteContractorCell : React.Fragment;
+                                                                const cellProps = col.key === 'contractor' ? { isPreload: row.preloadArrival?.date === activeDate } : {};
 
                                                                 return (
                                                                     <td key={colIdx} className={`px-2 py-1 text-[10px] border-r border-slate-700/30 last:border-r-0 align-middle text-center ${col.width} ${col.noWrap ? 'whitespace-nowrap' : 'break-words'}`} style={{ padding: '4px 8px', borderBottom: '1px solid #334155', borderRight: colIdx === ROUTE_COLUMNS.length - 1 ? 'none' : '1px solid #334155', color: '#e2e8f0', whiteSpace: col.noWrap ? 'nowrap' : 'normal' }}>
+                                                                        <CellContent {...cellProps}>
                                                                         {!isEditing ? (
                                                                             col.type === 'checkbox' ? (
                                                                                 <div className="flex items-center justify-center gap-1.5" style={{ color: val ? '#10b981' : '#64748b', fontWeight: 'bold' }}>
@@ -8250,28 +8488,30 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, setData, isE
                                                                             )
                                                                         ) : (
                                                                             col.type === 'select' ? (
-                                                                                <select className="w-full text-center bg-slate-900 border border-slate-600 text-white rounded px-1 py-1 text-[10px] focus:ring-1 focus:ring-indigo-500 outline-none" value={val || ''} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const rowIndex = nd.routeTable.findIndex(r => r.id === row.id); if (rowIndex >= 0) { nd.routeTable[rowIndex][col.key] = e.target.value; setData(nd); } }}>
+                                                                                <select className="w-full text-center bg-slate-900 border border-slate-600 text-white rounded px-1 py-1 text-[10px] focus:ring-1 focus:ring-indigo-500 outline-none" value={val || ''} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const rowIndex = nd.routeTable.findIndex(r => r.id === row.id); if (rowIndex >= 0) { nd.routeTable[rowIndex][col.key] = e.target.value; applyLocalRouteTableChange(nd.routeTable); } }}>
                                                                                     <option value="">- Select -</option>
                                                                                     {isNotInList && <option value={val}>⚡ {val} (Not in List)</option>}
                                                                                     {(masterLists[col.list] || []).map(item => <option key={item.id} value={item.name}>{item.name}</option>)}
                                                                                 </select>
                                                                             ) : col.type === 'checkbox' ? (
-                                                                                <input type="checkbox" className="w-4 h-4 rounded border-slate-600 bg-slate-900 cursor-pointer" checked={!!val} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const r = nd.routeTable.find(r => r.id === row.id); if (r) { r[col.key] = e.target.checked; setData(nd); } }} />
+                                                                                <input type="checkbox" className="w-4 h-4 rounded border-slate-600 bg-slate-900 cursor-pointer" checked={!!val} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const r = nd.routeTable.find(r => r.id === row.id); if (r) { r[col.key] = e.target.checked; applyLocalRouteTableChange(nd.routeTable); } }} />
                                                                             ) : col.type === 'custom_uniform' ? (
                                                                                 <div className="flex items-center justify-center gap-2">
-                                                                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-600 cursor-pointer shrink-0" checked={!!row.uniform} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const r = nd.routeTable.find(r => r.id === row.id); if (r) { r.uniform = e.target.checked; setData(nd); } }} />
-                                                                                    {!row.uniform && <input type="text" className="w-full min-w-[40px] text-[9px] bg-slate-800 text-amber-300 border border-slate-600 rounded px-1 py-1 outline-none" placeholder="Note..." value={row.uniformNote || ''} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const r = nd.routeTable.find(r => r.id === row.id); if (r) { r.uniformNote = e.target.value; setData(nd); } }} />}
+                                                                                    <input type="checkbox" className="w-4 h-4 rounded border-slate-600 cursor-pointer shrink-0" checked={!!row.uniform} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const r = nd.routeTable.find(r => r.id === row.id); if (r) { r.uniform = e.target.checked; applyLocalRouteTableChange(nd.routeTable); } }} />
+                                                                                    {!row.uniform && <input type="text" className="w-full min-w-[40px] text-[9px] bg-slate-800 text-amber-300 border border-slate-600 rounded px-1 py-1 outline-none" placeholder="Note..." value={row.uniformNote || ''} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const r = nd.routeTable.find(r => r.id === row.id); if (r) { r.uniformNote = e.target.value; applyLocalRouteTableChange(nd.routeTable); } }} />}
                                                                                 </div>
                                                                             ) : (
-                                                                                <input type={col.type === 'time' ? 'time' : 'text'} className="w-full text-center bg-slate-900 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={val || ''} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const r = nd.routeTable.find(r => r.id === row.id); if (r) { r[col.key] = e.target.value; setData(nd); } }} />
+                                                                                <input type={col.type === 'time' ? 'time' : 'text'} className="w-full text-center bg-slate-900 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={val || ''} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const r = nd.routeTable.find(r => r.id === row.id); if (r) { r[col.key] = e.target.value; applyLocalRouteTableChange(nd.routeTable); } }} />
                                                                             )
                                                                         )}
+                                                                        </CellContent>
                                                                     </td>
                                                                 );
                                                             })}
                                                             {isEditing && (
                                                                 <td data-panel-screenshot-ignore="true" className="px-2 py-1 text-center sticky right-0 bg-slate-800 border-l border-slate-700">
-                                                                    <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.routeTable = nd.routeTable.filter(r => r.id !== row.id); setData(nd); }} className="p-1 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"><Trash2 className="w-4 h-4" /></button>
+                                                                    {canEditSection('preload') && canEditSection('preloadAssignments') && <button type="button" onClick={() => setPreloadRouteMenuId(row.id)} aria-label={`Preload options for ${row.serviceUnit || row.route || 'route'}`} title="Preload team options" className="p-1 text-slate-400 hover:text-emerald-300"><MoreHorizontal className="w-4 h-4" /></button>}
+                                                                    <button disabled={Boolean(row.preloadArrival) && !canEditSection('preloadAssignments')} onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.routeTable = nd.routeTable.filter(r => r.id !== row.id); applyLocalRouteTableChange(nd.routeTable); }} className="p-1 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"><Trash2 className="w-4 h-4" /></button>
                                                                 </td>
                                                             )}
                                                         </tr>
