@@ -1155,6 +1155,14 @@
     .team-assignment-report .ta-input { font-size:16px; }
 }
 
+@media(max-width:600px) {
+    .manager-alert-controls input:not([type="checkbox"]), .manager-alert-controls select { font-size:16px; }
+}
+@media(pointer:coarse) {
+    .manager-alert-controls button, .manager-alert-controls select, .manager-alert-controls input:not([type="checkbox"]) { min-height:44px; }
+    .manager-alert-controls label:has(input[type="checkbox"]) { min-height:44px; }
+}
+
     .morning-report .report-input { background:#141a22; border:1px solid #475569; border-radius:8px; padding:10px 11px; color:#e2e8f0; font-size:12px; outline:none; }
 .morning-report .report-input:focus { border-color:#94a3b8; box-shadow:0 0 0 2px rgba(148,163,184,.12); }
 .morning-report .report-input:disabled { opacity:.5; }
@@ -1213,7 +1221,10 @@
     #morning-report-print-root tr { break-inside:avoid; }
 }
 
-</style>
+        .issue-review-panel input[type="date"] { color-scheme: dark; }
+        @media(max-width:767px) { .issue-review-panel { padding:18px 16px; } .issue-review-panel input,.issue-review-panel select { font-size:16px; } }
+        @media(pointer:coarse) { .issue-review-panel button,.issue-review-panel input,.issue-review-panel select { min-height:44px; } }
+    </style>
     <script>
         (() => {
             // Keep phone overlays above the software keyboard and browser chrome.
@@ -2355,6 +2366,7 @@
                 if (changed('nameOverrides')) throw new Error('Only Fadi can rename dashboard users.');
                 if (changed('soundSettings')) throw new Error('Only Fadi can choose or mute dashboard sounds.');
                 if (changed('ringSettings')) throw new Error('Only Fadi can change dashboard ring effects.');
+                if (changed('managerAlertSettings')) throw new Error('Only Fadi can change Manager Alerts.');
                 if (changed('deletedDashboardUsers')) throw new Error('Only Fadi can delete or restore dashboard users.');
                 if (fields.some(key => changed(key)) || (changed('contractors') && !accountHasPermission(auth.currentUser, 'masterLists'))) {
                     if (changed('drivers') || changed('helpers')) requirePermission('masterLists');
@@ -2414,7 +2426,7 @@
                         const auditRef = doc(database, 'artifacts', appId, 'public', 'data', 'auditEvents', eventId);
                         native.set(auditRef, { actorUid: auth.currentUser.uid, actorName: currentAuditName || getDefaultUserName(auth.currentUser),
                             timestamp: new Date().toISOString(), createdAt: serverTimestamp(), collection: tracked.kind,
-                            recordId: tracked.id, section: tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('soundSettings')) ? 'Sounds & Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('deletedDashboardUsers')) ? 'Users & Permissions' : sectionNameForRecord(tracked.kind, tracked.id), operation: options?.auditAction || tracked.operation,
+                            recordId: tracked.id, section: tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('managerAlertSettings')) ? 'Manager Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('soundSettings')) ? 'Sounds & Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('deletedDashboardUsers')) ? 'Users & Permissions' : sectionNameForRecord(tracked.kind, tracked.id), operation: options?.auditAction || tracked.operation,
                             summary: tracked.changes.length + ' field' + (tracked.changes.length === 1 ? '' : 's') + ' changed',
                             changeCount: tracked.changes.length, changes: tracked.changes.slice(0, 150) });
                         if (!entry.deleted) entry.value = { ...entry.value, _auditId: eventId };
@@ -2851,7 +2863,7 @@
         };
         const playDashboardSound = (eventKey, options = {}) => {
             const settings = options.settings ? normalizeDashboardSoundSettings(options.settings) : dashboardSoundSettings;
-            const preset = DASHBOARD_SOUND_PRESETS.find(item => item.id === settings.assignments[eventKey]);
+            const preset = DASHBOARD_SOUND_PRESETS.find(item => item.id === (options.presetId || settings.assignments[eventKey]));
             if (!preset || !preset.notes.length || (!options.preview && isDashboardSoundMuted(eventKey, settings))) return true;
             if (!window.Tone || window.Tone.context.state !== 'running') return false;
             const soundKey = options.preview ? 'preview' : eventKey;
@@ -3417,6 +3429,131 @@
                 const compact = compactShiftNoteSearch(text);
                 return terms.every(term => text.includes(term) || (compactShiftNoteSearch(term) && compact.includes(compactShiftNoteSearch(term))));
             });
+        };
+
+        const ISSUE_REVIEW_TYPES = [
+            { id: 'refused', label: 'Customer refused', pattern: /\b(?:refus(?:e|ed|es|al)|declined (?:the )?delivery|rejected (?:the )?(?:item|delivery))\b/gi },
+            { id: 'damage', label: 'Damaged item', pattern: /\b(?:damag(?:e|ed|es)|broken|dent(?:ed|s)?|scratch(?:ed|es)?)\b/gi },
+            { id: 'replacement', label: 'Replacement / exchange', pattern: /\b(?:replac(?:e|ed|ement|ements)|exchang(?:e|ed|es))\b/gi },
+            { id: 'late', label: 'Late delivery', pattern: /\b(?:late|delay(?:ed|s)?|missed (?:the )?(?:delivery |time )?window)\b/gi }
+        ];
+        const issueReviewRevision = note => JSON.stringify([
+            String(note?.text || ''), note?.driverCall || null,
+            (note?.replies || []).filter(reply => !reply.system).map(reply => [String(reply.id || ''), String(reply.author || ''), String(reply.text || '')])
+        ]);
+        const issueReviewSuggestions = text => ISSUE_REVIEW_TYPES.filter(type => {
+            const normalized = normalizeShiftNoteSearch(text);
+            const matches = Array.from(normalized.matchAll(new RegExp(type.pattern.source, 'gi')));
+            return matches.some(match => {
+                const before = normalized.slice(Math.max(0, match.index - 60), match.index).split(/[.!?;\n]/).pop();
+                return !/\b(?:no|not|without|never|isn't|wasn't|hasn't|didn't)\s+(?:(?:any|a|an|visible|reported|new|further|item|customer|delivery|was|is|has|been|be)\s+){0,3}$/.test(before);
+            });
+        }).map(type => type.id);
+        const issueReviewKey = entry => `${entry.dateKey}:${entry.note.id == null ? 'legacy-'+entry.noteIndex : String(entry.note.id)}`;
+        const issueReviewCaseKey = entry => {
+            const raw = String(entry.note.driverCall?.soRma || '');
+            const text = raw || [entry.note.text, entry.note.driverCall?.note, ...(entry.note.replies || []).filter(reply => !reply.system).map(reply => reply.text)].filter(Boolean).join(' ');
+            const identifiers = Array.from(new Set(Array.from(text.matchAll(/\b(SO|RMA)[\s_:#-]*([0-9]{3,}(?:-[0-9]+)?)\b/gi), match => match[1].toUpperCase() + match[2].replace(/-/g, ''))));
+            return identifiers.length === 1 ? `order:${identifiers[0]}` : `note:${issueReviewKey(entry)}`;
+        };
+        const buildIssueReviewReport = ({ account, records = [], reviews = {}, filters = {} }) => {
+            const empty = { entries: [], matches: [], counts: {}, caseCount: 0 };
+            if (!account?.uid) return empty;
+            const clauses = String(filters.query || '').split(',').map(normalizeShiftNoteSearch).filter(Boolean);
+            const matchesQuery = value => !clauses.length || clauses.some(clause => clause.split(/\s+/).every(term => normalizeShiftNoteSearch(value).includes(term) || (compactShiftNoteSearch(term) && compactShiftNoteSearch(value).includes(compactShiftNoteSearch(term)))));
+            const unique = new Map();
+            records.forEach(day => (day.shiftNotes || []).filter(Boolean).forEach((note,noteIndex) => {
+                const dateKey = String(day.date || '');
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || (filters.start && dateKey < filters.start) || (filters.end && dateKey > filters.end)) return;
+                const source = note.noteType === 'driver-call' || note.driverCall ? 'calls' : 'notes';
+                if (filters.source && filters.source !== 'all' && filters.source !== source) return;
+                const segments = [{ text: String(note.driverCall?.note || note.text || ''), author: note.author || 'User', kind: 'Note', timestamp: note.timestamp || '' },
+                    ...(note.replies || []).filter(reply => !reply.system && String(reply.text || '').trim()).map(reply => ({text:String(reply.text),author:reply.author || 'User',kind:'Reply',timestamp:reply.timestamp || ''}))];
+                const wording = segments.map(segment => segment.text).join('\n');
+                if (!wording.trim()) return;
+                const entry = { note, noteIndex, dateKey, source, segments, revision: issueReviewRevision(note) };
+                entry.key = issueReviewKey(entry); entry.caseKey = issueReviewCaseKey(entry);
+                const candidate = reviews[entry.key]?.reviewedBy===account.uid ? reviews[entry.key] : null;
+                const validReview = candidate && candidate.revision === entry.revision && Array.isArray(candidate.types) ? candidate : null;
+                entry.suggested = Array.from(new Set(segments.flatMap(segment => issueReviewSuggestions(segment.text))));
+                entry.review = validReview;
+                entry.staleReview = Boolean(candidate && !validReview);
+                entry.types = validReview ? validReview.types.filter(type => ISSUE_REVIEW_TYPES.some(item => item.id === type)) : entry.suggested;
+                entry.excluded = Boolean(validReview?.excluded);
+                const searchText = [dateKey, note.author, note.category, ...Object.values(note.driverCall || {}), ...segments.flatMap(segment => [segment.author,segment.text])].filter(Boolean).join(' ');
+                if (!matchesQuery(searchText) || (!clauses.length && !entry.suggested.length && !validReview && !entry.staleReview)) return;
+                if (filters.status === 'pending' && validReview || filters.status === 'reviewed' && (!validReview || entry.excluded) || filters.status === 'excluded' && !entry.excluded) return;
+                entry.matchSegment = segments.find(segment => clauses.length ? matchesQuery(segment.text) : issueReviewSuggestions(segment.text).length) || segments[0];
+                unique.set(entry.key, entry);
+            }));
+            const entries = Array.from(unique.values()).sort((a,b) => b.dateKey.localeCompare(a.dateKey) || (Date.parse(b.note.timestamp) || 0) - (Date.parse(a.note.timestamp) || 0));
+            const matches = entries.filter(entry => !filters.category || filters.category === 'all' || (!entry.excluded && entry.types.includes(filters.category)));
+            const counts = Object.fromEntries(ISSUE_REVIEW_TYPES.map(type => [type.id, new Set(entries.filter(entry => !entry.excluded && entry.types.includes(type.id)).map(entry => entry.caseKey)).size]));
+            return { entries, matches, counts, caseCount: new Set(matches.filter(entry => !entry.excluded).map(entry => entry.caseKey)).size };
+        };
+        const issueReviewCsv = entries => {
+            const cell = value => {
+                let text = String(value ?? '');
+                if (/^[\s\uFEFF]*[=+@-]/.test(text)) text = "'" + text;
+                return '"' + text.replace(/"/g, '""') + '"';
+            };
+            const rows = [['Date', 'Source', 'Driver', 'Customer', 'SO / RMA', 'Suggested issues', 'Review status', 'Confirmed issues', 'Note author', 'Note', 'Replies'],
+                ...entries.map(entry => [entry.dateKey, entry.source === 'calls' ? 'Driver call' : 'Shift note', entry.note.driverCall?.driver, entry.note.driverCall?.customerName, entry.note.driverCall?.soRma,
+                    entry.suggested.map(type => ISSUE_REVIEW_TYPES.find(item => item.id === type).label).join('; '), entry.excluded ? 'Not an issue' : entry.review ? 'Reviewed' : entry.staleReview ? 'Changed — review again' : 'Needs review',
+                    entry.review && !entry.excluded ? entry.types.map(type => ISSUE_REVIEW_TYPES.find(item => item.id === type).label).join('; ') : '', entry.note.author,
+                    entry.note.driverCall?.note || entry.note.text || '', (entry.note.replies || []).map(reply => `${reply.author || 'User'}${reply.timestamp ? ' · '+reply.timestamp : ''}: ${reply.text || ''}`).join('\n')])];
+            return '\uFEFF' + rows.map(row => row.map(cell).join(',')).join('\r\n');
+        };
+        const IssueReviewText = ({ text, query = '' }) => {
+            const tokens = [...ISSUE_REVIEW_TYPES.flatMap(type => Array.from(String(text || '').matchAll(new RegExp(type.pattern.source,'gi')),match=>match[0])), ...query.split(/[\s,]+/).filter(Boolean)];
+            if (!tokens.length) return String(text || '');
+            const expression = new RegExp('('+Array.from(new Set(tokens)).sort((a,b)=>b.length-a.length).map(token=>token.replace(/[.*+?^${}()|[\]\\]/g,character=>'\\'+character)).join('|')+')','gi');
+            return String(text || '').split(expression).map((part,index)=>index%2 ? <mark key={index} className="rounded bg-amber-400/20 px-0.5 text-amber-100">{part}</mark> : part);
+        };
+        const IssueReviewPanel = ({ account, records, reviews, loaded, reviewsLoaded, connection, saveReview, openNote, savingKey, error }) => {
+            const today = new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+            const [filters,setFilters] = useState(()=>({query:'',start:today.slice(0,8)+'01',end:today,source:'all',category:'all',status:'all'}));
+            const [openKey,setOpenKey] = useState(''), [drafts,setDrafts] = useState({}), [message,setMessage] = useState('');
+            const report = useMemo(()=>buildIssueReviewReport({account,records,reviews,filters}),[account?.uid,records,reviews,filters]);
+            if (!account?.uid) return null;
+            const change = (key,value) => {setFilters(previous=>({...previous,[key]:value}));setMessage('');};
+            const exportResults = () => {
+                if (!account?.uid || !loaded || !report.matches.length || (filters.start && filters.end && filters.start > filters.end)) return;
+                const url = URL.createObjectURL(new Blob([issueReviewCsv(report.matches)],{type:'text/csv;charset=utf-8'}));
+                const link=document.createElement('a');link.href=url;link.download=`Issue Review ${filters.start || 'all'} to ${filters.end || 'all'}.csv`;link.click();
+                setTimeout(()=>URL.revokeObjectURL(url),1000);setMessage('Results downloaded. Open the CSV in Excel.');
+            };
+            const fieldClass='w-full min-w-0 rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-400';
+            return <section className="issue-review-panel px-8 py-6 space-y-5" data-dashboard-edit-ignore="true" aria-label="Issue Review">
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-bold text-white">Issue Review</h3><p className="mt-1 text-xs text-slate-400">Search saved notes, driver calls, and replies across dates. Classifications are saved for your account.</p></div><button type="button" disabled={!loaded || !report.matches.length || Boolean(filters.start && filters.end && filters.start > filters.end)} onClick={exportResults} className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700 disabled:opacity-40"><Download className="h-4 w-4"/>Export CSV</button></div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="sm:col-span-2 text-xs text-slate-400">Search wording <input type="search" className={'mt-1.5 '+fieldClass} value={filters.query} onChange={event=>change('query',event.target.value)} placeholder="refused, damage, replaced, late, SO/RMA…"/><span className="mt-1 block">Use commas to search for either word or phrase.</span></label>
+                    <label className="text-xs text-slate-400">From<input type="date" className={'mt-1.5 '+fieldClass} value={filters.start} onInput={event=>change('start',event.currentTarget.value)}/></label>
+                    <label className="text-xs text-slate-400">To<input type="date" className={'mt-1.5 '+fieldClass} value={filters.end} onInput={event=>change('end',event.currentTarget.value)}/></label>
+                    <label className="text-xs text-slate-400">Search in<select className={'mt-1.5 '+fieldClass} value={filters.source} onChange={event=>change('source',event.target.value)}><option value="all">All notes, driver calls & replies</option><option value="notes">Notes & their replies</option><option value="calls">Driver calls & their replies</option></select></label>
+                    <label className="text-xs text-slate-400">Issue type<select className={'mt-1.5 '+fieldClass} value={filters.category} onChange={event=>change('category',event.target.value)}><option value="all">All issue types</option>{ISSUE_REVIEW_TYPES.map(type=><option key={type.id} value={type.id}>{type.label}</option>)}</select></label>
+                    <label className="text-xs text-slate-400">Review status<select className={'mt-1.5 '+fieldClass} value={filters.status} onChange={event=>change('status',event.target.value)}><option value="all">All matches</option><option value="pending">Needs review</option><option value="reviewed">Reviewed issues</option><option value="excluded">Marked not an issue</option></select></label>
+                    <div className="flex items-end"><button type="button" onClick={()=>setFilters({query:'',start:'',end:'',source:'all',category:'all',status:'all'})} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700">All dates / Clear filters</button></div>
+                </div>
+                {filters.start && filters.end && filters.start > filters.end && <p role="alert" className="text-sm text-rose-300">Choose an end date on or after the start date.</p>}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Distinct cases by issue type">{ISSUE_REVIEW_TYPES.map(type=><button key={type.id} type="button" aria-pressed={filters.category===type.id} onClick={()=>change('category',filters.category===type.id?'all':type.id)} className={`rounded-xl border p-3 text-left ${filters.category===type.id?'border-indigo-400 bg-indigo-500/15':'border-slate-700 bg-slate-900/40'}`}><span className="block text-xs text-slate-300">{type.label}</span><span className="mt-1 block text-2xl font-bold tabular-nums text-white">{loaded ? report.counts[type.id] || 0 : '—'}</span></button>)}</div>
+                <div className="space-y-1 text-xs text-slate-400"><p role="status" aria-live="polite">{loaded ? `${report.matches.length} matching ${report.matches.length===1?'conversation':'conversations'} · ${report.caseCount} distinct ${report.caseCount===1?'case':'cases'}` : 'Loading saved conversations…'}</p><p>Suggested matches need your review. Matching SO/RMA numbers count once per issue type; one case may have several types.</p>{connection==='lost' && <p className="text-amber-300">Connection lost. Showing last synced records; classifications need a connection to save.</p>}</div>
+                {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}{message && <p role="status" className="text-sm text-emerald-300">{message}</p>}
+                <div className="divide-y divide-slate-700">{loaded && report.matches.length===0 ? <p className="py-8 text-center text-sm text-slate-400">No saved conversations match. Change the dates or wording.</p> : report.matches.map(entry=>{
+                    const draft=drafts[entry.key] ?? (entry.review ? entry.excluded?'none':entry.types.length===1?entry.types[0]:'suggested' : 'suggested');
+                    return <article key={entry.key} className="py-5 space-y-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs text-slate-400">{new Date(entry.dateKey+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · {entry.source==='calls'?'Driver call':'Shift note'} · {entry.note.author || 'User'}</p><p className="mt-1 break-words text-sm text-slate-300">{[entry.note.driverCall?.driver,entry.note.driverCall?.customerName,entry.note.driverCall?.soRma].filter(Boolean).join(' · ')}</p></div><button type="button" aria-expanded={openKey===entry.key} onClick={()=>setOpenKey(openKey===entry.key?'':entry.key)} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-700">{openKey===entry.key?'Close conversation':'Open conversation'}</button></div>
+                        <div className="flex flex-wrap items-center gap-2">{!entry.excluded && entry.types.map(type=><span key={type} className="rounded bg-indigo-500/15 px-2 py-1 text-xs text-indigo-200">{ISSUE_REVIEW_TYPES.find(item=>item.id===type).label}</span>)}<span className={`text-xs ${entry.excluded?'text-slate-400':entry.review?'text-emerald-300':'text-amber-300'}`}>{entry.excluded?'Not an issue':entry.review?'Reviewed':entry.staleReview?'Conversation changed — review again':'Needs review'}</span></div>
+                        <div><p className="text-xs text-slate-500">Matched in {entry.matchSegment.kind.toLowerCase()} by {entry.matchSegment.author}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-200 line-clamp-3"><IssueReviewText text={entry.matchSegment.text} query={filters.query}/></p></div>
+                        {openKey===entry.key && <div className="rounded-xl border border-slate-700 bg-slate-950/50 p-4 space-y-4">
+                            {entry.note.driverCall && <p className="break-words text-xs text-slate-400">{[['Route',entry.note.driverCall.route],['Stop',entry.note.driverCall.stopNumber],['Driver',entry.note.driverCall.driver],['Customer',entry.note.driverCall.customerName],['SO/RMA',entry.note.driverCall.soRma]].filter(([,value])=>value).map(([label,value])=>`${label}: ${value}`).join(' · ')}</p>}
+                            <div className="divide-y divide-slate-800">{[{text:String(entry.note.driverCall?.note || entry.note.text || ''),author:entry.note.author || 'User',timestamp:entry.note.timestamp || '',kind:'Note'},...(entry.note.replies || []).map(reply=>({text:String(reply.text || ''),author:reply.author || 'User',timestamp:reply.timestamp || '',kind:reply.system?'Acknowledgment':'Reply'}))].map((segment,index)=><div key={index} className="py-3"><p className="text-xs text-slate-400">{segment.author} · {segment.kind}{segment.timestamp && Number.isFinite(Date.parse(segment.timestamp)) ? ' · '+new Date(segment.timestamp).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-200"><IssueReviewText text={segment.text} query={filters.query}/></p></div>)}</div>
+                            <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-end"><label className="min-w-0 flex-1 text-xs text-slate-400">Your classification<select className={'mt-1.5 '+fieldClass} value={draft} onChange={event=>setDrafts(previous=>({...previous,[entry.key]:event.target.value}))}><option value="suggested">{entry.suggested.length?'Confirm suggested types':'Choose an issue type'}</option>{ISSUE_REVIEW_TYPES.map(type=><option key={type.id} value={type.id}>{type.label}</option>)}<option value="none">Not an issue</option></select></label><button type="button" disabled={!reviewsLoaded || Boolean(savingKey) || entry.note.id==null || (draft==='suggested' && !entry.suggested.length)} onClick={async()=>{const saved=await saveReview(entry,{types:draft==='none'?[]:draft==='suggested'?entry.suggested:[draft],excluded:draft==='none'});if(saved){setDrafts(previous=>{const next={...previous};delete next[entry.key];return next;});setMessage('Your classification is saved.');}}} className="rounded-xl bg-indigo-600 px-3 py-2.5 text-sm text-white hover:bg-indigo-500 disabled:opacity-40">{savingKey===entry.key?'Saving…':'Save classification'}</button></div>
+                            <button type="button" onClick={()=>openNote(entry)} className="text-xs text-indigo-300 underline underline-offset-4 hover:text-indigo-100">Open original note</button>
+                        </div>}
+                    </article>;
+                })}</div>
+            </section>;
         };
 
         const DashboardSaveStatus = ({ status, location }) => {
@@ -4147,6 +4284,157 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
         };
 
 
+        const MANAGER_ALERT_RULES = [
+            { id:'missingEta', name:'Preload ETA missing', time:'17:00', timing:'time', sound:'notification', repeatMinutes:0, description:'No saved arrival ETA for the selected loading team.' },
+            { id:'lateEta', name:'Preload team may arrive late', time:'18:00', timing:'cutoff', sound:'urgent', repeatMinutes:15, description:'An entered ETA is later than your manager cutoff.' },
+            { id:'arrivalOverdue', name:'Preload arrival not confirmed', time:'18:00', timing:'cutoff', sound:'urgent', repeatMinutes:15, description:'Your cutoff has passed and arrival is still unconfirmed.' },
+            { id:'incompleteRoutes', name:'Incomplete route assignments', time:'19:00', timing:'time', sound:'notification', repeatMinutes:0, description:'Tomorrow’s routes have a missing contractor, driver, or helper, or have not been added on an operating day.' },
+            { id:'taskAttention', name:'Task needs attention', delayMinutes:60, timing:'task', sound:'urgent', repeatMinutes:15, description:'A task is overdue, or an assigned person has not answered your latest update request.' },
+            { id:'missingMetrics', name:'Morning metrics missing', time:'08:00', timing:'time', sound:'notification', repeatMinutes:0, description:'Required month-to-date scores have not been entered for today. Entered zero scores are valid.' },
+            { id:'noteAcknowledgment', name:'Manager note awaiting acknowledgment', delayMinutes:60, timing:'delay', sound:'notification', repeatMinutes:0, description:'A required recipient has not acknowledged your note within the chosen window.' },
+            { id:'preloadUnassigned', name:'Preload team not selected', time:'16:30', timing:'time', sound:'notification', repeatMinutes:0, description:'A contractor is scheduled, but no exact driver/helper team has been linked.' },
+            { id:'restDay', name:'Rest day required', timing:'assignment', sound:'urgent', repeatMinutes:0, description:'Someone is assigned all seven days of one Monday–Sunday week. Monday starts a fresh count.' },
+            { id:'urgentFollowUp', name:'Urgent issue awaiting follow-up', delayMinutes:60, timing:'delay', sound:'urgent', repeatMinutes:15, description:'An urgent driver issue remains unresolved after its follow-up window. Only you control its private follow-up status.' }
+        ];
+        const defaultManagerAlertSettings = () => ({ enabled:true, muted:false, rules:Object.fromEntries(MANAGER_ALERT_RULES.map(rule => [rule.id,
+            { enabled:true, sound:rule.sound, repeatMinutes:rule.repeatMinutes, ...(rule.time ? {time:rule.time} : {}), ...(rule.delayMinutes ? {delayMinutes:rule.delayMinutes} : {}) }])) });
+        const normalizeManagerAlertSettings = saved => {
+            const defaults = defaultManagerAlertSettings();
+            const bounded = (value, fallback, minimum, maximum) => typeof value === 'number' && Number.isFinite(value) ? Math.max(minimum,Math.min(maximum,Math.round(value))) : fallback;
+            return { enabled:saved?.enabled !== false, muted:saved?.muted === true, rules:Object.fromEntries(MANAGER_ALERT_RULES.map(rule => {
+                const input=saved?.rules?.[rule.id] || {}, base=defaults.rules[rule.id];
+                return [rule.id,{enabled:input.enabled !== false,
+                    sound:DASHBOARD_SOUND_PRESETS.some(preset=>preset.id===input.sound) ? input.sound : base.sound,
+                    repeatMinutes:input.repeatMinutes === 0 ? 0 : bounded(input.repeatMinutes,base.repeatMinutes,5,1440),
+                    ...(rule.time ? {time:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(input.time || '') ? input.time : base.time} : {}),
+                    ...(rule.delayMinutes ? {delayMinutes:bounded(input.delayMinutes,base.delayMinutes,5,10080)} : {})}];
+            })) };
+        };
+        const managerAlertDayOffset = (dateKey, offset) => new Date(Date.parse(dateKey+'T12:00:00Z')+offset*86400000).toISOString().slice(0,10);
+        const managerAlertRevision = note => {
+            const text=JSON.stringify([note?.text,note?.driverCall]);
+            let hash=2166136261;
+            for(let i=0;i<text.length;i++) hash=Math.imul(hash^text.charCodeAt(i),16777619);
+            return (hash>>>0).toString(16);
+        };
+        const getManagerAlerts = ({ account, settings, records=[], schedules={}, tasks=[], recipients=[], resolutions={}, now=new Date(), tasksLoaded=true, recipientsLoaded=true }) => {
+            if (!isOwnerAccount(account)) return [];
+            const config=normalizeManagerAlertSettings(settings);
+            if (!config.enabled) return [];
+            const clock=getPreloadClock(now), nowMs=now.getTime(), day=clock.dateKey, tomorrow=managerAlertDayOffset(day,1);
+            const days=new Map(records.map(record=>[record.date,record])), current=days.get(day), next=days.get(tomorrow);
+            const rows=getCountableRouteRows(current || {}), nextRows=getCountableRouteRows(next || {});
+            const hasWork=rows.length>0, alerts=[];
+            const due = rule => clock.minutes >= parsePreloadEtaMinutes(config.rules[rule].time);
+            const add = (rule, key, tone, message, details, target) => {
+                if(!config.rules[rule].enabled) return;
+                const definition=MANAGER_ALERT_RULES.find(item=>item.id===rule);
+                alerts.push({id:rule+':'+key,rule,title:definition.name,tone,message,details,target,signature:rule+':'+key});
+            };
+            const schedule=schedules[day] || {}, team=getLinkedPreloadTeam(current?.routeTable || [],day);
+            const arrived=hasLinkedPreloadArrived(team,current?.shiftNotes || [],schedule);
+            const preloadDetails=team ? [['Contractor',team.contractor || 'Not assigned'],['Driver',team.driver || 'Not assigned'],['Helper',team.helper || 'Not assigned'],['Loading date',day],['Dock door',String(schedule.door || 'Not assigned')]] : [['Contractor',schedule.contractor || 'Not assigned'],['Loading date',day],['Dock door',String(schedule.door || 'Not assigned')]];
+            const preloadTarget={section:'preload',dateKey:day};
+            if(team && !arrived) {
+                const eta=parsePreloadEtaMinutes(team.timeOffDock), assignment=team.preloadArrival.assignmentId;
+                if(eta == null && due('missingEta')) add('missingEta',day+':'+assignment,'amber','No warehouse arrival ETA has been saved.',preloadDetails,preloadTarget);
+                const lateCutoff=parsePreloadEtaMinutes(config.rules.lateEta.time);
+                const overdueCutoff=parsePreloadEtaMinutes(config.rules.arrivalOverdue.time);
+                if(eta != null && eta>lateCutoff) add('lateEta',day+':'+assignment,'red','Expected arrival '+preloadClockLabel(eta)+' is after your '+preloadClockLabel(lateCutoff)+' cutoff.',preloadDetails,preloadTarget,String(eta));
+                if(clock.minutes>overdueCutoff) add('arrivalOverdue',day+':'+assignment,'red','Arrival is still unconfirmed after '+preloadClockLabel(overdueCutoff)+'.',[...preloadDetails,['ETA',preloadClockLabel(eta)]],preloadTarget);
+            }
+            if(!team && String(schedule.contractor || '').trim() && String(schedule.status || '').toLowerCase()!=='arrived' && due('preloadUnassigned')) {
+                const linked=(current?.routeTable || []).filter(row=>row.preloadArrival?.date===day && row.preloadArrival?.assignmentId);
+                add('preloadUnassigned',day,'amber',linked.length>1 ? 'More than one team is linked. Select one exact preload team.' : 'The scheduled contractor has no linked driver/helper team.',preloadDetails,{section:'routes',dateKey:day});
+            }
+            if(due('incompleteRoutes') && (hasWork || nextRows.length)) {
+                const incomplete=nextRows.filter(row=>['contractor','driver','helper'].some(field=>!normalizeAssignmentName(row[field])));
+                if(!nextRows.length || incomplete.length) add('incompleteRoutes',tomorrow,'amber',nextRows.length ? incomplete.length+' next-day route'+(incomplete.length===1?' still needs':'s still need')+' a complete team.' : 'No next-day route assignments have been saved.',
+                    incomplete.map(row=>[row.route || row.serviceUnit || 'Route', ['contractor','driver','helper'].filter(field=>!normalizeAssignmentName(row[field])).join(', ')+' missing']),{section:'routes',dateKey:tomorrow},incomplete.map(row=>String(row.id)).sort().join('|'));
+            }
+            if(hasWork && due('missingMetrics')) {
+                const required=[['surveyAvg','Survey average'],['onTime','On-time delivery'],['completion','Completion'],['exchange','Exchange rate']];
+                const tracker=current?.metricsTracker || {}, totals=tracker.mtdTotals, metricRows=(tracker.mtd || []).filter(row=>String(row.firstName || row.lastName || row.contractor || row.name || '').trim());
+                const entered=(object,key)=>object && Object.hasOwn(object,key) && object[key]!==null && String(object[key]).trim()!=='' && Number.isFinite(Number(object[key]));
+                const missing=required.filter(([key])=>!entered(totals,key) && !(metricRows.length && metricRows.every(row=>entered(row,key))));
+                if(missing.length) add('missingMetrics',day,'amber','Required morning month-to-date scores are missing.',missing.map(([,label])=>[label,'Not entered']),{section:'metrics',dateKey:day},missing.map(([key])=>key).join('|'));
+            }
+            if(tasksLoaded) for(const task of tasks) {
+                if(task.status==='completed') continue;
+                const events=task.events || [], request=[...events].reverse().find(event=>event.type==='update-request' && event.authorUid===OWNER_UID);
+                const requested=request ? (request.recipientUids || [request.recipientUid]).filter(uid=>uid && uid!==OWNER_UID) : [];
+                const pending=requested.filter(uid=>!events.some((event,index)=>index>events.indexOf(request) && event.authorUid===uid && ['update','status'].includes(event.type) && Date.parse(event.timestamp)>=Date.parse(request.timestamp)));
+                const awaiting=request && pending.length && nowMs>=Date.parse(request.timestamp)+config.rules.taskAttention.delayMinutes*60000;
+                const overdue=Number.isFinite(Date.parse(task.dueAt)) && nowMs>Date.parse(task.dueAt);
+                if(overdue || awaiting) add('taskAttention',task.id,'red',task.title+(awaiting?' — requested update is overdue.':' — task deadline has passed.'),
+                    [['Assigned to',getTaskAssignedUids(task).map(uid=>task.assignedNames?.[uid] || task.assignedName || 'Team member').join(', ')],['Status',TEAM_TASK_STATUSES[task.status] || task.status],['Task deadline',Number.isFinite(Date.parse(task.dueAt))?formatTaskTime(task.dueAt):'Not set'],...(awaiting ? [['Waiting for',pending.map(uid=>task.assignedNames?.[uid] || task.assignedName || 'Team member').join(', ')]] : [])],{section:'task',taskId:task.id},(awaiting?request.id:'due')+':'+task.dueAt);
+            }
+            for(const record of records) for(const note of record.shiftNotes || []) {
+                const created=Date.parse(note.timestamp), key=record.date+':'+note.id;
+                if(!note.id || record.date>day || !Number.isFinite(created) || created>nowMs) continue;
+                if(recipientsLoaded && isManagerNote(note) && nowMs>=created+config.rules.noteAcknowledgment.delayMinutes*60000) {
+                    const pending=recipients.filter(person=>person.uid!==OWNER_UID && !hasManagerNoteAcknowledgement(note,person.uid));
+                    if(pending.length) add('noteAcknowledgment',key,'amber',pending.length+' team member'+(pending.length===1?' has':'s have')+' not acknowledged your note.',[['Waiting for',pending.map(person=>person.name).join(', ')],['Note',String(note.text || '').slice(0,400)]],{section:'note',dateKey:record.date,noteId:note.id},pending.map(person=>person.uid).sort().join('|'));
+                }
+                if((note.category==='URGENT' || (note.acknowledgedAt && note.acknowledgedBy)) && (note.noteType==='driver-call' || note.driverCall) && nowMs>=created+config.rules.urgentFollowUp.delayMinutes*60000) {
+                    const revision=managerAlertRevision(note);
+                    if(resolutions[key]!==revision) add('urgentFollowUp',key,'red','An urgent driver issue still needs your follow-up.',[['Driver',note.driverCall?.driver || 'Not specified'],['Issue',String(note.driverCall?.note || note.text || '').slice(0,500)]],{section:'note',dateKey:record.date,noteId:note.id,resolutionKey:key,resolutionRevision:revision},revision);
+                }
+            }
+            const weekStarts=new Set([day,tomorrow].map(date=>{const stamp=Date.parse(date+'T12:00:00Z');return managerAlertDayOffset(date,-((new Date(stamp).getUTCDay()+6)%7));}));
+            for(const monday of weekStarts) {
+                const people=new Map();
+                for(let offset=0;offset<7;offset++) for(const row of days.get(managerAlertDayOffset(monday,offset))?.routeTable || []) for(const role of ['driver','helper']) {
+                    const name=normalizeAssignmentName(row[role]); if(!name) continue;
+                    const key=name.toLowerCase(); if(!people.has(key)) people.set(key,{name,days:new Set()});people.get(key).days.add(offset);
+                }
+                for(const [key,person] of people) if(person.days.size===7) add('restDay',monday+':'+key,'red',person.name+' is assigned all seven days of the same week.',[['Week',monday+' to '+managerAlertDayOffset(monday,6)],['Required rest','One day within this Monday–Sunday week. Monday resets the count.']],{section:'routes',dateKey:managerAlertDayOffset(monday,6)});
+            }
+            return alerts.sort((a,b)=>(a.tone==='red'?0:1)-(b.tone==='red'?0:1) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
+        };
+
+        const ManagerAlertsSettings = ({settings,change,save,discard,preview,busy,loaded,dirty,owner}) => {
+            if(!owner) return null;
+            const fieldClass='mt-1 w-full min-w-0 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]';
+            const editRule=(id,patch)=>change({...settings,rules:{...settings.rules,[id]:{...settings.rules[id],...patch}}});
+            return <section aria-label="Manager Alerts settings" className="manager-alert-controls space-y-5">
+                <div><h3 className="text-base font-bold text-slate-100">Manager Alerts</h3><p className="mt-1 text-sm text-slate-400">Only your account sees these warnings. Times use Central time. These controls do not change the team’s existing reminders.</p></div>
+                <fieldset disabled={busy || !loaded} className="grid gap-3 sm:grid-cols-2">
+                    <label className="flex items-center gap-3 rounded-xl border border-slate-700 p-4 text-sm text-slate-200"><input type="checkbox" aria-label="Enable Manager Alerts" checked={settings.enabled} onChange={event=>change({...settings,enabled:event.target.checked})} className="h-5 w-5 accent-emerald-500" />Enable Manager Alerts</label>
+                    <label className="flex items-center gap-3 rounded-xl border border-slate-700 p-4 text-sm text-slate-200"><input type="checkbox" aria-label="Mute Manager Alerts" checked={settings.muted} onChange={event=>change({...settings,muted:event.target.checked})} className="h-5 w-5 accent-emerald-500" />Mute Manager Alerts only</label>
+                </fieldset>
+                <div className="space-y-3">{MANAGER_ALERT_RULES.map(rule=><fieldset key={rule.id} disabled={busy || !loaded} className="rounded-xl border border-slate-700 p-4">
+                    <label className="flex items-center gap-3 text-sm font-semibold text-slate-100"><input type="checkbox" aria-label={'Enable '+rule.name} checked={settings.rules[rule.id].enabled} onChange={event=>editRule(rule.id,{enabled:event.target.checked})} className="h-4 w-4 accent-emerald-500" />{rule.name}</label>
+                    <p className="mt-2 text-xs text-slate-400">{rule.description}</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                        {rule.time ? <label className="text-xs text-slate-300">{rule.timing==='cutoff'?'Manager late-arrival cutoff':'Manager reminder time'}<input aria-label={rule.name+' time'} type="time" value={settings.rules[rule.id].time} onInput={event=>editRule(rule.id,{time:event.currentTarget.value})} className={fieldClass} /></label>
+                            : rule.delayMinutes ? <label className="text-xs text-slate-300">{rule.timing==='task'?'Update response window (minutes)':'Follow-up window (minutes)'}<input aria-label={rule.name+' window'} type="number" min="5" max="10080" value={settings.rules[rule.id].delayMinutes} onChange={event=>editRule(rule.id,{delayMinutes:Number(event.target.value)})} className={fieldClass} /></label>
+                            : <p className="text-xs text-slate-400 self-center">Triggered by the seven-day assignment rule.</p>}
+                        <label className="text-xs text-slate-300">Repeat sound<select aria-label={rule.name+' repeat'} value={settings.rules[rule.id].repeatMinutes} onChange={event=>editRule(rule.id,{repeatMinutes:Number(event.target.value)})} className={fieldClass}>{[0,5,10,15,30,60,120,240,1440,...(![0,5,10,15,30,60,120,240,1440].includes(settings.rules[rule.id].repeatMinutes)?[settings.rules[rule.id].repeatMinutes]:[])].map(minutes=><option key={minutes} value={minutes}>{minutes===0?'Once per warning':'Every '+minutes+' minutes'}</option>)}</select></label>
+                        <label className="text-xs text-slate-300">Sound<select aria-label={rule.name+' sound'} value={settings.rules[rule.id].sound} onChange={event=>editRule(rule.id,{sound:event.target.value})} className={fieldClass}>{DASHBOARD_SOUND_PRESETS.map(sound=><option key={sound.id} value={sound.id}>{sound.name}</option>)}</select></label>
+                    </div><button type="button" onClick={()=>preview(rule.id)} className="mt-3 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 hover:text-white">Preview sound</button>
+                </fieldset>)}</div>
+                <p className="text-xs text-slate-400">Warnings stay until the underlying issue is resolved. Reading an alert does not clear it. Your existing all-dashboard mute and sound volume also apply.</p>
+                <div className="flex flex-wrap gap-3"><button type="button" onClick={save} disabled={!loaded || !dirty || busy} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{busy?'Saving…':'Save Manager Alerts'}</button><button type="button" onClick={discard} disabled={!dirty || busy} className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-300 disabled:opacity-40">Discard changes</button></div>
+            </section>;
+        };
+
+        const ManagerAlertsList = ({alerts,owner,open,resolve,busy,error,loaded,enabled=true}) => {
+            const [expanded,setExpanded]=useState(null),[visibleCount,setVisibleCount]=useState(30);
+            if(!owner) return null;
+            return <section aria-label="Manager Alerts" className="manager-alert-controls text-slate-200">
+                <div className="px-4 py-3 border-b border-slate-800"><h3 className="text-sm font-semibold text-white">Manager Alerts</h3><p className="text-xs text-slate-400 mt-1">Only you · Warnings remain until resolved</p></div>
+                {error && <p role="alert" className="m-3 text-xs text-rose-300">{error}</p>}
+                {!enabled ? <p className="px-4 py-6 text-sm text-slate-400">Manager Alerts are turned off. Enable them in Admin Settings.</p> : !loaded ? <p className="px-4 py-6 text-sm text-slate-400">Loading saved records…</p> : alerts.length===0 ? <p className="px-4 py-6 text-sm text-slate-400">No manager warnings right now.</p> : alerts.slice(0,visibleCount).map(alert=><article key={alert.id} className="border-b border-slate-800 p-4">
+                    <div className="flex gap-3 min-w-0"><span className={`shrink-0 mt-0.5 ${alert.tone==='red'?'text-rose-300':'text-amber-300'}`}><AlertTriangle className="h-4 w-4" /></span><div className="min-w-0 flex-1"><h4 className="font-semibold text-sm text-slate-100">{alert.title}</h4><p className="mt-1 text-xs text-slate-300 break-words">{alert.message}</p>
+                    <div className="flex flex-wrap gap-2 mt-3"><button type="button" onClick={()=>open(alert)} disabled={busy} className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 disabled:opacity-40">{alert.target.section==='task'?'Open task':alert.target.section==='metrics'?'Open metrics':alert.target.section==='note'?'Open note':'Open Routes'}</button><button type="button" aria-expanded={expanded===alert.id} onClick={()=>setExpanded(value=>value===alert.id?null:alert.id)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-400">Details</button>{alert.rule==='urgentFollowUp' && <button type="button" disabled={busy} onClick={()=>resolve(alert)} className="rounded-lg border border-emerald-500/40 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40">Mark resolved</button>}</div>
+                    {expanded===alert.id && <dl className="mt-3 space-y-2 text-xs">{alert.details.map(([label,value],index)=><div key={index}><dt className="text-slate-500">{label}</dt><dd className="break-words text-slate-200 mt-0.5">{value}</dd></div>)}</dl>}
+                    </div></div>
+                </article>)}
+                {alerts.length>visibleCount && <button type="button" onClick={()=>setVisibleCount(value=>value+30)} className="m-4 text-xs text-indigo-300">Show more warnings</button>}
+            </section>;
+        };
+
         const App = () => {
             const [user, setUser] = useState(null);
             const isAdminUser = isOwnerAccount(user);
@@ -4182,6 +4470,21 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [ringDraftDirty, setRingDraftDirty] = useState(false);
             const ringDraftDirtyRef = useRef(false), ringDraftBaselineRef = useRef(null);
             const [ringSettingsLoaded, setRingSettingsLoaded] = useState(false);
+            const [savedManagerAlerts,setSavedManagerAlerts]=useState(defaultManagerAlertSettings);
+            const [managerAlertDraft,setManagerAlertDraft]=useState(defaultManagerAlertSettings);
+            const [managerAlertSettingsLoaded,setManagerAlertSettingsLoaded]=useState(false);
+            const [managerAlertDirty,setManagerAlertDirty]=useState(false);
+            const managerAlertDirtyRef=useRef(false), managerAlertBaselineRef=useRef(null);
+            const [managerIssueResolutions,setManagerIssueResolutions]=useState({});
+            const [managerAlertError,setManagerAlertError]=useState('');
+            const [managerAlertBusy,setManagerAlertBusy]=useState(false);
+            const managerAlertWriteRef=useRef(false), managerSoundRef=useRef(null);
+            const managerSourceBaselineRef=useRef({tasks:false,recipients:false});
+            const [managerAlertNow,setManagerAlertNow]=useState(()=>new Date());
+            const [managerHistoryLoaded,setManagerHistoryLoaded]=useState(false);
+            const [managerSchedulesLoaded,setManagerSchedulesLoaded]=useState(false);
+            const [managerRecipientsLoaded,setManagerRecipientsLoaded]=useState(false);
+            const [notificationView,setNotificationView]=useState('activity');
             const [audioReady, setAudioReady] = useState(false);
             const warningSoundsPlayed = useRef(new Set());
             const [importedBackup, setImportedBackup] = useState(null);
@@ -4245,6 +4548,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [shiftNoteSearchCategory, setShiftNoteSearchCategory] = useState('');
             const [shiftNoteSearchAuthor, setShiftNoteSearchAuthor] = useState('');
             const [shiftNoteSearchError, setShiftNoteSearchError] = useState('');
+            const [shiftNotesView,setShiftNotesView]=useState('notes');
+            const [issueReviews,setIssueReviews]=useState({}), [issueReviewsLoaded,setIssueReviewsLoaded]=useState(false);
+            const [issueReviewError,setIssueReviewError]=useState(''), [savingIssueReviewKey,setSavingIssueReviewKey]=useState('');
+            const issueReviewWriteRef=useRef(false);
+            useEffect(()=>{setShiftNotesView('notes');setIssueReviews({});setIssueReviewsLoaded(false);setIssueReviewError('');setSavingIssueReviewKey('');},[user?.uid]);
             const [shiftReplyDrafts, setShiftReplyDrafts] = useState({});
             const [savingShiftReplyId, setSavingShiftReplyId] = useState(null);
             const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
@@ -4472,7 +4780,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 setShiftNoteSearchCategory('');
                 setShiftNoteSearchAuthor('');
                 setShiftNoteSearchScope(scope);
-                setShiftNoteSearchError('');
+                setShiftNoteSearchError('');setShiftNotesView('notes');
             };
             const addShiftNote = (category = 'Follow-up') => {
                 if (!canEditSection('notes') || (category === 'Manager Note' && !isAdminUser)) return;
@@ -4552,6 +4860,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         setShowPreloadAlert(false);
                     }
                     setPreloadClock(getPreloadClock());
+                    if(isOwnerAccount(auth.currentUser)) setManagerAlertNow(new Date());
 
                     // Route Update Alerts trigger at 12 PM, 5 PM (17), and 7 PM (19)
                     setTimeAlerts({ show12: hours >= 12, show17: hours >= 17, show19: hours >= 19 });
@@ -4970,11 +5279,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     });
 
                     const historyCol = collection(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps');
-                    const unsubscribeHistory = onSnapshot(historyCol, (snapshot) => {
+                    const unsubscribeHistory = onSnapshot(historyCol, {includeMetadataChanges:true}, (snapshot) => {
                         const records = [];
                         snapshot.forEach(d => records.push({ date: d.id, ...d.data() }));
-                        setHistoryData(records.sort((a, b) => b.date.localeCompare(a.date)));
-                    });
+                        setHistoryData(records.sort((a, b) => b.date.localeCompare(a.date))); setManagerHistoryLoaded(previous=>previous || snapshot.metadata?.fromCache !== true);
+                    }, error => {if(isOwnerAccount(user))setManagerAlertError('Saved daily records could not refresh. Check your connection.');});
 
                     const masterRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
                     const unsubscribeMaster = onSnapshot(masterRef, (docSnap) => {
@@ -4984,6 +5293,9 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         const rings = normalizeDashboardRingSettings(docSnap.exists() ? docSnap.data().ringSettings : null);
                         setSavedDashboardRings(rings); setRingSettingsLoaded(true);
                         if (!ringDraftDirtyRef.current) { setRingDraft(rings); ringDraftBaselineRef.current = null; }
+                        const managerSettings=normalizeManagerAlertSettings(docSnap.exists() ? docSnap.data().managerAlertSettings : null);
+                        setSavedManagerAlerts(managerSettings); setManagerAlertSettingsLoaded(true);
+                        if(!managerAlertDirtyRef.current) {setManagerAlertDraft(managerSettings);managerAlertBaselineRef.current=null;}
                         if (docSnap.exists()) {
                             const ml = docSnap.data();
                             const mergedLists = { ...DEFAULT_MASTER_LISTS, ...ml, nameOverrides: ml.nameOverrides || {} };
@@ -5074,11 +5386,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     });
 
                     const preloadCol = collection(db, 'artifacts', appId, 'public', 'data', 'preloadSchedules');
-                    const unsubscribePreload = onSnapshot(preloadCol, (snapshot) => {
+                    const unsubscribePreload = onSnapshot(preloadCol, {includeMetadataChanges:true}, (snapshot) => {
                         const pData = {};
                         snapshot.forEach(d => { pData[d.id] = d.data(); });
-                        setAllPreloadSchedules(pData);
-                    });
+                        setAllPreloadSchedules(pData); setManagerSchedulesLoaded(previous=>previous || snapshot.metadata?.fromCache !== true);
+                    }, error => {if(isOwnerAccount(user))setManagerAlertError('The preload schedule could not refresh. Check your connection.');});
 
                     return () => { clearTimeout(cacheTimer); unsubscribeData(); unsubscribeHistory(); unsubscribeMaster(); unsubscribeBonus(); unsubscribeOffice(); unsubscribePreload(); };
                 } catch(e) {
@@ -6067,6 +6379,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const openSettings = () => {
                 if (!isAdminUser) return;
                 soundDraftDirtyRef.current = false; setSoundDraftDirty(false); setSoundDraft(savedDashboardSounds);
+                managerAlertDirtyRef.current=false;managerAlertBaselineRef.current=null;setManagerAlertDirty(false);setManagerAlertDraft(savedManagerAlerts);
                 ringDraftDirtyRef.current = false; ringDraftBaselineRef.current = null; setRingDraftDirty(false); setRingDraft(savedDashboardRings);
                 setIsTeamTasksOpen(false);
                 setIsShiftNotificationOpen(false); setIsTeamChatOpen(false); setIsHeaderCalendarOpen(false);
@@ -6255,14 +6568,14 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 }, error => { console.error('Account access could not be refreshed:', error); });
             }, [user?.uid, settingsReady]);
             useEffect(() => {
-                if (!isSettingsOpen || !isAdminUser || !settingsReady) return;
+                if (!isAdminUser || !settingsReady) return;
                 const ref = collection(db, 'artifacts', appId, 'public', 'data', 'accessProfiles');
                 return onSnapshot(ref, snapshot => {
                     const profiles = new Map([...TEAM_UIDS].map(uid => [uid, normalizeAccessProfile(uid, null)]));
                     snapshot.forEach(item => profiles.set(item.id, normalizeAccessProfile(item.id, item.data())));
-                    setManagedAccounts([...profiles.values()].sort((a, b) => a.uid === OWNER_UID ? -1 : b.uid === OWNER_UID ? 1 : a.name.localeCompare(b.name)));
+                    setManagedAccounts([...profiles.values()].sort((a, b) => a.uid === OWNER_UID ? -1 : b.uid === OWNER_UID ? 1 : a.name.localeCompare(b.name))); setManagerRecipientsLoaded(true);
                 }, error => setSettingsError('Could not load account permissions. ' + error.message));
-            }, [isSettingsOpen, isAdminUser, settingsReady]);
+            }, [user?.uid, isAdminUser, settingsReady]);
             useEffect(() => {
                 if (!isSettingsOpen || settingsTab !== 'history' || !isAdminUser || !settingsReady) return;
                 setAuditLoading(true);
@@ -6416,6 +6729,40 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             };
             const deletedDashboardAccounts = managedAccounts.filter(account => isRemovedDashboardUser(account, masterLists.deletedDashboardUsers));
             const currentDashboardAccounts = managedAccounts.filter(account => !isRemovedDashboardUser(account, masterLists.deletedDashboardUsers));
+            const editManagerAlertDraft = next => {
+                if(!isAdminUser || !managerAlertSettingsLoaded) return;
+                const normalized=normalizeManagerAlertSettings(next), dirty=!sameSavedValue(normalized,savedManagerAlerts);
+                if(dirty && !managerAlertDirtyRef.current) managerAlertBaselineRef.current=savedManagerAlerts;
+                managerAlertDirtyRef.current=dirty;setManagerAlertDirty(dirty);setManagerAlertDraft(normalized);
+                setSettingsError('');setSettingsMessage('');
+            };
+            const discardManagerAlertDraft = () => {managerAlertDirtyRef.current=false;managerAlertBaselineRef.current=null;setManagerAlertDirty(false);setManagerAlertDraft(savedManagerAlerts);setSettingsError('');setSettingsMessage('');};
+            const saveManagerAlertSettings = async () => {
+                if(!isAdminUser || !isOwnerAccount(auth.currentUser) || !settingsReady || !managerAlertSettingsLoaded || !managerAlertDirty || settingsBusy) return;
+                const next=normalizeManagerAlertSettings(managerAlertDraft), baseline=managerAlertBaselineRef.current || savedManagerAlerts;
+                setSettingsBusy(true);setSettingsError('');setSettingsMessage('');
+                try {
+                    const ref=doc(db,'artifacts',appId,'public','data','config','masterLists');
+                    await runTransaction(db,async transaction=>{
+                        const snapshot=await transaction.get(ref), latest=snapshot.exists()?snapshot.data():{};
+                        if(!isOwnerAccount(auth.currentUser)) throw new Error('Sign in as Fadi to save Manager Alerts.');
+                        if(!sameSavedValue(normalizeManagerAlertSettings(latest.managerAlertSettings),baseline)) throw new Error('Manager Alerts changed on another device. Discard your changes and try again.');
+                        transaction.set(ref,{...latest,managerAlertSettings:next});
+                    });
+                    if(!isOwnerAccount(auth.currentUser)) return;
+                    setSavedManagerAlerts(next);setManagerAlertDraft(next);managerAlertDirtyRef.current=false;managerAlertBaselineRef.current=null;setManagerAlertDirty(false);
+                    setSettingsMessage('Manager Alerts saved. Only your account sees them. Team reminders are unchanged.');
+                }catch(error){setSettingsError('Manager Alerts were not saved. '+error.message);}finally{setSettingsBusy(false);}
+            };
+            const previewManagerAlertSound = async ruleId => {
+                if(!isAdminUser) return;
+                try {
+                    if(!window.Tone) throw new Error('The sound player is still loading.');
+                    if(window.Tone.context.state!=='running') await window.Tone.start();
+                    setAudioReady(window.Tone.context.state==='running');
+                    playDashboardSound('managerAlert',{preview:true,presetId:managerAlertDraft.rules[ruleId].sound});
+                }catch(error){setSettingsError(error.message);}
+            };
             const editDashboardSoundDraft = next => {
                 if (!isAdminUser) return;
                 const normalized = normalizeDashboardSoundSettings(next);
@@ -6949,6 +7296,10 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     setManagerNoteAckIds(managerNoteAckIdsRef.current);
                     localStorage.setItem(getManagerNoteAckStorageKey(user.uid), JSON.stringify(managerNoteAckIdsRef.current));
                     setTaskReadIds(Array.isArray(sharedState.taskReadIds) ? sharedState.taskReadIds : []);
+                    if(isOwnerAccount(user)) {
+                        setManagerIssueResolutions(sharedState.managerIssueResolutions || {});
+                    }
+                    setIssueReviews(sharedState.issueReviews || {});setIssueReviewsLoaded(true);
                     const sharedReadIds = Array.isArray(sharedState.shiftNoteReadIds) ? sharedState.shiftNoteReadIds : [];
                     const sharedShiftSeenAt = sharedState.shiftNoteNotificationsReadAt || localShiftSeenAt || '';
                     const sharedTeamSeenAt = sharedState.teamChatSeenAt || localTeamSeenAt || '';
@@ -6975,6 +7326,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     setNotificationStateLoaded(true);
                 }, (error) => {
                     console.error('Failed to load notification state:', error);
+                    setIssueReviewError('Your classifications could not load. Check your connection before saving.');
                     setNotificationStateLoaded(true);
                 });
                 return () => unsubscribeNotificationState();
@@ -7395,6 +7747,34 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 saveChatMentionReadIds(shiftNoteNotificationItems.filter(item => item.type === 'mention').map(item => item.id));
             };
 
+            const saveIssueReview = async (entry,classification) => {
+                if(!user?.uid || auth.currentUser?.uid!==user.uid || !db || !issueReviewsLoaded || issueReviewWriteRef.current || entry.note.id==null) return false;
+                const uid=user.uid, baseline=issueReviews[entry.key] || null;
+                const types=Array.from(new Set((classification.types || []).filter(type=>ISSUE_REVIEW_TYPES.some(item=>item.id===type))));
+                if(!types.length && !classification.excluded) return false;
+                issueReviewWriteRef.current=true;setSavingIssueReviewKey(entry.key);setIssueReviewError('');
+                try{
+                    const dailyRef=doc(db,'artifacts',appId,'public','data','dailyRecaps',entry.dateKey),stateRef=doc(db,'artifacts',appId,'public','data','notificationStates',uid);
+                    const review={revision:entry.revision,types,excluded:Boolean(classification.excluded),reviewedBy:uid,reviewedAt:new Date().toISOString()};
+                    await firebaseRunTransaction(db,async transaction=>{
+                        const daily=await transaction.get(dailyRef),state=await transaction.get(stateRef);
+                        if(auth.currentUser?.uid!==uid)throw new Error('Your session changed. Sign in again before saving the classification.');
+                        const note=daily.data()?.shiftNotes?.find(item=>String(item.id)===String(entry.note.id));
+                        if(!note || issueReviewRevision(note)!==entry.revision)throw new Error('This conversation changed. Reopen it and review the latest replies.');
+                        const current=state.data()?.issueReviews || {};
+                        if(!sameSavedValue(current[entry.key] || null,baseline))throw new Error('This classification changed on another device. Review its latest saved value first.');
+                        transaction.set(stateRef,{issueReviews:{...current,[entry.key]:review},updatedAt:review.reviewedAt},{merge:true});
+                    });
+                    if(auth.currentUser?.uid!==uid)return false;
+                    setIssueReviews(previous=>({...previous,[entry.key]:review}));return true;
+                }catch(error){if(auth.currentUser?.uid===uid)setIssueReviewError(error.message || 'The classification could not save. Please try again.');return false;}
+                finally{issueReviewWriteRef.current=false;if(auth.currentUser?.uid===uid)setSavingIssueReviewKey('');}
+            };
+            const openIssueReviewNote = entry => {
+                if(!user?.uid)return;
+                if(entry.dateKey!==activeDate && (isEditMode || isCreatingDriverCall || savingShiftReplyId!=null || Object.values(shiftReplyDrafts).some(text=>String(text).trim()))){setIssueReviewError('Save your edits or finish your reply before opening a note from another day.');return;}
+                setIssueReviewError('');openShiftNoteSearchResult(entry);
+            };
             const shiftNoteSearchAllEntries = useMemo(() => collectShiftNoteSearchEntries(historyData, activeDate, { shiftNotes: data.shiftNotes }, 'all'), [historyData, activeDate, data.shiftNotes]);
             const shiftNoteSearchEntries = useMemo(() => shiftNoteSearchScope === 'all' ? shiftNoteSearchAllEntries : collectShiftNoteSearchEntries([], activeDate, { shiftNotes: data.shiftNotes }, 'current'), [shiftNoteSearchAllEntries, shiftNoteSearchScope, activeDate, data.shiftNotes]);
             const shiftNoteSearchResults = useMemo(() => filterShiftNoteSearchEntries(shiftNoteSearchEntries, shiftNoteSearch, shiftNoteSearchCategory, shiftNoteSearchAuthor), [shiftNoteSearchEntries, shiftNoteSearch, shiftNoteSearchCategory, shiftNoteSearchAuthor]);
@@ -7565,7 +7945,62 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const shiftNoteNotificationItems = [...shiftNoteItems, ...chatMentionNotificationItems].sort((a,b) => Date.parse(b.timestamp || 0) - Date.parse(a.timestamp || 0));
             const displayedTeamChatMessages = chatJumpMessage && !teamChatMessages.some(message => message.id === chatJumpMessage.id)
                 ? [chatJumpMessage, ...teamChatMessages] : teamChatMessages;
+            const managerAlertsLoaded=isAdminUser && managerAlertSettingsLoaded && managerHistoryLoaded && managerSchedulesLoaded && notificationStateLoaded;
+            const managerAlertRecipients=taskAssignees.filter(person=>!masterLists.deletedDashboardUsers?.[person.uid]);
+            const managerAlerts=useMemo(()=>managerAlertsLoaded ? getManagerAlerts({account:user,settings:savedManagerAlerts,records:historyData,schedules:allPreloadSchedules,tasks:teamTasks,recipients:managerAlertRecipients,resolutions:managerIssueResolutions,now:managerAlertNow,tasksLoaded:teamTasksLoaded,recipientsLoaded:managerRecipientsLoaded}) : [],
+                [managerAlertsLoaded,user?.uid,savedManagerAlerts,historyData,allPreloadSchedules,teamTasks,taskAssignees,masterLists.deletedDashboardUsers,managerIssueResolutions,managerAlertNow,teamTasksLoaded,managerRecipientsLoaded]);
             const shiftNoteNotificationCount = shiftNoteNotificationItems.length;
+            const bellNotificationCount=shiftNoteNotificationCount+(isAdminUser?managerAlerts.length:0);
+            useEffect(()=>{
+                managerSoundRef.current=null;managerSourceBaselineRef.current={tasks:false,recipients:false};setManagerIssueResolutions({});setManagerAlertError('');setManagerAlertBusy(false);setNotificationView('activity');
+                managerAlertWriteRef.current=false;managerAlertDirtyRef.current=false;managerAlertBaselineRef.current=null;setManagerAlertDirty(false);
+                if(!isAdminUser) {setManagerHistoryLoaded(false);setManagerSchedulesLoaded(false);setManagerRecipientsLoaded(false);stopDashboardSounds('managerAlert');return;}
+                setManagerAlertNow(new Date());
+            },[user?.uid,isAdminUser]);
+            useEffect(()=>{
+                if(!managerAlertsLoaded || !isAdminUser) return;
+                const now=managerAlertNow.getTime();
+                if(managerSoundRef.current===null){managerSoundRef.current=new Map(managerAlerts.map(alert=>[alert.signature,now]));managerSourceBaselineRef.current={tasks:teamTasksLoaded,recipients:managerRecipientsLoaded};return;}
+                if(teamTasksLoaded && !managerSourceBaselineRef.current.tasks){managerAlerts.filter(alert=>alert.rule==='taskAttention').forEach(alert=>managerSoundRef.current.set(alert.signature,now));managerSourceBaselineRef.current.tasks=true;}
+                if(managerRecipientsLoaded && !managerSourceBaselineRef.current.recipients){managerAlerts.filter(alert=>alert.rule==='noteAcknowledgment').forEach(alert=>managerSoundRef.current.set(alert.signature,now));managerSourceBaselineRef.current.recipients=true;}
+                const alive=new Set(managerAlerts.map(alert=>alert.signature));
+                for(const key of managerSoundRef.current.keys()) if(!alive.has(key)) managerSoundRef.current.delete(key);
+                if(!savedManagerAlerts.enabled || savedManagerAlerts.muted || savedDashboardSounds.muted || savedDashboardSounds.volume===0){stopDashboardSounds('managerAlert');return;}
+                const eligible=managerAlerts.filter(alert=>{
+                    const rule=savedManagerAlerts.rules[alert.rule], previous=managerSoundRef.current.get(alert.signature);
+                    return rule.sound!=='silent' && (previous===undefined || (rule.repeatMinutes>0 && now-previous>=rule.repeatMinutes*60000));
+                });
+                if(!eligible.length || !audioReady) return;
+                if(playDashboardSound('managerAlert',{presetId:savedManagerAlerts.rules[eligible[0].rule].sound})) eligible.forEach(alert=>managerSoundRef.current.set(alert.signature,now));
+            },[managerAlerts,managerAlertsLoaded,isAdminUser,managerAlertNow,savedManagerAlerts,savedDashboardSounds,audioReady,teamTasksLoaded,managerRecipientsLoaded]);
+            const openManagerAlert = alert => {
+                if(!isAdminUser) return;
+                const {section,dateKey}=alert.target;
+                if(dateKey && dateKey!==activeDate && (isEditMode || isCreatingDriverCall || savingShiftReplyId!=null || Object.values(shiftReplyDrafts).some(text=>String(text).trim()))) {setManagerAlertError('Save your edits or finish your reply before opening another day.');return;}
+                setManagerAlertError('');setIsShiftNotificationOpen(false);
+                if(section==='task'){openTaskAssignment(alert.target.taskId);return;}
+                if(dateKey && dateKey!==activeDate) setDashboardActiveDate(dateKey);
+                if(section==='note'){clearShiftNoteSearch('current');setActiveTab('notes');setHighlightedShiftNoteId(alert.target.noteId);}
+                else if(section==='metrics'){setActiveTab('metrics');setMetricsSubTab('mtd');}
+                else {setActiveTab('routes');setRoutesSubTab('table');}
+            };
+            const resolveManagerIssue = async alert => {
+                if(!isAdminUser || !isOwnerAccount(auth.currentUser) || !db || managerAlertWriteRef.current || alert.rule!=='urgentFollowUp') return;
+                managerAlertWriteRef.current=true;setManagerAlertBusy(true);setManagerAlertError('');
+                const uid=user.uid, target=alert.target;
+                try {
+                    const dailyRef=doc(db,'artifacts',appId,'public','data','dailyRecaps',target.dateKey), stateRef=doc(db,'artifacts',appId,'public','data','notificationStates',uid);
+                    await firebaseRunTransaction(db,async transaction=>{
+                        const daily=await transaction.get(dailyRef), state=await transaction.get(stateRef);
+                        if(!isOwnerAccount(auth.currentUser) || auth.currentUser.uid!==uid) throw new Error('Sign in as Fadi to resolve this follow-up.');
+                        const note=daily.data()?.shiftNotes?.find(item=>String(item.id)===String(target.noteId));
+                        if(!note || managerAlertRevision(note)!==target.resolutionRevision) throw new Error('This issue changed. Reopen it before marking it resolved.');
+                        transaction.set(stateRef,{managerIssueResolutions:{...(state.data()?.managerIssueResolutions || {}),[target.resolutionKey]:target.resolutionRevision},updatedAt:new Date().toISOString()},{merge:true});
+                    });
+                    if(auth.currentUser?.uid===uid) setManagerIssueResolutions(previous=>({...previous,[target.resolutionKey]:target.resolutionRevision}));
+                }catch(error){if(auth.currentUser?.uid===uid)setManagerAlertError(error.message || 'The follow-up could not be saved.');}
+                finally{managerAlertWriteRef.current=false;setManagerAlertBusy(false);}
+            };
             const shiftNoteNotificationSignature = shiftNoteItems.map(item => item.id).join('|');
             useEffect(() => {
                 if (!soundSettingsLoaded || !teamChatLoaded || teamChatSoundSignature.current === null) return;
@@ -7779,25 +8214,26 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                             </div>
                             <div className="dashboard-header-actions flex items-center justify-end gap-2 shrink-0">
                                 <div className="relative">
-                                    <button aria-label={shiftNoteNotificationCount ? `Notifications, ${shiftNoteNotificationCount} unread` : 'Notifications'} onClick={() => { setIsShiftNotificationOpen(prev => !prev); setIsTeamChatOpen(false); }} className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${shiftNoteNotificationCount > 0 ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`} title="Notifications">
+                                    <button aria-label={bellNotificationCount ? `Notifications, ${bellNotificationCount} items` : 'Notifications'} onClick={() => { setIsShiftNotificationOpen(prev => !prev); setIsTeamChatOpen(false); setNotificationView(isAdminUser && managerAlerts.length ? 'manager' : 'activity'); }} className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${bellNotificationCount > 0 ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`} title="Notifications">
                                         <Bell className="w-4 h-4" />
-                                        {shiftNoteNotificationCount > 0 && (
-                                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{shiftNoteNotificationCount > 9 ? '9+' : shiftNoteNotificationCount}</span>
+                                        {bellNotificationCount > 0 && (
+                                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{bellNotificationCount > 9 ? '9+' : bellNotificationCount}</span>
                                         )}
                                     </button>
                                     {isShiftNotificationOpen && (
-                                        <div role="dialog" aria-label="Notifications" data-dashboard-edit-ignore="true" className="dashboard-header-popover absolute right-0 top-8 z-[120] w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                        <div role="dialog" aria-label="Notifications" data-dashboard-edit-ignore="true" className={`dashboard-header-popover absolute right-0 top-8 z-[120] ${isAdminUser && notificationView==='manager'?'w-[32rem]':'w-80'} max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70`}>
                                             <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
                                                 <div>
                                                     <div className="text-xs font-black uppercase tracking-widest text-white">Notifications</div>
-                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Shift Notes &amp; Mentions</div>
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{isAdminUser && notificationView==='manager' ? 'Manager only' : 'Shift Notes & Mentions'}</div>
                                                 </div>
-                                                {shiftNoteNotificationCount > 0 && (
+                                                {shiftNoteNotificationCount > 0 && notificationView==='activity' && (
                                                     <button type="button" onClick={markShiftNotesSeen} className="rounded-lg border border-slate-700 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">Mark Read</button>
                                                 )}
                                                 <button type="button" onClick={() => setIsShiftNotificationOpen(false)} aria-label="Close notifications" className="p-2 text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
                                             </div>
-                                            <div data-popover-scroll="true" className="max-h-80 overflow-y-auto">
+                                            {isAdminUser && <div className="flex flex-wrap gap-1 border-b border-slate-800 p-2" aria-label="Notification sections"><button type="button" aria-pressed={notificationView==='activity'} onClick={()=>setNotificationView('activity')} className={'rounded-lg px-3 py-2 text-xs '+(notificationView==='activity'?'bg-slate-800 text-white':'text-slate-400')}>Activity ({shiftNoteNotificationCount})</button><button type="button" aria-pressed={notificationView==='manager'} onClick={()=>setNotificationView('manager')} className={'rounded-lg px-3 py-2 text-xs '+(notificationView==='manager'?'bg-slate-800 text-white':'text-slate-400')}>Manager Alerts ({managerAlerts.length})</button></div>}
+                                            {isAdminUser && notificationView==='manager' ? <div data-popover-scroll="true" className="max-h-[65dvh] overflow-y-auto"><ManagerAlertsList owner={isAdminUser} alerts={managerAlerts} loaded={managerAlertsLoaded} enabled={savedManagerAlerts.enabled} open={openManagerAlert} resolve={resolveManagerIssue} busy={managerAlertBusy} error={managerAlertError || (dashboardConnection==='lost' ? 'Connection lost. Warnings use the last synced records.' : '')} /></div> : <div data-popover-scroll="true" className="max-h-80 overflow-y-auto">
                                                 {shiftNoteNotificationItems.length === 0 ? (
                                                     <div className="px-4 py-8 text-center text-xs font-bold text-slate-500">
                                                         <div>No new notifications.</div>
@@ -7818,7 +8254,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                         </button>
                                                     ))
                                                 )}
-                                            </div>
+                                            </div>}
                                         </div>
                                     )}
                                 </div>
@@ -8887,12 +9323,18 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                 <div className="dashboard-notes-panel bg-slate-800 rounded-3xl border border-slate-700 overflow-hidden shadow-2xl">
                                     <div className="dashboard-mobile-toolbar px-8 py-6 bg-slate-900/50 border-b border-slate-700 flex justify-between items-center">
                                         <div className="flex items-center gap-3"><MessageSquare className="w-8 h-8 text-slate-100" /><h2 className="text-xl font-black text-white italic">Shift Notes</h2></div>
-                                        {isEditing && <div className="flex flex-wrap items-center gap-2">
+                                        {isEditing && shiftNotesView!=='issues' && <div className="flex flex-wrap items-center gap-2">
                                             <button onClick={beginDriverCall} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/30 cursor-pointer"><Truck className="w-4 h-4" /> DRIVER CALL</button>
                                             <button onClick={() => addShiftNote()} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/40 cursor-pointer"><PlusCircle className="w-4 h-4" /> NEW ENTRY</button>
                                             {isAdminUser && <button type="button" onClick={() => addShiftNote('Manager Note')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-500/50 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 text-xs font-black transition-colors cursor-pointer"><ShieldCheck className="w-4 h-4" /> MANAGER NOTE</button>}
                                         </div>}
                                     </div>
+                                    {user?.uid && <div className="flex gap-5 border-b border-slate-700 px-8" data-dashboard-edit-ignore="true" role="tablist" aria-label="Shift Notes views">
+                                        <button type="button" id="shift-notes-normal-tab" role="tab" aria-selected={shiftNotesView==='notes'} aria-controls="shift-notes-normal-panel" onClick={()=>setShiftNotesView('notes')} className={'py-3 text-sm border-b-2 '+(shiftNotesView==='notes'?'border-indigo-400 text-white':'border-transparent text-slate-400 hover:text-white')}>Notes</button>
+                                        <button type="button" id="shift-notes-issues-tab" role="tab" aria-selected={shiftNotesView==='issues'} aria-controls="shift-notes-issues-panel" onClick={()=>{setShiftNotesView('issues');setIssueReviewError('');}} className={'py-3 text-sm border-b-2 '+(shiftNotesView==='issues'?'border-indigo-400 text-white':'border-transparent text-slate-400 hover:text-white')}>Issue Review</button>
+                                    </div>}
+                                    {user?.uid && shiftNotesView==='issues' && <div id="shift-notes-issues-panel" role="tabpanel" aria-labelledby="shift-notes-issues-tab"><IssueReviewPanel key={user.uid} account={user} records={historyData} reviews={issueReviews} loaded={managerHistoryLoaded || historyData.length>0} reviewsLoaded={issueReviewsLoaded} connection={dashboardConnection} saveReview={saveIssueReview} openNote={openIssueReviewNote} savingKey={savingIssueReviewKey} error={issueReviewError}/></div>}
+                                    <div id="shift-notes-normal-panel" role="tabpanel" aria-labelledby="shift-notes-normal-tab" hidden={shiftNotesView==='issues'}>
                                     <div className="shift-note-search-toolbar px-8 py-5 border-b border-slate-700 bg-slate-900/30 space-y-3" data-dashboard-edit-ignore="true" role="search" aria-label="Search Shift Notes">
                                         <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_9rem_9rem] items-end">
                                             <label className="block min-w-0">
@@ -9133,6 +9575,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
                                     </div>
                                     <div className="px-8 py-4 bg-slate-950 border-t border-slate-700 flex items-center gap-3"><ShieldCheck className="w-4 h-4 text-emerald-500" /><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Verification: Dashboard Auth Active</span></div>
                                 </div>
@@ -9693,11 +10136,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         <div className="dashboard-modal settings-modal fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4" data-dashboard-edit-ignore="true" data-html2canvas-ignore="true">
                             <div ref={settingsDialogRef} role="dialog" aria-modal="true" aria-labelledby="settings-title" className="settings-window flex flex-col min-h-0 w-full max-w-5xl max-h-[90dvh] rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden">
                                 <div className="dashboard-mobile-toolbar flex items-center justify-between gap-3 border-b border-slate-700 bg-slate-800 px-5 py-4 shrink-0">
-                                    <div className="min-w-0"><h2 id="settings-title" className="text-lg font-black text-white">Settings</h2><p className="text-xs text-slate-400">Manage dashboard users, records, sounds, and rings.</p></div>
+                                    <div className="min-w-0"><h2 id="settings-title" className="text-lg font-black text-white">Settings</h2><p className="text-xs text-slate-400">Manage dashboard users, records, reminders, sounds, and rings.</p></div>
                                     <button type="button" data-settings-close aria-label="Close Settings" disabled={settingsBusy} onClick={() => setIsSettingsOpen(false)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-40"><X className="w-5 h-5" /></button>
                                 </div>
                                 <nav aria-label="Settings sections" className="dashboard-modal-tabs flex gap-1 px-3 border-b border-slate-700 bg-slate-800/40 shrink-0 overflow-x-auto">
-                                    {[['users', 'Users & Permissions'], ['history', 'Change History'], ['backup', 'Backup & Restore'], ['sounds', 'Sounds & Alerts'], ['rings', 'Rings']].map(([key, label]) => (
+                                    {[['users', 'Users & Permissions'], ['history', 'Change History'], ['backup', 'Backup & Restore'], ['sounds', 'Sounds & Alerts'], ['managerAlerts', 'Manager Alerts'], ['rings', 'Rings']].map(([key, label]) => (
                                         <button key={key} type="button" aria-current={settingsTab === key ? 'page' : undefined} onClick={() => { setSettingsTab(key); setSettingsError(''); setSettingsMessage(''); }} className={`shrink-0 px-3 py-3 text-xs font-bold border-b-2 transition-colors ${settingsTab === key ? 'border-indigo-400 text-indigo-200' : 'border-transparent text-slate-400 hover:text-white'}`}>{label}</button>
                                     ))}
                                 </nav>
@@ -9779,6 +10222,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             </div>
                                         </div>
                                     )}
+                                    {isAdminUser && settingsTab === 'managerAlerts' && <ManagerAlertsSettings owner={isAdminUser} settings={managerAlertDraft} change={editManagerAlertDraft} save={saveManagerAlertSettings} discard={discardManagerAlertDraft} preview={previewManagerAlertSound} busy={settingsBusy} loaded={managerAlertSettingsLoaded && settingsReady} dirty={managerAlertDirty} />}
                                     {isAdminUser && settingsTab === 'rings' && <DashboardRingSettings settings={ringDraft} change={editDashboardRingDraft} save={saveDashboardRingSettings} discard={discardDashboardRingDraft} busy={settingsBusy} loaded={ringSettingsLoaded && settingsReady} dirty={ringDraftDirty} />}
                                     {isAdminUser && settingsTab === 'sounds' && <div className="space-y-5">
                                         <div><h3 className="font-bold text-white">Sounds & Alerts</h3><p className="text-xs text-slate-400 mt-1">Only you can choose or mute sounds. Saved choices apply to every user and device. Previews play here only.</p></div>
