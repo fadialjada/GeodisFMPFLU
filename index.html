@@ -4317,7 +4317,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             for(let i=0;i<text.length;i++) hash=Math.imul(hash^text.charCodeAt(i),16777619);
             return (hash>>>0).toString(16);
         };
-        const getManagerAlerts = ({ account, settings, records=[], schedules={}, tasks=[], recipients=[], resolutions={}, now=new Date(), tasksLoaded=true, recipientsLoaded=true }) => {
+        const managerAlertDismissalKey = alert => alert.id+':'+managerAlertRevision({text:JSON.stringify([alert.tone,alert.message,alert.details,alert.target,alert.revision])});
+        const getManagerAlerts = ({ account, settings, records=[], schedules={}, tasks=[], recipients=[], resolutions={}, dismissals={}, now=new Date(), tasksLoaded=true, recipientsLoaded=true }) => {
             if (!isOwnerAccount(account)) return [];
             const config=normalizeManagerAlertSettings(settings);
             if (!config.enabled) return [];
@@ -4326,10 +4327,12 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const rows=getCountableRouteRows(current || {}), nextRows=getCountableRouteRows(next || {});
             const hasWork=rows.length>0, alerts=[];
             const due = rule => clock.minutes >= parsePreloadEtaMinutes(config.rules[rule].time);
-            const add = (rule, key, tone, message, details, target) => {
+            const add = (rule, key, tone, message, details, target, revision='') => {
                 if(!config.rules[rule].enabled) return;
                 const definition=MANAGER_ALERT_RULES.find(item=>item.id===rule);
-                alerts.push({id:rule+':'+key,rule,title:definition.name,tone,message,details,target,signature:rule+':'+key});
+                const alert={id:rule+':'+key,rule,title:definition.name,tone,message,details,target,revision,signature:rule+':'+key};
+                alert.dismissalKey=managerAlertDismissalKey(alert);
+                if(dismissals?.[alert.id]!==alert.dismissalKey) alerts.push(alert);
             };
             const schedule=schedules[day] || {}, team=getLinkedPreloadTeam(current?.routeTable || [],day);
             const arrived=hasLinkedPreloadArrived(team,current?.shiftNotes || [],schedule);
@@ -4414,20 +4417,20 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         <label className="text-xs text-slate-300">Sound<select aria-label={rule.name+' sound'} value={settings.rules[rule.id].sound} onChange={event=>editRule(rule.id,{sound:event.target.value})} className={fieldClass}>{DASHBOARD_SOUND_PRESETS.map(sound=><option key={sound.id} value={sound.id}>{sound.name}</option>)}</select></label>
                     </div><button type="button" onClick={()=>preview(rule.id)} className="mt-3 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 hover:text-white">Preview sound</button>
                 </fieldset>)}</div>
-                <p className="text-xs text-slate-400">Warnings stay until the underlying issue is resolved. Reading an alert does not clear it. Your existing all-dashboard mute and sound volume also apply.</p>
+                <p className="text-xs text-slate-400">Dismiss hides a warning and stops its repeat sound without resolving the issue. A changed issue or a new day or week can create a new warning. Your existing all-dashboard mute and sound volume also apply.</p>
                 <div className="flex flex-wrap gap-3"><button type="button" onClick={save} disabled={!loaded || !dirty || busy} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{busy?'Saving…':'Save Manager Alerts'}</button><button type="button" onClick={discard} disabled={!dirty || busy} className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-300 disabled:opacity-40">Discard changes</button></div>
             </section>;
         };
 
-        const ManagerAlertsList = ({alerts,owner,open,resolve,busy,error,loaded,enabled=true}) => {
+        const ManagerAlertsList = ({alerts,owner,open,resolve,dismiss,dismissAll,busy,error,loaded,enabled=true}) => {
             const [expanded,setExpanded]=useState(null),[visibleCount,setVisibleCount]=useState(30);
             if(!owner) return null;
             return <section aria-label="Manager Alerts" className="manager-alert-controls text-slate-200">
-                <div className="px-4 py-3 border-b border-slate-800"><h3 className="text-sm font-semibold text-white">Manager Alerts</h3><p className="text-xs text-slate-400 mt-1">Only you · Warnings remain until resolved</p></div>
+                <div className="px-4 py-3 border-b border-slate-800"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-white">Manager Alerts</h3><button type="button" onClick={dismissAll} disabled={busy || !loaded || !alerts.length} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40">Dismiss All</button></div><p className="text-xs text-slate-400 mt-1">Only you · Dismiss hides a warning without resolving the issue</p></div>
                 {error && <p role="alert" className="m-3 text-xs text-rose-300">{error}</p>}
                 {!enabled ? <p className="px-4 py-6 text-sm text-slate-400">Manager Alerts are turned off. Enable them in Admin Settings.</p> : !loaded ? <p className="px-4 py-6 text-sm text-slate-400">Loading saved records…</p> : alerts.length===0 ? <p className="px-4 py-6 text-sm text-slate-400">No manager warnings right now.</p> : alerts.slice(0,visibleCount).map(alert=><article key={alert.id} className="border-b border-slate-800 p-4">
                     <div className="flex gap-3 min-w-0"><span className={`shrink-0 mt-0.5 ${alert.tone==='red'?'text-rose-300':'text-amber-300'}`}><AlertTriangle className="h-4 w-4" /></span><div className="min-w-0 flex-1"><h4 className="font-semibold text-sm text-slate-100">{alert.title}</h4><p className="mt-1 text-xs text-slate-300 break-words">{alert.message}</p>
-                    <div className="flex flex-wrap gap-2 mt-3"><button type="button" onClick={()=>open(alert)} disabled={busy} className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 disabled:opacity-40">{alert.target.section==='task'?'Open task':alert.target.section==='metrics'?'Open metrics':alert.target.section==='note'?'Open note':'Open Routes'}</button><button type="button" aria-expanded={expanded===alert.id} onClick={()=>setExpanded(value=>value===alert.id?null:alert.id)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-400">Details</button>{alert.rule==='urgentFollowUp' && <button type="button" disabled={busy} onClick={()=>resolve(alert)} className="rounded-lg border border-emerald-500/40 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40">Mark resolved</button>}</div>
+                    <div className="flex flex-wrap gap-2 mt-3"><button type="button" onClick={()=>open(alert)} disabled={busy} className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 disabled:opacity-40">{alert.target.section==='task'?'Open task':alert.target.section==='metrics'?'Open metrics':alert.target.section==='note'?'Open note':'Open Routes'}</button><button type="button" aria-expanded={expanded===alert.id} onClick={()=>setExpanded(value=>value===alert.id?null:alert.id)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-400">Details</button><button type="button" aria-label={'Dismiss '+alert.title} onClick={()=>dismiss(alert)} disabled={busy || !loaded} className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40">Dismiss</button>{alert.rule==='urgentFollowUp' && <button type="button" disabled={busy} onClick={()=>resolve(alert)} className="rounded-lg border border-emerald-500/40 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40">Mark resolved</button>}</div>
                     {expanded===alert.id && <dl className="mt-3 space-y-2 text-xs">{alert.details.map(([label,value],index)=><div key={index}><dt className="text-slate-500">{label}</dt><dd className="break-words text-slate-200 mt-0.5">{value}</dd></div>)}</dl>}
                     </div></div>
                 </article>)}
@@ -4476,6 +4479,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [managerAlertDirty,setManagerAlertDirty]=useState(false);
             const managerAlertDirtyRef=useRef(false), managerAlertBaselineRef=useRef(null);
             const [managerIssueResolutions,setManagerIssueResolutions]=useState({});
+            const [managerAlertDismissals,setManagerAlertDismissals]=useState({});
+            const [pendingPhoneNotification,setPendingPhoneNotification]=useState(null);
             const [managerAlertError,setManagerAlertError]=useState('');
             const [managerAlertBusy,setManagerAlertBusy]=useState(false);
             const managerAlertWriteRef=useRef(false), managerSoundRef=useRef(null);
@@ -5127,6 +5132,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 let generation = 0;
                 const unsubscribe = onAuthStateChanged(auth, async firebaseUser => {
                     const currentGeneration = ++generation;
+                    window.geodisNativeNotifications?.bind(null).catch(()=>{});
                     settingsServiceAvailable = false;
                     stopDashboardSounds(); applyDashboardSoundSettings(null);
                     setSoundSettingsLoaded(false); setSavedDashboardSounds(defaultDashboardSoundSettings());
@@ -5168,6 +5174,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         setUserName(''); setIsEditingName(false); setIsEditing(false);
                     }
                     setUser(firebaseUser); setAuthReady(true);
+                    window.geodisNativeNotifications?.bind(firebaseUser ? {user:firebaseUser,auth,db,appId} : null).catch(()=>{});
                     if (!firebaseUser) setIsLoading(false);
                 });
                 return () => { generation++; unsubscribe(); };
@@ -5195,6 +5202,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
 
             const handleLogout = async () => {
                 try {
+                    await window.geodisNativeNotifications?.unbind();
                     await signOut(auth);
                     setIsEditing(false);
                     setActiveTab('overview');
@@ -7298,6 +7306,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     setTaskReadIds(Array.isArray(sharedState.taskReadIds) ? sharedState.taskReadIds : []);
                     if(isOwnerAccount(user)) {
                         setManagerIssueResolutions(sharedState.managerIssueResolutions || {});
+                        setManagerAlertDismissals(sharedState.managerAlertDismissals || {});
                     }
                     setIssueReviews(sharedState.issueReviews || {});setIssueReviewsLoaded(true);
                     const sharedReadIds = Array.isArray(sharedState.shiftNoteReadIds) ? sharedState.shiftNoteReadIds : [];
@@ -7947,12 +7956,12 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 ? [chatJumpMessage, ...teamChatMessages] : teamChatMessages;
             const managerAlertsLoaded=isAdminUser && managerAlertSettingsLoaded && managerHistoryLoaded && managerSchedulesLoaded && notificationStateLoaded;
             const managerAlertRecipients=taskAssignees.filter(person=>!masterLists.deletedDashboardUsers?.[person.uid]);
-            const managerAlerts=useMemo(()=>managerAlertsLoaded ? getManagerAlerts({account:user,settings:savedManagerAlerts,records:historyData,schedules:allPreloadSchedules,tasks:teamTasks,recipients:managerAlertRecipients,resolutions:managerIssueResolutions,now:managerAlertNow,tasksLoaded:teamTasksLoaded,recipientsLoaded:managerRecipientsLoaded}) : [],
-                [managerAlertsLoaded,user?.uid,savedManagerAlerts,historyData,allPreloadSchedules,teamTasks,taskAssignees,masterLists.deletedDashboardUsers,managerIssueResolutions,managerAlertNow,teamTasksLoaded,managerRecipientsLoaded]);
+            const managerAlerts=useMemo(()=>managerAlertsLoaded ? getManagerAlerts({account:user,settings:savedManagerAlerts,records:historyData,schedules:allPreloadSchedules,tasks:teamTasks,recipients:managerAlertRecipients,resolutions:managerIssueResolutions,dismissals:managerAlertDismissals,now:managerAlertNow,tasksLoaded:teamTasksLoaded,recipientsLoaded:managerRecipientsLoaded}) : [],
+                [managerAlertsLoaded,user?.uid,savedManagerAlerts,historyData,allPreloadSchedules,teamTasks,taskAssignees,masterLists.deletedDashboardUsers,managerIssueResolutions,managerAlertDismissals,managerAlertNow,teamTasksLoaded,managerRecipientsLoaded]);
             const shiftNoteNotificationCount = shiftNoteNotificationItems.length;
             const bellNotificationCount=shiftNoteNotificationCount+(isAdminUser?managerAlerts.length:0);
             useEffect(()=>{
-                managerSoundRef.current=null;managerSourceBaselineRef.current={tasks:false,recipients:false};setManagerIssueResolutions({});setManagerAlertError('');setManagerAlertBusy(false);setNotificationView('activity');
+                managerSoundRef.current=null;managerSourceBaselineRef.current={tasks:false,recipients:false};setManagerIssueResolutions({});setManagerAlertDismissals({});setManagerAlertError('');setManagerAlertBusy(false);setNotificationView('activity');
                 managerAlertWriteRef.current=false;managerAlertDirtyRef.current=false;managerAlertBaselineRef.current=null;setManagerAlertDirty(false);
                 if(!isAdminUser) {setManagerHistoryLoaded(false);setManagerSchedulesLoaded(false);setManagerRecipientsLoaded(false);stopDashboardSounds('managerAlert');return;}
                 setManagerAlertNow(new Date());
@@ -8001,6 +8010,49 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 }catch(error){if(auth.currentUser?.uid===uid)setManagerAlertError(error.message || 'The follow-up could not be saved.');}
                 finally{managerAlertWriteRef.current=false;setManagerAlertBusy(false);}
             };
+            const dismissManagerAlerts = async alerts => {
+                const entries=(Array.isArray(alerts) ? alerts : []).filter(alert=>alert?.id && alert?.dismissalKey);
+                if(!isAdminUser || !isOwnerAccount(auth.currentUser) || auth.currentUser.uid!==user?.uid || !db || !managerAlertsLoaded || managerAlertWriteRef.current || !entries.length) return;
+                const uid=user.uid;
+                const dismissed=Object.fromEntries(entries.map(alert=>[alert.id,alert.dismissalKey]));
+                managerAlertWriteRef.current=true;setManagerAlertBusy(true);setManagerAlertError('');
+                try {
+                    const stateRef=doc(db,'artifacts',appId,'public','data','notificationStates',uid);
+                    await firebaseRunTransaction(db,async transaction=>{
+                        const state=await transaction.get(stateRef);
+                        if(!isOwnerAccount(auth.currentUser) || auth.currentUser.uid!==uid) throw new Error('Your account changed. Sign in again before dismissing this warning.');
+                        transaction.set(stateRef,{managerAlertDismissals:{...(state.data()?.managerAlertDismissals || {}),...dismissed},updatedAt:new Date().toISOString()},{merge:true});
+                    });
+                    if(auth.currentUser?.uid===uid) setManagerAlertDismissals(previous=>({...previous,...dismissed}));
+                }catch(error){if(auth.currentUser?.uid===uid)setManagerAlertError('The warning could not be dismissed. '+(error.message || 'Check your connection and try again.'));}
+                finally{if(auth.currentUser?.uid===uid){managerAlertWriteRef.current=false;setManagerAlertBusy(false);}}
+            };
+            const dismissManagerAlert = alert => dismissManagerAlerts([alert]);
+            useEffect(()=>{
+                const receive=event=>{
+                    if(event.detail?.recipientUid===user?.uid)setPendingPhoneNotification(event.detail);
+                };
+                window.addEventListener('geodis-phone-notification',receive);
+                window.geodisNativeNotifications?.openPending().catch(()=>{});
+                return()=>window.removeEventListener('geodis-phone-notification',receive);
+            },[user?.uid]);
+            useEffect(()=>{
+                const item=pendingPhoneNotification;
+                if(!item || !user || isLoading || item.recipientUid!==user.uid)return;
+                if(item.kind==='task' && !teamTasksLoaded)return;
+                if(isEditMode || isCreatingDriverCall || savingShiftReplyId!=null)return;
+                setPendingPhoneNotification(null);
+                if(item.kind==='manager' && isAdminUser){setNotificationView('manager');setIsShiftNotificationOpen(true);setIsTeamChatOpen(false);}
+                else if(item.kind==='chat'){setHighlightedChatMessageId(item.messageId || null);setIsTeamChatOpen(true);setIsShiftNotificationOpen(false);}
+                else if(item.kind==='task')openTaskAssignment(item.taskId);
+                else if(item.noteId && item.dateKey)openShiftNoteFromNotification({noteId:item.noteId,dateKey:item.dateKey,id:item.activityId});
+                else if(item.dateKey){setDashboardActiveDate(item.dateKey);setActiveTab('routes');setRoutesSubTab('table');}
+            },[pendingPhoneNotification,user?.uid,isLoading,teamTasksLoaded,isEditMode,isCreatingDriverCall,savingShiftReplyId,isAdminUser]);
+            useEffect(()=>{
+                if(!user || !notificationStateLoaded)return;
+                const readIds=[...teamChatReadIds.map(id=>'chat:'+id),...shiftNoteReadIds.map(id=>'shift:'+id),...taskReadIds.map(id=>'task:'+id),...managerNoteAckIds.map(id=>'note:'+id)];
+                window.geodisNativeNotifications?.clearRead({readIds,...(managerAlertsLoaded ? {managerKeys:managerAlerts.map(alert=>'manager:'+alert.dismissalKey)} : {})});
+            },[user?.uid,notificationStateLoaded,teamChatReadIds,shiftNoteReadIds,taskReadIds,managerNoteAckIds,managerAlertsLoaded,managerAlerts]);
             const shiftNoteNotificationSignature = shiftNoteItems.map(item => item.id).join('|');
             useEffect(() => {
                 if (!soundSettingsLoaded || !teamChatLoaded || teamChatSoundSignature.current === null) return;
@@ -8233,7 +8285,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                 <button type="button" onClick={() => setIsShiftNotificationOpen(false)} aria-label="Close notifications" className="p-2 text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
                                             </div>
                                             {isAdminUser && <div className="flex flex-wrap gap-1 border-b border-slate-800 p-2" aria-label="Notification sections"><button type="button" aria-pressed={notificationView==='activity'} onClick={()=>setNotificationView('activity')} className={'rounded-lg px-3 py-2 text-xs '+(notificationView==='activity'?'bg-slate-800 text-white':'text-slate-400')}>Activity ({shiftNoteNotificationCount})</button><button type="button" aria-pressed={notificationView==='manager'} onClick={()=>setNotificationView('manager')} className={'rounded-lg px-3 py-2 text-xs '+(notificationView==='manager'?'bg-slate-800 text-white':'text-slate-400')}>Manager Alerts ({managerAlerts.length})</button></div>}
-                                            {isAdminUser && notificationView==='manager' ? <div data-popover-scroll="true" className="max-h-[65dvh] overflow-y-auto"><ManagerAlertsList owner={isAdminUser} alerts={managerAlerts} loaded={managerAlertsLoaded} enabled={savedManagerAlerts.enabled} open={openManagerAlert} resolve={resolveManagerIssue} busy={managerAlertBusy} error={managerAlertError || (dashboardConnection==='lost' ? 'Connection lost. Warnings use the last synced records.' : '')} /></div> : <div data-popover-scroll="true" className="max-h-80 overflow-y-auto">
+                                            {isAdminUser && notificationView==='manager' ? <div data-popover-scroll="true" className="max-h-[65dvh] overflow-y-auto"><ManagerAlertsList owner={isAdminUser} alerts={managerAlerts} loaded={managerAlertsLoaded} enabled={savedManagerAlerts.enabled} open={openManagerAlert} resolve={resolveManagerIssue} dismiss={dismissManagerAlert} dismissAll={()=>dismissManagerAlerts(managerAlerts)} busy={managerAlertBusy} error={managerAlertError || (dashboardConnection==='lost' ? 'Connection lost. Warnings use the last synced records.' : '')} /></div> : <div data-popover-scroll="true" className="max-h-80 overflow-y-auto">
                                                 {shiftNoteNotificationItems.length === 0 ? (
                                                     <div className="px-4 py-8 text-center text-xs font-bold text-slate-500">
                                                         <div>No new notifications.</div>
