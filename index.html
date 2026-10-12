@@ -2988,6 +2988,7 @@
             return active;
         };
         const PRESENCE_AWAY_AFTER_MS = 10 * 60 * 1000;
+        const PRESENCE_HEARTBEAT_MS = 5 * 60 * 1000;
         const SCREENSHOT_BACKGROUND = '#1b1f25';
         const prepareScreenshotSurface = (surface) => {
             surface.setAttribute('data-screenshot-surface', 'true');
@@ -5414,6 +5415,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 if (!currentUser || (!isOwnerAccount(currentUser) && !accessProfilesCache.get(currentUser.uid)?.enabled)) return;
                 const offlineAfterMs = 15 * 60 * 1000;
                 let lastPresenceWrite = 0;
+                let lastPresenceFingerprint = '', presencePausedUntil = 0, presenceInFlight = false;
+                let latestPresence = [];
                 if (!presenceSessionIdRef.current) {
                     try {
                         const sessionKey = `geodis_presence_session_${currentUser.uid}`;
@@ -5428,20 +5431,24 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 const presenceDocId = `${currentUser.uid}_${presenceSessionId}`;
 
                 const updatePresence = async () => {
+                    const now = Date.now();
+                    if (presenceInFlight || now < presencePausedUntil) return;
                     try {
-                        const now = Date.now();
                         const lastInteraction = lastUserActivityRef.current || now;
                         if (document.hidden && !presenceHiddenSinceRef.current) presenceHiddenSinceRef.current = now;
                         if (!document.hidden) presenceHiddenSinceRef.current = null;
                         const hiddenSince = presenceHiddenSinceRef.current;
                         const hiddenForMs = hiddenSince ? now - hiddenSince : 0;
                         const status = !document.hidden ? 'active' : hiddenForMs >= PRESENCE_AWAY_AFTER_MS ? 'away' : 'idle';
+                        const name = getSavedDisplayName(currentUser);
+                        const fingerprint = JSON.stringify([name, status, hiddenSince || null]);
+                        if (fingerprint === lastPresenceFingerprint && now - lastPresenceWrite < PRESENCE_HEARTBEAT_MS) return;
                         const presenceRef = doc(db, 'artifacts', appId, 'public', 'data', 'presence', presenceDocId);
-                        lastPresenceWrite = now;
+                        lastPresenceWrite = now; lastPresenceFingerprint = fingerprint; presenceInFlight = true;
                         await setDoc(presenceRef, {
                             uid: currentUser.uid,
                             sessionId: presenceSessionId,
-                            name: getSavedDisplayName(currentUser),
+                            name,
                             lastActive: lastInteraction,
                             lastInteraction,
                             lastSeen: now,
@@ -5449,13 +5456,15 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                             hiddenSince: hiddenSince || null,
                             chatTypingUntil: document.hidden ? 0 : teamChatTypingStateRef.current.until
                         });
-                    } catch (e) {}
+                    } catch (e) {
+                        presencePausedUntil = Date.now() + (e.code === 'resource-exhausted' ? 15 * 60 * 1000 : 60 * 1000);
+                    } finally { presenceInFlight = false; }
                 };
                 const markUserActivity = () => {
                     const now = Date.now();
                     if (!document.hidden) presenceHiddenSinceRef.current = null;
                     lastUserActivityRef.current = now;
-                    if (now - lastPresenceWrite > 15000) updatePresence();
+                    if (now - lastPresenceWrite >= PRESENCE_HEARTBEAT_MS) updatePresence();
                 };
                 const handleVisibilityChange = () => {
                     if (document.hidden) {
@@ -5464,21 +5473,20 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     } else {
                         presenceHiddenSinceRef.current = null;
                         markUserActivity();
+                        updatePresence();
                     }
                 };
                 const activityEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'pointerdown'];
                 activityEvents.forEach(eventName => window.addEventListener(eventName, markUserActivity, true));
                 document.addEventListener('visibilitychange', handleVisibilityChange);
                 updatePresence();
-                const intervalId = setInterval(updatePresence, 20000);
                 const presenceCol = collection(db, 'artifacts', appId, 'public', 'data', 'presence');
-                const unsubscribePresence = onSnapshot(presenceCol, (snapshot) => {
+                const refreshPresence = () => {
                     const byUser = new Map();
                     const typingSessions = [];
                     const now = Date.now();
                     const threshold = now - offlineAfterMs; 
-                    snapshot.forEach(doc => { 
-                        const presence = doc.data();
+                    latestPresence.forEach(presence => {
                         if (presence.chatTypingUntil) typingSessions.push(presence);
                         const lastSeen = Number(presence.lastSeen || presence.lastActive || 0);
                         if (lastSeen > threshold) {
@@ -5490,7 +5498,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                 ...presence,
                                 status: presence.hiddenSince ? inferredStatus : (presence.status || inferredStatus)
                             };
-                            const uid = sessionPresence.uid || doc.id;
+                            const uid = sessionPresence.uid || presence.id;
                             const existing = byUser.get(uid);
                             const rank = { active: 3, idle: 2, away: 1 };
                             const existingStatusRank = existing ? rank[existing.status] || 0 : 0;
@@ -5511,8 +5519,14 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                             }
                         }
                     });
-                    setActiveUsers(Array.from(byUser.values()));
+                    const online = Array.from(byUser.values());
+                    setActiveUsers(previous => sameSavedValue(previous, online) ? previous : online);
                     setTeamChatTypingSessions(previous => sameSavedValue(previous, typingSessions) ? previous : typingSessions);
+                };
+                const intervalId = setInterval(() => { updatePresence(); refreshPresence(); }, 20000);
+                const unsubscribePresence = onSnapshot(presenceCol, snapshot => {
+                    latestPresence = snapshot.docs.map(item => ({...item.data(), id:item.id}));
+                    refreshPresence();
                 }, (err) => console.error(err));
                 return () => {
                     clearInterval(intervalId);
@@ -5527,14 +5541,18 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const publishTeamChatTyping = useCallback(typing => {
                 if (!db || !user || !presenceSessionIdRef.current) return;
                 const state = teamChatTypingStateRef.current, now = Date.now();
+                if (now < (state.pausedUntil || 0)) return;
                 const active = Boolean(typing && canSendTeamChat && !document.hidden);
                 if (!active && !state.active) return;
-                if (active && state.active && now - state.lastWrite < 2000) return;
+                if (active && state.active && now - state.lastWrite < 4000) return;
                 state.active = active; state.lastWrite = now; state.until = active ? now + CHAT_TYPING_TTL_MS : 0;
                 const sessionId = presenceSessionIdRef.current;
                 setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'presence', `${user.uid}_${sessionId}`), {
                     uid:user.uid, sessionId, chatTypingUntil:state.until
-                }, {merge:true}).catch(error => console.error('Typing indicator unavailable:', error));
+                }, {merge:true}).catch(error => {
+                    state.pausedUntil = Date.now() + (error.code === 'resource-exhausted' ? 15 * 60 * 1000 : 60 * 1000);
+                    console.error('Typing indicator unavailable:', error);
+                });
             }, [user?.uid, canSendTeamChat]);
             useEffect(() => {
                 const hide = () => { if (document.hidden) publishTeamChatTyping(false); };
