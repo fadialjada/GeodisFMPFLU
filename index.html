@@ -5480,7 +5480,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 activityEvents.forEach(eventName => window.addEventListener(eventName, markUserActivity, true));
                 document.addEventListener('visibilitychange', handleVisibilityChange);
                 updatePresence();
-                const presenceCol = collection(db, 'artifacts', appId, 'public', 'data', 'presence');
+                const presenceCol = query(collection(db, 'artifacts', appId, 'public', 'data', 'presence'), where('lastSeen', '>=', Date.now() - offlineAfterMs));
                 const refreshPresence = () => {
                     const byUser = new Map();
                     const typingSessions = [];
