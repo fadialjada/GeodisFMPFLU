@@ -2333,7 +2333,90 @@
             walk(stripAuditMetadata(before), stripAuditMetadata(after), '');
             return changes;
         };
-        const validateBusinessWrite = (kind, before, after, operation = 'update') => {
+        const isPreloadHistoryAppend = (before = [], after = []) => {
+            const note = after.at(-1);
+            return after.length === before.length + 1 && sameSavedValue(before, after.slice(0, -1))
+                && note?.system === true && note.preloadHistory === true && note.category === 'General'
+                && note.authorUid === auth.currentUser?.uid && String(note.id).startsWith('preload-history:');
+        };
+        const preloadHistoryLines = (dateKey, before, after, scheduleBefore, scheduleAfter) => {
+            const first = getLinkedPreloadTeam(before?.routeTable, dateKey), last = getLinkedPreloadTeam(after?.routeTable, dateKey);
+            const lines = [], show = value => String(value || 'Not assigned');
+            const team = row => [show(row?.contractor), `Driver ${show(row?.driver)}`, `Helper ${show(row?.helper)}`].join(' · ');
+            if ((first?.preloadArrival.assignmentId || '') !== (last?.preloadArrival.assignmentId || '')) {
+                lines.push(last ? `Preload team ${first ? 'changed' : 'assigned'}: ${first ? team(first) + ' → ' : ''}${team(last)}.`
+                    : `Preload team removed: ${team(first)}.`);
+            } else if (last && ['contractor', 'driver', 'helper'].some(key => (first?.[key] || '') !== (last[key] || ''))) {
+                lines.push(`Preload team details changed: ${team(first)} → ${team(last)}.`);
+            }
+            if (last) {
+                const etaBefore = parsePreloadEtaMinutes(first?.timeOffDock), etaAfter = parsePreloadEtaMinutes(last.timeOffDock);
+                if (etaBefore !== etaAfter) lines.push(`Warehouse ETA: ${preloadClockLabel(etaBefore)} → ${preloadClockLabel(etaAfter)}.${etaAfter > 1080 ? ' May arrive late (after 6:00 PM).' : ''}`);
+                if (last.preloadArrival.unknownUntil && last.preloadArrival.unknownUntil !== first?.preloadArrival?.unknownUntil)
+                    lines.push(`Still on route · ETA unknown. Next arrival check: ${preloadClockLabel(last.preloadArrival.unknownUntil)}.`);
+                if (last.preloadArrival.confirmedAt && last.preloadArrival.confirmedAt !== first?.preloadArrival?.confirmedAt)
+                    lines.push(`Arrival confirmed by ${last.preloadArrival.confirmedBy} at ${preloadClockLabel(getPreloadClock(new Date(last.preloadArrival.confirmedAt)).minutes)} Central.`);
+            }
+            if (scheduleAfter) for (const [key, label] of [['contractor', 'Scheduled contractor'], ['door', 'Dock door'], ['status', 'Preload status']]) {
+                if ((scheduleBefore?.[key] || '') !== (scheduleAfter[key] || '')) lines.push(`${label}: ${show(scheduleBefore?.[key])} → ${show(scheduleAfter[key])}.`);
+            }
+            return { lines, team: last || first, confirmed: Boolean(last?.preloadArrival.confirmedAt && last.preloadArrival.confirmedAt !== first?.preloadArrival?.confirmedAt) };
+        };
+        const recordPreloadHistory = async (database, native, queued, snapshots, historyIds, result) => {
+            const entries = new Map(), historyDays = new Set();
+            for (const entry of queued) {
+                const [kind, dateKey] = entry.ref.path.split('/').slice(-2);
+                if (entry.deleted || !['dailyRecaps', 'preloadSchedules'].includes(kind) || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+                let snap = snapshots.get(entry.ref.path);
+                if (!snap) { snap = await native.get(entry.ref); snapshots.set(entry.ref.path, snap); }
+                const before = snap.exists() ? snap.data() : {};
+                entries.set(entry.ref.path, { entry, kind, dateKey, before, after: entry.settings?.merge ? mergeDocumentFields(before, entry.value) : entry.value });
+            }
+            for (const dateKey of new Set([...entries.values()].map(item => item.dateKey))) {
+                const recapRef = doc(database, 'artifacts', appId, 'public', 'data', 'dailyRecaps', dateKey);
+                const scheduleRef = doc(database, 'artifacts', appId, 'public', 'data', 'preloadSchedules', dateKey);
+                let daily = entries.get(recapRef.path), schedule = entries.get(scheduleRef.path);
+                // Ordinary dashboard saves need no extra reads unless a linked team changed.
+                const routeChanged = daily && !sameSavedValue(daily.before.routeTable, daily.after.routeTable)
+                    && (getLinkedPreloadTeam(daily.before.routeTable, dateKey) || getLinkedPreloadTeam(daily.after.routeTable, dateKey));
+                const scheduleChanged = schedule && ['contractor', 'door', 'status'].some(key => (schedule.before[key] || '') !== (schedule.after[key] || ''));
+                if (!routeChanged && !scheduleChanged) {
+                    if (daily && (daily.after.shiftNotes || []).some(note => (note.preloadReminder || note.preloadArrivalConfirmed)
+                        && !(daily.before.shiftNotes || []).some(previous => previous.id === note.id))) historyDays.add(dateKey);
+                    continue;
+                }
+                if (!daily) {
+                    let snap = snapshots.get(recapRef.path);
+                    if (!snap) { snap = await native.get(recapRef); snapshots.set(recapRef.path, snap); }
+                    const before = snap.exists() ? snap.data() : {};
+                    daily = { before, after: before };
+                }
+                if (!schedule) {
+                    let snap = snapshots.get(scheduleRef.path);
+                    if (!snap) { snap = await native.get(scheduleRef); snapshots.set(scheduleRef.path, snap); }
+                    const before = snap.exists() ? snap.data() : {};
+                    schedule = { before, after: before };
+                }
+                const history = preloadHistoryLines(dateKey, daily.before, daily.after, schedule.before, schedule.after);
+                if (!history.lines.length) continue;
+                if (!historyIds.has(dateKey)) historyIds.set(dateKey, crypto.randomUUID());
+                const actorName = daily.entry?.value.lastUpdatedBy || schedule.entry?.value.lastUpdatedBy || currentAuditName || getDefaultUserName(auth.currentUser);
+                const timestamp = daily.entry?.value.lastUpdatedAt || schedule.entry?.value.lastUpdatedAt || new Date().toISOString();
+                const details = history.team ? [history.team.contractor, history.team.driver && `Driver ${history.team.driver}`, history.team.helper && `Helper ${history.team.helper}`,
+                    schedule.after.door && `Door ${schedule.after.door}`].filter(Boolean).join(' · ') : '';
+                const note = { id: `preload-history:${dateKey}:${historyIds.get(dateKey)}`, category: 'General', author: actorName,
+                    authorUid: auth.currentUser.uid, timestamp, text: [`Preload history — ${dateKey}${details ? ' — ' + details : ''}`, ...history.lines].join('\n').slice(0, 8000),
+                    system: true, preloadHistory: true, preloadArrivalDate: dateKey,
+                    preloadAssignmentId: history.team?.preloadArrival.assignmentId || '', preloadHistoryRow: history.team || {}, preloadArrivalConfirmed: history.confirmed, replies: [] };
+                const notes = [...(daily.after.shiftNotes || []), note];
+                if (daily.entry) daily.entry.value = { ...daily.entry.value, shiftNotes: notes };
+                else queued.push({ ref: recapRef, value: { shiftNotes: notes, lastUpdatedBy: actorName, lastUpdatedAt: timestamp }, settings: { merge: true } });
+                if (result?.recap && entries.size <= 2) result.recap = { ...result.recap, shiftNotes: notes };
+                historyDays.add(dateKey);
+            }
+            return historyDays;
+        };
+        const validateBusinessWrite = (kind, before, after, operation = 'update', preloadHistory = false) => {
             requireTeamAccount();
             if (kind === 'teamTasks') { validateTeamTaskWrite(before, after, operation); return; }
             if (isOwnerAccount(auth.currentUser)) return;
@@ -2350,7 +2433,7 @@
                 if (changed('routeTable')) requirePermission('routes');
                 if (changed('metricsTracker')) requirePermission('metrics');
                 if (changed('shiftNotes')) {
-                    requirePermission('shiftNotes');
+                    if (!preloadHistory || !isPreloadHistoryAppend(before?.shiftNotes || [], after?.shiftNotes || [])) requirePermission('shiftNotes');
                     validateManagerNoteChanges(before?.shiftNotes || [], after?.shiftNotes || []);
                 }
                 if (changed('loadout')) {
@@ -2382,13 +2465,13 @@
                 }
             } else if (kind === 'preloadSchedules') {
                 requirePermission('preload');
-                if (changed('contractor')) requirePermission('preloadAssignments');
+                if ((before?.contractor || '') !== (after?.contractor || '')) requirePermission('preloadAssignments');
             } else requirePermission(({ weeklyBonuses: 'bonus', officeSchedules: 'office', teamChat: 'chat' })[kind]);
         };
         // Queue writes until every read is complete. The business edit and its
         // immutable history entry commit together, including transaction retries.
         const runTransaction = async (database, callback, options) => {
-            const eventIds = new Map();
+            const eventIds = new Map(), historyIds = new Map();
             let finishSave = null, failure = null, attemptedWrite = false;
             const trackRecord = ref => {
                 if (!finishSave && BUSINESS_COLLECTIONS.includes(ref.path.split('/').at(-2))) finishSave = dashboardSaveTracker.begin(ref.path);
@@ -2402,6 +2485,8 @@
                     delete: ref => { trackRecord(ref); attemptedWrite ||= BUSINESS_COLLECTIONS.includes(ref.path.split('/').at(-2)); queued.push({ ref, deleted: true }); return transaction; }
                 };
                 const result = await callback(transaction);
+                const preloadHistoryDays = options?.auditAction === 'restore' ? new Set()
+                    : await recordPreloadHistory(database, native, queued, snapshots, historyIds, result);
                 const business = [];
                 for (const entry of queued) {
                     const parts = entry.ref.path.split('/');
@@ -2414,7 +2499,7 @@
                     const changes = describeSavedChanges(before, after);
                     if (!changes.length && !entry.deleted) continue;
                     const operation = entry.deleted ? 'delete' : snapshot.exists() ? 'update' : 'create';
-                    validateBusinessWrite(kind, before, after, operation);
+                    validateBusinessWrite(kind, before, after, operation, kind === 'dailyRecaps' && preloadHistoryDays.has(id));
                     business.push({ ...entry, kind, id, changes, operation });
                 }
                 for (const entry of queued) {
@@ -2426,7 +2511,7 @@
                         const auditRef = doc(database, 'artifacts', appId, 'public', 'data', 'auditEvents', eventId);
                         native.set(auditRef, { actorUid: auth.currentUser.uid, actorName: currentAuditName || getDefaultUserName(auth.currentUser),
                             timestamp: new Date().toISOString(), createdAt: serverTimestamp(), collection: tracked.kind,
-                            recordId: tracked.id, section: tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('managerAlertSettings')) ? 'Manager Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('soundSettings')) ? 'Sounds & Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('deletedDashboardUsers')) ? 'Users & Permissions' : sectionNameForRecord(tracked.kind, tracked.id), operation: options?.auditAction || tracked.operation,
+                            recordId: tracked.id, section: ['dailyRecaps', 'preloadSchedules'].includes(tracked.kind) && preloadHistoryDays.has(tracked.id) ? 'Preload History' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('managerAlertSettings')) ? 'Manager Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('soundSettings')) ? 'Sounds & Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('deletedDashboardUsers')) ? 'Users & Permissions' : sectionNameForRecord(tracked.kind, tracked.id), operation: options?.auditAction || tracked.operation,
                             summary: tracked.changes.length + ' field' + (tracked.changes.length === 1 ? '' : 's') + ' changed',
                             changeCount: tracked.changes.length, changes: tracked.changes.slice(0, 150) });
                         if (!entry.deleted) entry.value = { ...entry.value, _auditId: eventId };
@@ -2661,11 +2746,6 @@
                     nextTeam.preloadArrival.confirmedAt = timestamp;
                     nextTeam.preloadArrival.confirmedBy = actorName;
                     nextTeam.preloadArrival.confirmedByUid = actorUid;
-                    const details = [team.contractor, team.driver && `Driver ${team.driver}`, team.helper && `Helper ${team.helper}`,
-                        schedule.door && `Door ${schedule.door}`].filter(Boolean).join(' · ');
-                    notes = [...notes, { id: `preload-arrival:${dateKey}:${assignmentId}`, category: 'General', author: actorName, authorUid: actorUid,
-                        timestamp, text: `Preload arrival — ${details} — confirmed by ${actorName} at ${preloadClockLabel(clock.minutes)} Central.`,
-                        system: true, preloadArrivalConfirmed: true, preloadArrivalDate: dateKey, preloadAssignmentId: assignmentId, replies: [] }];
                     nextSchedule = { ...schedule, status: 'Arrived', lastUpdatedBy: actorName, lastUpdatedAt: timestamp };
                 }
                 const patch = { routeTable: recap.routeTable.map(row => row && String(row.id) === String(rowId) ? nextTeam : row),
