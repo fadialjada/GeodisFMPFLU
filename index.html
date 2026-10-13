@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geodis Final Mile Dashboard</title>
+    <title>Final Mile Operations Dashboard</title>
     <!-- Branded phone home-screen installation -->
     <link rel="manifest" href="./manifest.webmanifest">
     <meta name="theme-color" content="#101722">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Geodis PFL">
+    <meta name="apple-mobile-web-app-title" content="Final Mile Operations">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <link rel="apple-touch-icon" sizes="180x180" href="./app-icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="./app-icons/icon-192.png">
@@ -4692,7 +4692,7 @@ const MorningReport = ({data, activeDate, setData, metricsTotals, displayDateStr
         </div>
         <article ref={reportRef} id="morning-report" data-morning-report-screenshot="true" className={(isEditing ? 'report-is-editing ' : '') + "morning-report overflow-hidden rounded-2xl border border-slate-600/50 bg-[#1b1f25]"}>
             <header className="report-header flex flex-wrap items-center justify-between gap-3 border-b border-slate-600/40 px-5 py-5 md:px-6">
-                <div className="flex items-center gap-3"><FileText className="h-7 w-7 text-slate-200" /><div><h2 className="text-xl font-bold text-white">LSF PFL Morning Report</h2><p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Geodis Final Mile · Pflugerville</p></div></div>
+                <div className="flex items-center gap-3"><FileText className="h-7 w-7 text-slate-200" /><div><h2 className="text-xl font-bold text-white">LSF PFL Morning Report</h2><p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Final Mile Operations · Pflugerville</p></div></div>
                 <div className="text-xs font-medium text-slate-300">{displayDateString}</div>
             </header>
             <div className="report-body space-y-6 p-5 md:p-6">
@@ -4995,13 +4995,13 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             })) };
         };
         const managerAlertDayOffset = (dateKey, offset) => new Date(Date.parse(dateKey+'T12:00:00Z')+offset*86400000).toISOString().slice(0,10);
-        const managerAlertRevision = note => {
+        const managerAlertRevision = (note, canonical = false) => {
             let call=note?.driverCall;
             if(call?.classificationSource==='history') {
                 const {segment,reason,damageStage,action,guestSolution,needsManagerAttention,piecesScheduled,piecesDelivered,piecesAffected,classificationSource,classificationVersion,classificationNeedsReview,...original}=call;
                 call=Object.keys(original).length?original:undefined;
             }
-            const text=JSON.stringify([note?.text,call]);
+            const text=JSON.stringify([note?.text,call],canonical ? (_,value)=>value && typeof value==='object' && !Array.isArray(value) ? Object.fromEntries(Object.keys(value).sort().map(key=>[key,value[key]])) : value : undefined);
             let hash=2166136261;
             for(let i=0;i<text.length;i++) hash=Math.imul(hash^text.charCodeAt(i),16777619);
             return (hash>>>0).toString(16);
@@ -5016,10 +5016,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const rows=getCountableRouteRows(current || {}), nextRows=getCountableRouteRows(next || {});
             const hasWork=rows.length>0, alerts=[];
             const due = rule => clock.minutes >= parsePreloadEtaMinutes(config.rules[rule].time);
-            const add = (rule, key, tone, message, details, target, revision='') => {
+            const add = (rule, key, tone, message, details, target, revision='', contentRevision='') => {
                 if(!config.rules[rule].enabled) return;
                 const definition=MANAGER_ALERT_RULES.find(item=>item.id===rule);
                 const alert={id:rule+':'+key,rule,title:definition.name,tone,message,details,target,revision,signature:rule+':'+key+(rule==='driverIssue'?':'+revision:'')};
+                if(contentRevision) alert.contentRevision=contentRevision;
                 alert.dismissalKey=managerAlertDismissalKey(alert);
                 if(dismissals?.[alert.id]!==alert.dismissalKey) alerts.push(alert);
             };
@@ -5073,11 +5074,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     const revision=managerAlertRevision(note);
                     if(resolutions[key]!==revision)add('driverIssue',key,driverIssue.tone,driverIssue.message,
                         [['Driver',note.driverCall?.driver || 'Not specified'],['Route',note.driverCall?.route || 'Not specified'],['Stop',note.driverCall?.stopNumber || 'Not specified'],['Customer',note.driverCall?.customerName || 'Not specified'],['SO / RMA',note.driverCall?.soRma || 'Not specified'],...driverIssue.details,['Call notes',String(note.driverCall?.note || note.text || '').slice(0,1000)]],
-                        {section:'note',dateKey:record.date,noteId:note.id,resolutionKey:key,resolutionRevision:revision},revision);
+                        {section:'note',dateKey:record.date,noteId:note.id,resolutionKey:key,resolutionRevision:revision},revision,managerAlertRevision(note,true));
                 }
                 if(!driverIssue && (note.category==='URGENT' || (note.acknowledgedAt && note.acknowledgedBy)) && (note.noteType==='driver-call' || note.driverCall?.note || note.driverCall?.route) && nowMs>=created+config.rules.urgentFollowUp.delayMinutes*60000) {
                     const revision=managerAlertRevision(note);
-                    if(resolutions[key]!==revision) add('urgentFollowUp',key,'red','An urgent driver issue still needs your follow-up.',[['Driver',note.driverCall?.driver || 'Not specified'],['Issue',String(note.driverCall?.note || note.text || '').slice(0,500)]],{section:'note',dateKey:record.date,noteId:note.id,resolutionKey:key,resolutionRevision:revision},revision);
+                    if(resolutions[key]!==revision) add('urgentFollowUp',key,'red','An urgent driver issue still needs your follow-up.',[['Driver',note.driverCall?.driver || 'Not specified'],['Issue',String(note.driverCall?.note || note.text || '').slice(0,500)]],{section:'note',dateKey:record.date,noteId:note.id,resolutionKey:key,resolutionRevision:revision},revision,managerAlertRevision(note,true));
                 }
             }
             const weekStarts=new Set([day,tomorrow].map(date=>{const stamp=Date.parse(date+'T12:00:00Z');return managerAlertDayOffset(date,-((new Date(stamp).getUTCDay()+6)%7));}));
@@ -8780,7 +8781,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         const daily=await transaction.get(dailyRef), state=await transaction.get(stateRef);
                         if(!isOwnerAccount(auth.currentUser) || auth.currentUser.uid!==uid) throw new Error('Sign in as Fadi to resolve this follow-up.');
                         const note=daily.data()?.shiftNotes?.find(item=>String(item.id)===String(target.noteId));
-                        if(!note || managerAlertRevision(note)!==target.resolutionRevision) throw new Error('This issue changed. Reopen it before marking it resolved.');
+                        if(!note || managerAlertRevision(note,Boolean(alert.contentRevision))!==(alert.contentRevision || target.resolutionRevision)) throw new Error('This issue changed. Reopen it before marking it resolved.');
                         transaction.set(stateRef,{managerIssueResolutions:{...(state.data()?.managerIssueResolutions || {}),[target.resolutionKey]:target.resolutionRevision},updatedAt:new Date().toISOString()},{merge:true});
                         transaction.set(receiptRef,{actorUid:uid,actorName:String(userName || currentAuditName || 'Fadi').slice(0,100),type:'issue-resolved',text:`marked the issue follow-up resolved: “${String(note.driverCall?.note || note.text || 'Driver issue').slice(0,700)}”.`,timestamp:new Date().toISOString(),createdAt:serverTimestamp()});
                     });
@@ -8966,7 +8967,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                             <div className="flex items-center gap-3 mb-8">
                                 <LayoutDashboard className="w-10 h-10 text-slate-100 drop-shadow-lg" />
                                 <div>
-                                    <h1 className="text-xl font-black text-white">Geodis Final Mile</h1>
+                                    <h1 className="text-xl font-black text-white">Final Mile Operations</h1>
                                     <p className="text-xs text-slate-400 mt-1">Authorized team access</p>
                                 </div>
                             </div>
@@ -9029,7 +9030,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         <div className="dashboard-header-grid w-full px-4 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                             <div className="dashboard-header-brand flex items-center gap-3 min-w-0 justify-start">
                                 <LayoutDashboard className="w-7 h-7 shrink-0 text-slate-100 drop-shadow-lg" />
-                                <h1 className="text-lg font-bold text-white tracking-tight shrink-0 whitespace-nowrap">Geodis Final Mile</h1>
+                                <h1 className="text-lg font-bold text-white tracking-tight shrink-0 whitespace-nowrap">Final Mile Operations</h1>
                             </div>
                             <div className="dashboard-nav-wrap min-w-0 flex justify-center">
                                 <nav aria-label="Dashboard sections" className="dashboard-top-nav max-w-full min-w-0 flex items-center overflow-x-auto whitespace-nowrap [&>button]:shrink-0 bg-slate-900/50 p-1 rounded-xl border border-slate-700">
