@@ -1377,6 +1377,31 @@
             ]
         };
 
+        const masterPersonContractorName = (person, contractors = []) => {
+            if (!person?.contractorId) return 'Not assigned';
+            return contractors.find(item => String(item.id) === String(person.contractorId))?.name || 'Contractor no longer listed';
+        };
+        const sortMasterPeople = (people = [], sortBy = 'name', contractors = []) => [...people].sort((left, right) => {
+            const compare = (a, b) => String(a || '').localeCompare(String(b || ''), 'en', { sensitivity: 'base', numeric: true });
+            if (sortBy === 'contractor') {
+                const assigned = person => contractors.some(item => String(item.id) === String(person.contractorId));
+                if (assigned(left) !== assigned(right)) return assigned(left) ? -1 : 1;
+                const companyOrder = compare(masterPersonContractorName(left, contractors), masterPersonContractorName(right, contractors));
+                if (companyOrder) return companyOrder;
+            }
+            return compare(left.name, right.name) || compare(left.id, right.id);
+        });
+        const MasterContractorSelect = ({ value = '', contractors = [], onChange, label = 'Contractor', className = '' }) => (
+            <label className="block min-w-0">
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Contractor</span>
+                <select aria-label={label} value={value} onChange={event => onChange(event.target.value)} className={`w-full min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none [color-scheme:dark] ${className}`}>
+                    <option value="">Not assigned</option>
+                    {value && !contractors.some(item => String(item.id) === String(value)) && <option value={value}>Contractor no longer listed</option>}
+                    {contractors.map(item => <option key={item.id} value={String(item.id)}>{item.name}</option>)}
+                </select>
+            </label>
+        );
+
         const normalizeContractorNameKey = (name) => String(name || '')
             .toLowerCase()
             .replace(/\bllc\b/g, '')
@@ -1791,12 +1816,26 @@
             next.classificationNeedsReview=false;
             return next;
         };
+        const driverCallPiecesRequired = call => ['damage','refused','rescue'].includes(call?.segment)
+            || ['exchange-followup','wrong-item'].includes(call?.reason)
+            || ['Exchange requested','Rescue requested'].includes(call?.action);
         const validateDriverCallIssue = call => {
             if(!driverCallSegmentInfo(call))return 'Choose a segment and its reason.';
             if(call.reason==='driver-damage' && !['During transportation','Moving into the customer’s home','Not confirmed yet'].includes(call.damageStage))return 'Choose where the damage happened, or select Not confirmed yet.';
             const counts=['piecesScheduled','piecesDelivered','piecesAffected'].map(key=>String(call[key]??'').trim());
+            if(driverCallPiecesRequired(call) && counts.some(value=>value===''))return 'Enter pieces scheduled, pieces delivered, and pieces affected for this issue. Enter 0 when none were delivered or affected.';
             if(counts.some(value=>value!=='' && (!/^\d+$/.test(value)||Number(value)>999)))return 'Piece counts must be whole numbers from 0 to 999.';
             if(counts[0]!=='' && counts.slice(1).some(value=>value!=='' && Number(value)>Number(counts[0])))return 'Delivered or affected pieces cannot exceed pieces scheduled.';
+            return '';
+        };
+        const validateChangedDriverCalls = (notes,previousNotes) => {
+            const saved=previousNotes || [];
+            for(const note of notes || []) {
+                if(!note.driverCall || (!driverCallSegmentInfo(note.driverCall) && note.driverCall.classificationSource!=='entered'))continue;
+                const prior=note.id==null?saved.find(item=>sameSavedValue(item.driverCall,note.driverCall)):saved.find(item=>String(item.id)===String(note.id));
+                if(prior && sameSavedValue(prior.driverCall,note.driverCall))continue;
+                const error=validateDriverCallIssue(note.driverCall);if(error)return 'Driver call: '+error;
+            }
             return '';
         };
         const driverCallIssueLines = call => {
@@ -1869,15 +1908,17 @@
         const getDriverCallManagerIssue = note => {
             const call=note?.driverCall,info=driverCallSegmentInfo(call);
             if(!info || call.classificationSource==='history')return null;
-            if(info.segment.id==='general' && !call.needsManagerAttention && !['Exchange requested','Rescue requested'].includes(call.action))return null;
+            if(info.segment.id==='general' && !call.needsManagerAttention && !driverCallPiecesRequired(call))return null;
             const urgent=info.reason.cause==='driver' || info.segment.id==='rescue' || call.action==='Rescue requested';
-            return {tone:urgent?'red':'amber',message:info.segment.id==='general'?'Your team requested manager attention.':info.reason.cause==='driver'?'A driver-fault issue was reported.':info.segment.id==='rescue'?'A rescue issue needs your attention.':call.action==='Exchange requested'?'An exchange was requested.':'A delivery issue needs your attention.',details:driverCallIssueLines(call)};
+            const generalMessage=call.needsManagerAttention?'Your team requested manager attention.':call.action==='Rescue requested'?'A rescue was requested.':call.action==='Exchange requested'?'An exchange was requested.':call.reason==='wrong-item'?'An incorrect item or configuration was reported.':'An exchange or return needs follow-up.';
+            return {tone:urgent?'red':'amber',message:info.segment.id==='general'?generalMessage:info.reason.cause==='driver'?'A driver-fault issue was reported.':info.segment.id==='rescue'?'A rescue issue needs your attention.':call.action==='Exchange requested'?'An exchange was requested.':'A delivery issue needs your attention.',details:driverCallIssueLines(call)};
         };
         const DriverCallIssueFields = ({value,onChange}) => {
             const call={...defaultDriverCallIssue(),...(value?.classificationSource==='history'?{guestSolution:'Unknown'}:{}),...value},segment=DRIVER_CALL_SEGMENTS.find(item=>item.id===call.segment),info=driverCallSegmentInfo(call);
             const fieldClass='w-full min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500 [color-scheme:dark]';
             const labelClass='mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400';
             const change=patch=>onChange(patchDriverCallIssue(call,patch));
+            const piecesRequired=driverCallPiecesRequired(call);
             return <div className="mt-4 space-y-3" aria-label="Driver call issue details">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <label className="block min-w-0"><span className={labelClass}>Segment</span><select aria-label="Driver call segment" value={call.segment} onChange={event=>change({segment:event.target.value})} className={fieldClass}><option value="">Choose a segment</option>{DRIVER_CALL_SEGMENTS.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
@@ -1885,7 +1926,7 @@
                     <label className="block min-w-0"><span className={labelClass}>Next action</span><select aria-label="Driver call next action" value={call.action} onChange={event=>change({action:event.target.value})} className={fieldClass}>{DRIVER_CALL_ACTIONS.map(action=><option key={action} value={action}>{action}</option>)}</select></label>
                     {call.reason==='driver-damage' && <label className="block min-w-0"><span className={labelClass}>Where did damage happen?</span><select aria-label="Where damage happened" value={call.damageStage} onChange={event=>change({damageStage:event.target.value})} className={fieldClass}><option value="">Choose location</option>{['During transportation','Moving into the customer’s home','Not confirmed yet'].map(stage=><option key={stage} value={stage}>{stage}</option>)}</select></label>}
                     <label className="block min-w-0"><span className={labelClass}>Guest Solution contacted?</span><select aria-label="Guest Solution contacted" value={call.guestSolution} onChange={event=>change({guestSolution:event.target.value})} className={fieldClass}><option value="Not yet">Not yet</option><option value="Yes">Yes</option><option value="Unknown">Not recorded / unknown</option></select></label>
-                    {['piecesScheduled','piecesDelivered','piecesAffected'].map((key,index)=><label key={key} className="block min-w-0"><span className={labelClass}>{['Pieces scheduled','Pieces delivered','Pieces affected'][index]} <span className="normal-case font-normal">(optional)</span></span><input aria-label={['Pieces scheduled','Pieces delivered','Pieces affected'][index]} inputMode="numeric" type="number" min="0" max="999" step="1" value={call[key]} onChange={event=>change({[key]:event.target.value})} className={fieldClass}/></label>)}
+                    {['piecesScheduled','piecesDelivered','piecesAffected'].map((key,index)=><label key={key} className="block min-w-0"><span className={labelClass}>{['Pieces scheduled','Pieces delivered','Pieces affected'][index]} <span className="normal-case font-normal">({piecesRequired?'required':'optional'})</span></span><input aria-label={['Pieces scheduled','Pieces delivered','Pieces affected'][index]} required={piecesRequired} aria-required={piecesRequired} inputMode="numeric" type="number" min="0" max="999" step="1" value={call[key]} onChange={event=>change({[key]:event.target.value})} className={fieldClass}/></label>)}
                 </div>
                 {info && <p className={'text-xs '+(info.reason.cause==='driver'?'text-rose-300':info.reason.cause==='product'?'text-emerald-300':'text-slate-400')}>{info.cause}{call.classificationNeedsReview?' · Categorized from older wording; please review.':''}</p>}
                 {call.segment==='general' && <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={call.needsManagerAttention} onChange={event=>change({needsManagerAttention:event.target.checked})} className="h-4 w-4 accent-indigo-500"/>Needs manager attention</label>}
@@ -2481,7 +2522,7 @@
             value:'value', status:'status', label:'label', text:'message', title:'task title',
             instructions:'task instructions', dueAt:'task deadline', assignedName:'assigned person',
             assignedNames:'assigned people', enabled:'dashboard access', email:'email address', name:'name',
-            phone:'phone number', owner:'contractor owner', planned:'planned trucks', total:'total trucks',
+            phone:'phone number', contractorId:'contractor', owner:'contractor owner', planned:'planned trucks', total:'total trucks',
             spot:'parking space', assignee:'assigned contractor', dispatcher:'dispatcher',
             nextRoutes:'planned next-day routes', confirmedRoutes:'confirmed next-day routes',
             completedRoutesCount:'completed routes', uniformCount:'teams in uniform', offDockCount:'routes off dock',
@@ -2688,6 +2729,10 @@
                     const prefix=field.match(/^[^.]+/)[0], old=itemAt(beforeRecord,prefix,'before'), item=itemAt(afterRecord,prefix,'after');
                     const label=list[1]==='parkingAssignments'?'parking assignment':'master-list '+list[1].replace(/s$/,'');
                     if (!list[2]) add(`${after===undefined?'removed':'added'} ${label} ${activityPlainValue((after===undefined?old:item).name || (after===undefined?old:item).assignee)}.`);
+                    else if (list[2]==='contractorId') {
+                        const companyName=(person,record)=>!person.contractorId?'Not assigned':record?.contractors?.find(company=>String(company.id)===String(person.contractorId))?.name || 'Contractor no longer listed';
+                        add(`changed contractor for ${item.name || old.name || label} from ${companyName(old,beforeRecord)} to ${companyName(item,afterRecord)}.`);
+                    }
                     else if (activityFieldNames[list[2]]) add(setLine(`${activityFieldNames[list[2]]} for ${item.name || old.name || label}`,change.before,change.after,list[2]));
                     continue;
                 }
@@ -4832,7 +4877,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             { id:'noteAcknowledgment', name:'Manager note awaiting acknowledgment', delayMinutes:60, timing:'delay', sound:'notification', repeatMinutes:0, description:'A required recipient has not acknowledged your note within the chosen window.' },
             { id:'preloadUnassigned', name:'Preload team not selected', time:'16:30', timing:'time', sound:'notification', repeatMinutes:0, description:'A contractor is scheduled, but no exact driver/helper team has been linked.' },
             { id:'restDay', name:'Rest day required', timing:'assignment', sound:'urgent', repeatMinutes:0, description:'Someone is assigned all seven days of one Monday–Sunday week. Monday starts a fresh count.' },
-            { id:'driverIssue', name:'Important driver call', timing:'event', sound:'notification', repeatMinutes:0, description:'A newly saved damage, refusal, exchange or rescue, or a General call marked Needs manager attention. Only your account is alerted.' },
+            { id:'driverIssue', name:'Important driver call', timing:'event', sound:'notification', repeatMinutes:0, description:'A newly saved damage, refusal, exchange, rescue or incorrect-item issue, or a General call marked Needs manager attention. Only your account is alerted.' },
             { id:'urgentFollowUp', name:'Urgent issue awaiting follow-up', delayMinutes:60, timing:'delay', sound:'urgent', repeatMinutes:15, description:'An urgent driver issue remains unresolved after its follow-up window. Only you control its private follow-up status.' }
         ];
         const defaultManagerAlertSettings = () => ({ enabled:true, muted:false, rules:Object.fromEntries(MANAGER_ALERT_RULES.map(rule => [rule.id,
@@ -5304,13 +5349,16 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
 
             const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
             const [masterActiveTab, setMasterActiveTab] = useState('contractors');
+            const [masterSortBy, setMasterSortBy] = useState('name');
             const [isMasterEditing, setIsMasterEditing] = useState(false);
             const [isMasterFullscreen, setIsMasterFullscreen] = useState(false);
             const [isRoutesFullscreen, setIsRoutesFullscreen] = useState(false);
             const [isBonusFullscreen, setIsBonusFullscreen] = useState(false);
-            const [newMasterItem, setNewMasterItem] = useState({ name: '', phone: '', total: '', planned: '' });
+            const [newMasterItem, setNewMasterItem] = useState({ name: '', phone: '', contractorId: '', total: '', planned: '' });
             const [editingMasterId, setEditingMasterId] = useState(null);
-            const [editMasterValues, setEditMasterValues] = useState({ name: '', phone: '', owner: '', total: '', planned: '' });
+            const [editMasterValues, setEditMasterValues] = useState({ name: '', phone: '', contractorId: '', owner: '', total: '', planned: '' });
+            const masterContractorOptions = useMemo(() => sortMasterPeople(masterLists.contractors || []), [masterLists.contractors]);
+            const masterVisibleItems = useMemo(() => masterActiveTab === 'contractors' ? (masterLists.contractors || []) : sortMasterPeople(masterLists[masterActiveTab] || [], masterSortBy, masterLists.contractors || []), [masterLists, masterActiveTab, masterSortBy]);
 
             const NOTE_CATEGORIES = ["URGENT", ...(isAdminUser ? ["Manager Note"] : []), "Follow-up","Incident","Driver Calls","Driver Issue","Damage/Loss","Facility","Safety","General"];
             useEffect(() => {
@@ -6214,15 +6262,12 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     let currentUid ="local";
                     if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                     const dataToSave = normalizeMetricsNameData(withAutoRouteMetrics(data));
-                    for(const note of dataToSave.shiftNotes || []) {
-                        if(note.driverCall?.classificationSource==='entered') {
-                            const error=validateDriverCallIssue(note.driverCall);if(error)throw new Error('Driver call: '+error);
-                        }
-                    }
+                    const baseline = dailySnapshotRef.current.date === activeDate ? dailySnapshotRef.current.data : dataToSave;
+                    const callValidationError=validateChangedDriverCalls(dataToSave.shiftNotes,baseline?.shiftNotes);
+                    if(callValidationError)throw new Error(callValidationError);
                     setData(dataToSave);
                 
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
-                    const baseline = dailySnapshotRef.current.date === activeDate ? dailySnapshotRef.current.data : dataToSave;
                     await saveDailyRecapDocument(docRef, { ...dataToSave, lastUpdatedBy: userName || currentUid,
                         lastUpdatedAt: new Date().toISOString() }, baseline);
 
@@ -7625,20 +7670,20 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 if (await saveMasterLists(newLists)) setIsParkingEditing(false);
             };
 
-            const addMasterListItem = () => {
+            const addMasterListItem = async () => {
                 if (!canEditSection('masterLists') || !newMasterItem.name.trim()) return;
                 const newLists = JSON.parse(JSON.stringify(masterLists));
                 if (!newLists[masterActiveTab]) newLists[masterActiveTab] = [];
                 newLists[masterActiveTab].push({ 
                     id: Date.now().toString(), 
-                    name: newMasterItem.name, 
+                    name: newMasterItem.name.trim(), 
                     phone: newMasterItem.phone || '',
+                    ...(masterActiveTab !== 'contractors' ? { contractorId: newMasterItem.contractorId || '' } : {}),
                     owner: newMasterItem.owner || '',
                     total: parseInt(newMasterItem.total) || 0,
                     planned: parseInt(newMasterItem.planned) || 0
                 });
-                saveMasterLists(newLists);
-                setNewMasterItem({ name: '', phone: '', owner: '', total: 0, planned: 0 });
+                if (await saveMasterLists(newLists)) setNewMasterItem({ name: '', phone: '', contractorId: '', owner: '', total: 0, planned: 0 });
             };
 
             const removeMasterListItem = (id) => {
@@ -7650,7 +7695,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
 
             const startEditingMasterItem = (item) => {
                 setEditingMasterId(item.id);
-                setEditMasterValues({ name: item.name, phone: item.phone || '', owner: item.owner || '', total: item.total || 0, planned: item.planned || 0 });
+                setEditMasterValues({ name: item.name, phone: item.phone || '', contractorId: item.contractorId || '', owner: item.owner || '', total: item.total || 0, planned: item.planned || 0 });
             };
 
             const saveEditMasterItem = async (id) => {
@@ -7663,6 +7708,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                             ...newLists[masterActiveTab][listIndex], 
                             name: editMasterValues.name.trim(), 
                             phone: editMasterValues.phone.trim(),
+                            ...(masterActiveTab !== 'contractors' ? { contractorId: editMasterValues.contractorId || '' } : {}),
                             owner: editMasterValues.owner.trim(),
                             total: parseInt(editMasterValues.total) || 0,
                             planned: parseInt(editMasterValues.planned) || 0
@@ -11244,28 +11290,32 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                     </div>
                                                 </>
                                             ) : (
-                                                <div className="w-48">
+                                                <><div className="w-full sm:w-48">
                                                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Phone (Optional)</label>
                                                     <input type="text" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={newMasterItem.phone} onChange={e => setNewMasterItem({...newMasterItem, phone: e.target.value})} />
-                                                </div>
+                                                </div><div className="w-full sm:flex-1 sm:min-w-[200px]"><MasterContractorSelect label={`Contractor for new ${masterActiveTab === 'drivers' ? 'driver' : 'helper'}`} value={newMasterItem.contractorId || ''} contractors={masterContractorOptions} onChange={contractorId => setNewMasterItem({...newMasterItem, contractorId})} /></div></>
                                             )}
                                             <button onClick={addMasterListItem} disabled={!newMasterItem.name.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors cursor-pointer h-[38px]">Add</button>
                                         </div>
                                     )}
 
+                                    {masterActiveTab !== 'contractors' && <div data-master-screenshot-ignore="true" className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                                        <p className="text-xs text-slate-400">Name and phone on the left · Contractor on the right</p>
+                                        <label className="flex items-center gap-2 text-xs text-slate-400">Sort by<select aria-label={`Sort ${masterActiveTab}`} value={masterSortBy} onChange={event => setMasterSortBy(event.target.value)} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-indigo-500 [color-scheme:dark]"><option value="name">Name · A–Z</option><option value="contractor">Contractor · A–Z</option></select></label>
+                                    </div>}
                                     <div className={masterActiveTab === 'contractors' ?"dashboard-master-grid grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4" :"space-y-2"}>
                                         {(masterLists[masterActiveTab] || []).length === 0 ? (
                                             <div className="col-span-full text-center py-8 text-slate-500 text-xs font-bold uppercase tracking-widest italic">List is empty.</div>
                                         ) : (
-                                            (masterLists[masterActiveTab] || []).map(item => (
+                                            masterVisibleItems.map(item => (
                                                 <div key={item.id} className={masterActiveTab === 'contractors' ?"bg-slate-800/80 p-5 rounded-2xl border border-slate-700/60 hover:bg-slate-800 hover:border-indigo-500/50 hover:shadow-xl hover:shadow-indigo-900/20 transition-all duration-300 flex flex-col gap-4 relative overflow-hidden group" :"bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-md flex justify-between items-center"}>
                                                     {editingMasterId === item.id ? (
                                                         <div className="flex flex-col gap-2 w-full animate-in fade-in duration-200">
-                                                            {canEditSection('masterLists') ? (
+                                                            {masterActiveTab === 'contractors' && (canEditSection('masterLists') ? (
                                                                 <input autoFocus type="text" className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none font-bold" value={editMasterValues.name} onChange={(e) => setEditMasterValues({ ...editMasterValues, name: e.target.value })} />
                                                             ) : (
                                                                 <div className="w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 font-bold">{editMasterValues.name}</div>
-                                                            )}
+                                                            ))}
                                                             {masterActiveTab === 'contractors' ? (
                                                                 <div className="flex flex-col gap-2">
                                                                     {canEditSection('masterLists') && (
@@ -11277,7 +11327,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                                     </div>
                                                                 </div>
                                                             ) : (
-                                                                <input type="text" className="w-full bg-slate-950 border border-indigo-500/50 rounded px-3 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" placeholder="Phone" value={editMasterValues.phone} onChange={(e) => setEditMasterValues({ ...editMasterValues, phone: e.target.value })} />
+                                                                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,1fr)] items-end gap-3">
+                                                                    <label className="block min-w-0"><span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Name</span><input autoFocus type="text" aria-label={`Name for ${item.name}`} className="w-full min-w-0 bg-slate-950 border border-indigo-500/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none font-bold" value={editMasterValues.name} onChange={e => setEditMasterValues({...editMasterValues, name: e.target.value})} /></label>
+                                                                    <label className="block min-w-0"><span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Phone (Optional)</span><input type="text" aria-label={`Phone for ${item.name}`} className="w-full min-w-0 bg-slate-950 border border-indigo-500/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none" value={editMasterValues.phone} onChange={e => setEditMasterValues({...editMasterValues, phone: e.target.value})} /></label>
+                                                                    <MasterContractorSelect label={`Contractor for ${item.name}`} value={editMasterValues.contractorId || ''} contractors={masterContractorOptions} onChange={contractorId => setEditMasterValues({...editMasterValues, contractorId})} />
+                                                                </div>
                                                             )}
                                                             <div className="flex gap-2 mt-1 z-20 relative">
                                                                 <button onClick={() => saveEditMasterItem(item.id)} className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded flex justify-center items-center transition-colors shadow-lg shadow-emerald-900/40 cursor-pointer" title="Save"><Check className="w-4 h-4" /></button>
@@ -11344,12 +11398,13 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                                 </>
                                                             ) : (
                                                                 <>
-                                                                    <div className="flex items-center gap-4">
+                                                                    <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,1fr)] items-center gap-3">
                                                                         <span className="font-black text-slate-100 text-sm tracking-wide leading-tight break-words" title={item.name}>{item.name}</span>
-                                                                        {item.phone && <span className="text-xs text-slate-400 font-mono bg-slate-900 px-2 py-1 rounded border border-slate-700">📞 {item.phone}</span>}
+                                                                        <span className="text-xs text-slate-400 break-words">{item.phone ? `📞 ${item.phone}` : 'Phone not added'}</span>
+                                                                        <div className="min-w-0"><span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Contractor</span><span className="block text-sm text-slate-200 break-words">{masterPersonContractorName(item, masterLists.contractors || [])}</span></div>
                                                                     </div>
                                                                     {isMasterEditing && (
-                                                                        <div data-master-screenshot-ignore="true" className="flex items-center gap-1">
+                                                                        <div data-master-screenshot-ignore="true" className="flex items-center gap-1 shrink-0 ml-3">
                                                                             <button onClick={() => startEditingMasterItem(item)} className="text-slate-400 hover:text-indigo-400 hover:bg-indigo-900/30 p-1.5 rounded transition-colors cursor-pointer" title="Edit"><Edit3 className="w-4 h-4" /></button>
                                                                             <button onClick={() => removeMasterListItem(item.id)} className="text-slate-500 hover:text-rose-400 hover:bg-rose-900/30 p-1.5 rounded transition-colors cursor-pointer" title="Delete"><Trash2 className="w-4 h-4" /></button>
                                                                         </div>
