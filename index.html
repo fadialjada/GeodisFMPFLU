@@ -1770,8 +1770,8 @@
         const DRIVER_CALL_SEGMENTS = [
             {id:'damage',label:'Damage',reasons:[{id:'concealed',label:'Concealed damage',cause:'product'},{id:'driver-damage',label:'Driver fault',cause:'driver'},{id:'damage-unknown',label:'Cause not confirmed',cause:'pending'}]},
             {id:'refused',label:'Customer refused',reasons:[{id:'factory-defect',label:'Factory defect',cause:'product'},{id:'discoloration',label:'Discoloration',cause:'product'},{id:'refused-other',label:'Other / not confirmed',cause:'pending'}]},
-            {id:'rescue',label:'Rescue',reasons:[{id:'missing-hardware',label:'Missing hardware — not taken from warehouse',cause:'driver'},{id:'pack-pieces',label:'Missing pieces inside the hardware pack',cause:'product'},{id:'wrong-pack',label:'Wrong hardware inside the supplied pack',cause:'product'},{id:'rescue-unknown',label:'Cause not confirmed',cause:'pending'}]},
-            {id:'general',label:'General',reasons:[{id:'not-home',label:'Not at home',cause:'routine'},{id:'no-answer',label:'Customer not answering',cause:'routine'},{id:'eta-update',label:'ETA update',cause:'routine'},{id:'instructions',label:'Delivery instructions',cause:'routine'},{id:'general-other',label:'Other',cause:'pending'}]}
+            {id:'rescue',label:'Rescue',reasons:[{id:'missing-hardware',label:'Missing hardware — not taken from warehouse',cause:'driver'},{id:'pack-pieces',label:'Missing pieces inside the hardware pack',cause:'product'},{id:'wrong-pack',label:'Wrong hardware inside the supplied pack',cause:'product'},{id:'rescue-damage',label:'Damaged item — cause not confirmed',cause:'pending'},{id:'concealed',label:'Concealed damage',cause:'product'},{id:'driver-damage',label:'Driver fault',cause:'driver'},{id:'rescue-unknown',label:'Cause not confirmed',cause:'pending'}]},
+            {id:'general',label:'General',reasons:[{id:'not-home',label:'Not at home',cause:'routine'},{id:'no-answer',label:'Customer not answering',cause:'routine'},{id:'eta-update',label:'ETA update',cause:'routine'},{id:'instructions',label:'Delivery instructions',cause:'routine'},{id:'exchange-followup',label:'Exchange / return follow-up — cause not confirmed',cause:'pending'},{id:'wrong-item',label:'Incorrect item / configuration',cause:'pending'},{id:'general-other',label:'Other',cause:'pending'}]}
         ];
         const DRIVER_CALL_ACTIONS = ['Pending decision','Exchange requested','Rescue requested','No exchange or rescue'];
         const DRIVER_CALL_CAUSES = {driver:'Driver fault',product:'Product / hardware-pack issue — not driver fault',pending:'Responsibility not confirmed',routine:'Routine call'};
@@ -1787,6 +1787,7 @@
                 next.action=patch.segment==='rescue'?'Rescue requested':patch.segment==='refused'?'Exchange requested':patch.segment==='general'?'No exchange or rescue':'Pending decision';
             }
             if(patch.reason!==undefined && next.reason!=='driver-damage')next.damageStage='';
+            if(patch.reason==='exchange-followup')next.action='Exchange requested';
             next.classificationNeedsReview=false;
             return next;
         };
@@ -1809,8 +1810,10 @@
             ];
         };
         const inferHistoricalDriverCallIssue = note => {
-            if(!note || note.system || note.preloadHistory || note.category==='Manager Note' || driverCallSegmentInfo(note.driverCall))return null;
-            const text=String(note.driverCall?.note || note.text || '').toLowerCase().replace(/[’]/g,"'");
+            if(!note || note.system || note.preloadHistory || note.category==='Manager Note')return null;
+            const existing=driverCallSegmentInfo(note.driverCall);
+            if(existing && !(note.driverCall.classificationSource==='history' && note.driverCall.classificationNeedsReview!==false && note.driverCall.classificationVersion!==3))return null;
+            const text=[note.driverCall?.note || note.text || '',...(note.replies || []).filter(reply=>!reply.system).map(reply=>reply.text || '')].join('\n').toLowerCase().replace(/[’]/g,"'");
             if(!text.trim())return null;
             const has=pattern=>pattern.test(text);
             const positive=pattern=>Array.from(text.matchAll(new RegExp(pattern.source,'g'))).some(match=>{
@@ -1826,21 +1829,33 @@
             if(packIssue){segment='rescue';reason='pack-pieces';}
             else if(wrongHardware){segment='rescue';reason='wrong-pack';}
             else if(hardwareMissing){segment='rescue';reason=noDriverFault?'rescue-unknown':'missing-hardware';}
-            else if(positive(/\brescue(?:d)?\b/)){segment='rescue';reason='rescue-unknown';}
+            else if(positive(/\brescue(?:d)?\b/)) {
+                segment='rescue';
+                reason=positive(/\bconcealed\s+damage|\bdamage\b[^.!?\n]{0,20}\bconcealed\b/)?'concealed'
+                    :positive(/\b(?:damage(?:d|s)?|broken|scratched|dented)\b/)?(!noDriverFault && has(/\bdriver(?:'s)?\s+(?:fault|caused)/)?'driver-damage':'rescue-damage'):'rescue-unknown';
+            }
             else if(positive(/\bconcealed\s+damage|\bdamage\b[^.!?\n]{0,20}\bconcealed\b/)){segment='damage';reason='concealed';}
             else if(positive(/\b(?:refused?|refusal|declined\s+(?:the\s+)?delivery|rejected\s+(?:the\s+)?(?:delivery|item))\b/)){
                 segment='refused';reason=has(/\b(?:factory|manufactur(?:er|ing))\s+defect|\bfactory\s+(?:fault|issue)/)?'factory-defect':has(/\bdiscolou?r(?:ation|ed)/)?'discoloration':'refused-other';
-            }else if(positive(/\b(?:damage(?:d)?|broken|scratched|dented)\b/)){
+            }else if(positive(/\b(?:damage(?:d|s)?|broken|scratched|dented)\b/)){
                 segment='damage';reason=!noDriverFault && has(/\bdriver(?:'s)?\s+(?:fault|caused)|\b(?:damaged|broken)\b[^.!?\n]{0,25}\bby\s+(?:the\s+)?driver/)?'driver-damage':'damage-unknown';
             }else if(has(/\bnot\s+(?:at\s+)?home|\bcustomer\s+(?:was\s+)?absent\b/)){segment='general';reason='not-home';}
             else if(has(/\b(?:no\s+answer|not\s+answering|didn't\s+answer|did not\s+answer)\b/)){segment='general';reason='no-answer';}
             else if(has(/\beta\b|\bexpected\s+arrival\b/)){segment='general';reason='eta-update';}
             else if(has(/\bdelivery\s+instructions?\b/)){segment='general';reason='instructions';}
+            else if(positive(/\b(?:incorrect|wrong)\s+(?:sofa|item|product|piece|configuration)|\bincorrect\b[^.!?\n]{0,40}\bconfiguration/)){segment='general';reason='wrong-item';}
+            else if(positive(/\b(?:exchange|replacement)\b/)){segment='general';reason='exchange-followup';}
             else if(note.noteType==='driver-call' || note.driverCall){segment='general';reason='general-other';}
             else return null;
-            const action=has(/\b(?:exchange|replacement)\b/)?'Exchange requested':segment==='rescue'?'Rescue requested':segment==='general'?'No exchange or rescue':'Pending decision';
+            const action=positive(/\b(?:exchange|replacement)\b/)?'Exchange requested':segment==='rescue' || positive(/\brescue(?:d)?\b/)?'Rescue requested':segment==='general'?'No exchange or rescue':'Pending decision';
             const damageStage=reason==='driver-damage'?(has(/\btransport(?:ation)?\b|\bin\s+transit\b/)?'During transportation':has(/\b(?:moving|carrying)\b[^.!?\n]{0,50}\b(?:home|house|inside)\b/)?'Moving into the customer’s home':'Not confirmed yet'):'';
-            return {segment,reason,action,damageStage,classificationSource:'history',classificationNeedsReview:true,needsManagerAttention:false};
+            return {segment,reason,action,damageStage,classificationSource:'history',classificationVersion:3,classificationNeedsReview:true,needsManagerAttention:false};
+        };
+        const getShiftNoteCategoryLabel = note => {
+            if(['URGENT','Manager Note'].includes(note?.category))return note.category;
+            const call=note?.driverCall,info=driverCallSegmentInfo(call);
+            if(info?.segment.id==='general' && call.action==='Exchange requested')return 'Exchange / replacement';
+            return info?.segment.label || note?.category || 'General';
         };
         const categorizeHistoricalDriverNotes = (notes,limit=8) => {
             let count=0;
@@ -1879,7 +1894,7 @@
         const DriverCallIssueSummary = ({note}) => {
             const info=driverCallSegmentInfo(note?.driverCall);if(!info)return null;
             return <div className="mt-3 text-xs leading-relaxed text-slate-300 space-y-1">
-                <p><strong className="text-indigo-300">{info.segment.label}</strong> · {info.reason.label}</p>
+                <p><strong className="text-indigo-300">{getShiftNoteCategoryLabel(note)}</strong> · {info.reason.label}</p>
                 <p>{info.cause}{note.driverCall.damageStage?' · '+note.driverCall.damageStage:''}</p>
                 <p>{note.driverCall.action || 'Pending decision'}{note.driverCall.guestSolution==='Yes'?' · Guest Solution contacted':''}{note.driverCall.needsManagerAttention?' · Manager attention requested':''}</p>
                 {driverCallIssueLines(note.driverCall).filter(([label])=>label.startsWith('Pieces ')).length>0 && <p>{driverCallIssueLines(note.driverCall).filter(([label])=>label.startsWith('Pieces ')).map(([label,value])=>label+': '+value).join(' · ')}</p>}
@@ -2493,7 +2508,7 @@
             'assignedUid','assignedUids','recipientUid','recipientUids','timestamp','createdAt','updatedAt',
             'lastUpdatedAt','lastUpdatedBy','confirmedByUid','confirmedBy','_auditId','assignmentId',
             'loadingDate','preloadArrivalDate','preloadAssignmentId','preloadHistoryRow','base64','mentionUids',
-            'mentionSpans','system','preloadHistory','author','editedAt','editedByUid','editedBy','category','classificationSource','classificationNeedsReview']);
+            'mentionSpans','system','preloadHistory','author','editedAt','editedByUid','editedBy','category','classificationSource','classificationVersion','classificationNeedsReview']);
         const activityParseValue = value => {
             if (value === undefined || value === null || value === '(not set)') return undefined;
             if (typeof value !== 'string') return value;
@@ -2627,6 +2642,7 @@
                 }
                 for (const change of changes.filter(change=>change.field.startsWith(prefix+'.')&&!handled.has(change))) {
                     const suffix=change.field.slice(prefix.length+1), last=suffix.split('.').at(-1); handled.add(change);
+                    const after=activityParseValue(change.after);
                     if (suffix==='text') add(setLine(`the ${label}`,change.before,change.after,'text'));
                     else if (suffix==='acknowledgedAt' || suffix==='acknowledgedBy') add(`acknowledged the ${label}.`);
                     else if (suffix==='likes') add(`changed reactions on the ${label}.`);
@@ -3931,13 +3947,19 @@
             { id: 'refused', label: 'Customer refused', pattern: /\b(?:refus(?:e|ed|es|al)|declined (?:the )?delivery|rejected (?:the )?(?:item|delivery))\b/gi },
             { id: 'damage', label: 'Damaged item', pattern: /\b(?:damag(?:e|ed|es)|broken|dent(?:ed|s)?|scratch(?:ed|es)?)\b/gi },
             { id: 'replacement', label: 'Replacement / exchange', pattern: /\b(?:replac(?:e|ed|ement|ements)|exchang(?:e|ed|es))\b/gi },
+            { id: 'general', label: 'General / routine', pattern: /\b(?:not (?:at )?home|no answer|not answering|eta update|delivery instructions?)\b/gi },
             { id: 'rescue', label: 'Rescue / hardware', pattern: /\b(?:rescue|hardware|assembly pieces)\b/gi },
             { id: 'late', label: 'Late delivery', pattern: /\b(?:late|delay(?:ed|s)?|missed (?:the )?(?:delivery |time )?window)\b/gi }
         ];
-        const issueReviewRevision = note => JSON.stringify([
-            String(note?.text || ''), note?.driverCall || null,
-            (note?.replies || []).filter(reply => !reply.system).map(reply => [String(reply.id || ''), String(reply.author || ''), String(reply.text || '')])
-        ]);
+        const issueReviewRevision = note => {
+            let call=note?.driverCall;
+            if(call?.classificationSource==='history') {
+                const {segment,reason,damageStage,action,guestSolution,needsManagerAttention,piecesScheduled,piecesDelivered,piecesAffected,classificationSource,classificationVersion,classificationNeedsReview,...original}=call;
+                call=Object.keys(original).length?original:null;
+            }
+            return JSON.stringify([String(note?.text || ''),call || null,
+                (note?.replies || []).filter(reply=>!reply.system).map(reply=>[String(reply.id || ''),String(reply.author || ''),String(reply.text || '')])]);
+        };
         const issueReviewSuggestions = text => ISSUE_REVIEW_TYPES.filter(type => {
             const normalized = normalizeShiftNoteSearch(text);
             const matches = Array.from(normalized.matchAll(new RegExp(type.pattern.source, 'gi')));
@@ -3972,13 +3994,17 @@
                 entry.key = issueReviewKey(entry); entry.caseKey = issueReviewCaseKey(entry);
                 const candidate = reviews[entry.key]?.reviewedBy===account.uid ? reviews[entry.key] : null;
                 const validReview = candidate && candidate.revision === entry.revision && Array.isArray(candidate.types) ? candidate : null;
-                const issue=driverCallSegmentInfo(note.driverCall);
-                entry.suggested = Array.from(new Set([...segments.flatMap(segment => issueReviewSuggestions(segment.text)),...(issue && ['damage','refused','rescue'].includes(issue.segment.id)?[issue.segment.id]:[]),...(['Exchange requested'].includes(note.driverCall?.action)?['replacement']:[])]));
+                const suggestedCall=inferHistoricalDriverCallIssue(note);
+                const classifiedCall=suggestedCall?{...note.driverCall,...suggestedCall}:note.driverCall;
+                const issue=driverCallSegmentInfo(classifiedCall);entry.driverIssue=issue;entry.classifiedCall=classifiedCall;
+                entry.suggested = Array.from(new Set([...segments.flatMap(segment => issueReviewSuggestions(segment.text)),...(issue?[issue.segment.id]:[]),...(['Exchange requested'].includes(note.driverCall?.action)?['replacement']:[])]));
                 entry.review = validReview;
                 entry.staleReview = Boolean(candidate && !validReview);
                 entry.types = validReview ? validReview.types.filter(type => ISSUE_REVIEW_TYPES.some(item => item.id === type)) : entry.suggested;
                 entry.excluded = Boolean(validReview?.excluded);
                 const searchText = [dateKey, note.author, note.category, ...Object.values(note.driverCall || {}), ...driverCallIssueLines(note.driverCall).flat(), ...segments.flatMap(segment => [segment.author,segment.text])].filter(Boolean).join(' ');
+                if(filters.segment && filters.segment!=='all' && issue?.segment.id!==filters.segment)return;
+                if(filters.reason && filters.reason!=='all' && issue?.reason.id!==filters.reason)return;
                 if (!matchesQuery(searchText) || (!clauses.length && !entry.suggested.length && !validReview && !entry.staleReview)) return;
                 if (filters.status === 'pending' && validReview || filters.status === 'reviewed' && (!validReview || entry.excluded) || filters.status === 'excluded' && !entry.excluded) return;
                 entry.matchSegment = segments.find(segment => clauses.length ? matchesQuery(segment.text) : issueReviewSuggestions(segment.text).length) || segments[0];
@@ -3989,18 +4015,29 @@
             const counts = Object.fromEntries(ISSUE_REVIEW_TYPES.map(type => [type.id, new Set(entries.filter(entry => !entry.excluded && entry.types.includes(type.id)).map(entry => entry.caseKey)).size]));
             return { entries, matches, counts, caseCount: new Set(matches.filter(entry => !entry.excluded).map(entry => entry.caseKey)).size };
         };
+        const issueReviewExportRows = entries => [
+            ['Date','Driver','Customer','SO / RMA','Segment','Reason','Responsibility','Next action','Details'],
+            ...entries.map(entry=>{
+                const call=entry.note.driverCall || {},classified=entry.classifiedCall || call,info=entry.driverIssue || driverCallSegmentInfo(classified);
+                const details=[
+                    [call.route && 'Route: '+call.route,call.stopNumber && 'Stop: '+call.stopNumber].filter(Boolean).join(' · '),
+                    ...(classified.damageStage?['Where: '+classified.damageStage]:[]),
+                    ...(classified.guestSolution==='Yes'?['Guest Solution contacted']:[]),
+                    ...driverCallIssueLines(classified).filter(([label])=>label.startsWith('Pieces ')).map(([label,value])=>label+': '+value),
+                    call.note || entry.note.text || '',
+                    ...(entry.note.replies || []).filter(reply=>!reply.system && String(reply.text || '').trim()).map(reply=>'Reply — '+(reply.author || 'Team member')+': '+reply.text)
+                ].filter(Boolean).join('\n');
+                return [entry.dateKey,call.driver || '',call.customerName || '',call.soRma || '',
+                    info?.segment.label || entry.types.map(type=>ISSUE_REVIEW_TYPES.find(item=>item.id===type)?.label).filter(Boolean).join('; '),
+                    (info?.reason.label || '')+(classified.classificationNeedsReview?' (inferred — review)':''),info?.cause || '',classified.action || '',details];
+            })
+        ];
         const issueReviewCsv = entries => {
-            const cell = value => {
-                let text = String(value ?? '');
-                if (/^[\s\uFEFF]*[=+@-]/.test(text)) text = "'" + text;
-                return '"' + text.replace(/"/g, '""') + '"';
+            const cell=value=>{
+                let text=String(value??'');if(/^[\s\uFEFF]*[=+@-]/.test(text))text="'"+text;
+                return '"'+text.replace(/"/g,'""')+'"';
             };
-            const rows = [['Date', 'Source', 'Driver', 'Customer', 'SO / RMA', 'Suggested issues', 'Review status', 'Confirmed issues', 'Note author', 'Note', 'Replies'],
-                ...entries.map(entry => [entry.dateKey, entry.source === 'calls' ? 'Driver call' : 'Shift note', entry.note.driverCall?.driver, entry.note.driverCall?.customerName, entry.note.driverCall?.soRma,
-                    entry.suggested.map(type => ISSUE_REVIEW_TYPES.find(item => item.id === type).label).join('; '), entry.excluded ? 'Not an issue' : entry.review ? 'Reviewed' : entry.staleReview ? 'Changed — review again' : 'Needs review',
-                    entry.review && !entry.excluded ? entry.types.map(type => ISSUE_REVIEW_TYPES.find(item => item.id === type).label).join('; ') : '', entry.note.author,
-                    entry.note.driverCall?.note || entry.note.text || '', (entry.note.replies || []).map(reply => `${reply.author || 'User'}${reply.timestamp ? ' · '+reply.timestamp : ''}: ${reply.text || ''}`).join('\n')])];
-            return '\uFEFF' + rows.map(row => row.map(cell).join(',')).join('\r\n');
+            return '\uFEFF'+issueReviewExportRows(entries).map(row=>row.map(cell).join(',')).join('\r\n');
         };
         const IssueReviewText = ({ text, query = '' }) => {
             const tokens = [...ISSUE_REVIEW_TYPES.flatMap(type => Array.from(String(text || '').matchAll(new RegExp(type.pattern.source,'gi')),match=>match[0])), ...query.split(/[\s,]+/).filter(Boolean)];
@@ -4010,28 +4047,30 @@
         };
         const IssueReviewPanel = ({ account, records, reviews, loaded, reviewsLoaded, connection, saveReview, openNote, savingKey, error }) => {
             const today = new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
-            const [filters,setFilters] = useState(()=>({query:'',start:today.slice(0,8)+'01',end:today,source:'all',category:'all',status:'all'}));
+            const [filters,setFilters] = useState(()=>({query:'',start:today.slice(0,8)+'01',end:today,source:'all',segment:'all',reason:'all',category:'all',status:'all'}));
             const [openKey,setOpenKey] = useState(''), [drafts,setDrafts] = useState({}), [message,setMessage] = useState('');
             const report = useMemo(()=>buildIssueReviewReport({account,records,reviews,filters}),[account?.uid,records,reviews,filters]);
             if (!account?.uid) return null;
-            const change = (key,value) => {setFilters(previous=>({...previous,[key]:value}));setMessage('');};
+            const change = (key,value) => {setFilters(previous=>({...previous,[key]:value,...(key==='segment'?{reason:'all'}:{})}));setMessage('');};
             const exportResults = () => {
                 if (!account?.uid || !loaded || !report.matches.length || (filters.start && filters.end && filters.start > filters.end)) return;
                 const url = URL.createObjectURL(new Blob([issueReviewCsv(report.matches)],{type:'text/csv;charset=utf-8'}));
                 const link=document.createElement('a');link.href=url;link.download=`Issue Review ${filters.start || 'all'} to ${filters.end || 'all'}.csv`;link.click();
-                setTimeout(()=>URL.revokeObjectURL(url),1000);setMessage('Results downloaded. Open the CSV in Excel.');
+                setTimeout(()=>URL.revokeObjectURL(url),1000);setMessage('Filtered results downloaded with the updated call columns. Open the CSV in Excel.');
             };
             const fieldClass='w-full min-w-0 rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-400';
             return <section className="issue-review-panel px-8 py-6 space-y-5" data-dashboard-edit-ignore="true" aria-label="Issue Review">
                 <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-bold text-white">Issue Review</h3><p className="mt-1 text-xs text-slate-400">Search saved notes, driver calls, and replies across dates. Classifications are saved for your account.</p></div><button type="button" disabled={!loaded || !report.matches.length || Boolean(filters.start && filters.end && filters.start > filters.end)} onClick={exportResults} className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700 disabled:opacity-40"><Download className="h-4 w-4"/>Export CSV</button></div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <label className="sm:col-span-2 text-xs text-slate-400">Search wording <input type="search" className={'mt-1.5 '+fieldClass} value={filters.query} onChange={event=>change('query',event.target.value)} placeholder="refused, damage, replaced, late, SO/RMA…"/><span className="mt-1 block">Use commas to search for either word or phrase.</span></label>
+                    <label className="sm:col-span-2 text-xs text-slate-400">Search wording <input type="search" className={'mt-1.5 '+fieldClass} value={filters.query} onChange={event=>change('query',event.target.value)} placeholder="driver name, damage, rescue, hardware, SO/RMA…"/><span className="mt-1 block">Use commas to search for either word or phrase.</span></label>
                     <label className="text-xs text-slate-400">From<input type="date" className={'mt-1.5 '+fieldClass} value={filters.start} onInput={event=>change('start',event.currentTarget.value)}/></label>
                     <label className="text-xs text-slate-400">To<input type="date" className={'mt-1.5 '+fieldClass} value={filters.end} onInput={event=>change('end',event.currentTarget.value)}/></label>
                     <label className="text-xs text-slate-400">Search in<select className={'mt-1.5 '+fieldClass} value={filters.source} onChange={event=>change('source',event.target.value)}><option value="all">All notes, driver calls & replies</option><option value="notes">Notes & their replies</option><option value="calls">Driver calls & their replies</option></select></label>
+                    <label className="text-xs text-slate-400">Segment<select className={'mt-1.5 '+fieldClass} value={filters.segment} onChange={event=>change('segment',event.target.value)}><option value="all">All segments</option>{DRIVER_CALL_SEGMENTS.map(segment=><option key={segment.id} value={segment.id}>{segment.label}</option>)}</select></label>
+                    <label className="text-xs text-slate-400">Reason<select className={'mt-1.5 '+fieldClass} value={filters.reason} disabled={filters.segment==='all'} onChange={event=>change('reason',event.target.value)}><option value="all">All reasons</option>{DRIVER_CALL_SEGMENTS.find(segment=>segment.id===filters.segment)?.reasons.map(reason=><option key={reason.id} value={reason.id}>{reason.label}</option>)}</select></label>
                     <label className="text-xs text-slate-400">Issue type<select className={'mt-1.5 '+fieldClass} value={filters.category} onChange={event=>change('category',event.target.value)}><option value="all">All issue types</option>{ISSUE_REVIEW_TYPES.map(type=><option key={type.id} value={type.id}>{type.label}</option>)}</select></label>
                     <label className="text-xs text-slate-400">Review status<select className={'mt-1.5 '+fieldClass} value={filters.status} onChange={event=>change('status',event.target.value)}><option value="all">All matches</option><option value="pending">Needs review</option><option value="reviewed">Reviewed issues</option><option value="excluded">Marked not an issue</option></select></label>
-                    <div className="flex items-end"><button type="button" onClick={()=>setFilters({query:'',start:'',end:'',source:'all',category:'all',status:'all'})} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700">All dates / Clear filters</button></div>
+                    <div className="flex items-end"><button type="button" onClick={()=>setFilters({query:'',start:'',end:'',source:'all',segment:'all',reason:'all',category:'all',status:'all'})} className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700">All dates / Clear filters</button></div>
                 </div>
                 {filters.start && filters.end && filters.start > filters.end && <p role="alert" className="text-sm text-rose-300">Choose an end date on or after the start date.</p>}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Distinct cases by issue type">{ISSUE_REVIEW_TYPES.map(type=><button key={type.id} type="button" aria-pressed={filters.category===type.id} onClick={()=>change('category',filters.category===type.id?'all':type.id)} className={`rounded-xl border p-3 text-left ${filters.category===type.id?'border-indigo-400 bg-indigo-500/15':'border-slate-700 bg-slate-900/40'}`}><span className="block text-xs text-slate-300">{type.label}</span><span className="mt-1 block text-2xl font-bold tabular-nums text-white">{loaded ? report.counts[type.id] || 0 : '—'}</span></button>)}</div>
@@ -4042,6 +4081,7 @@
                     return <article key={entry.key} className="py-5 space-y-3">
                         <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs text-slate-400">{new Date(entry.dateKey+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · {entry.source==='calls'?'Driver call':'Shift note'} · {entry.note.author || 'User'}</p><p className="mt-1 break-words text-sm text-slate-300">{[entry.note.driverCall?.driver,entry.note.driverCall?.customerName,entry.note.driverCall?.soRma].filter(Boolean).join(' · ')}</p></div><button type="button" aria-expanded={openKey===entry.key} onClick={()=>setOpenKey(openKey===entry.key?'':entry.key)} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-700">{openKey===entry.key?'Close conversation':'Open conversation'}</button></div>
                         <div className="flex flex-wrap items-center gap-2">{!entry.excluded && entry.types.map(type=><span key={type} className="rounded bg-indigo-500/15 px-2 py-1 text-xs text-indigo-200">{ISSUE_REVIEW_TYPES.find(item=>item.id===type).label}</span>)}<span className={`text-xs ${entry.excluded?'text-slate-400':entry.review?'text-emerald-300':'text-amber-300'}`}>{entry.excluded?'Not an issue':entry.review?'Reviewed':entry.staleReview?'Conversation changed — review again':'Needs review'}</span></div>
+                        {entry.driverIssue && <DriverCallIssueSummary note={{...entry.note,driverCall:{...entry.note.driverCall,...entry.classifiedCall}}}/>}
                         <div><p className="text-xs text-slate-500">Matched in {entry.matchSegment.kind.toLowerCase()} by {entry.matchSegment.author}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-200 line-clamp-3"><IssueReviewText text={entry.matchSegment.text} query={filters.query}/></p></div>
                         {openKey===entry.key && <div className="rounded-xl border border-slate-700 bg-slate-950/50 p-4 space-y-4">
                             {entry.note.driverCall && <p className="break-words text-xs text-slate-400">{[['Route',entry.note.driverCall.route],['Stop',entry.note.driverCall.stopNumber],['Driver',entry.note.driverCall.driver],['Customer',entry.note.driverCall.customerName],['SO/RMA',entry.note.driverCall.soRma]].filter(([,value])=>value).map(([label,value])=>`${label}: ${value}`).join(' · ')}</p>}
@@ -4813,7 +4853,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
         const managerAlertRevision = note => {
             let call=note?.driverCall;
             if(call?.classificationSource==='history') {
-                const {segment,reason,damageStage,action,guestSolution,needsManagerAttention,piecesScheduled,piecesDelivered,piecesAffected,classificationSource,classificationNeedsReview,...original}=call;
+                const {segment,reason,damageStage,action,guestSolution,needsManagerAttention,piecesScheduled,piecesDelivered,piecesAffected,classificationSource,classificationVersion,classificationNeedsReview,...original}=call;
                 call=Object.keys(original).length?original:undefined;
             }
             const text=JSON.stringify([note?.text,call]);
@@ -10108,7 +10148,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                         ) : (
                                                             <div className={`w-max text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border flex items-center gap-1.5 ${note.category === 'URGENT' || isManagerNote(note) ? 'bg-rose-900/30 text-rose-400 border-rose-500/50' : 'bg-indigo-900/30 text-indigo-400 border-indigo-500/20'}`}>
                                                                 {(note.category === 'URGENT' || isManagerNote(note)) && <AlertTriangle className="w-3 h-3" />}
-                                                                {String(note.category)}
+                                                                {getShiftNoteCategoryLabel(note)}
                                                             </div>
                                                         )}
                                                         {(note.author || note.timestamp) && (
