@@ -2207,6 +2207,7 @@
         const accessProfilesCache = new Map([...TEAM_UIDS].map(uid => [uid, defaultAccessProfile(uid)]));
         let settingsServiceAvailable = false;
         let currentAuditName = '';
+        let dashboardLoginRequested = false, dashboardLoggedSessionUid = '';
         const normalizeAccessProfile = (uid, saved) => ({ ...defaultAccessProfile(uid), ...saved, uid,
             enabled: uid === OWNER_UID || (saved ? saved.enabled === true : TEAM_UIDS.has(uid)),
             permissions: saved ? Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, saved.permissions?.[key] === true]))
@@ -2333,6 +2334,262 @@
             walk(stripAuditMetadata(before), stripAuditMetadata(after), '');
             return changes;
         };
+        // Present saved business actions in plain language; keep the original audit
+        // fields intact. New summaries use the saved before/after records so a
+        // route's identity remains accurate even after later edits or deletions.
+        const activityFieldNames = {
+            checkedIn:'check-in', timeOffDock:'ETA', serviceUnit:'route number', route:'route name',
+            contractor:'contractor', driver:'driver', helper:'helper', door:'dock door', cnt:'route count',
+            uniform:'uniform compliance', uniformNote:'uniform note', stops:'stops', pcs:'pieces',
+            cube:'cube', hos:'hours of service', mileage:'mileage', returned:'returns',
+            value:'value', status:'status', label:'label', text:'message', title:'task title',
+            instructions:'task instructions', dueAt:'task deadline', assignedName:'assigned person',
+            assignedNames:'assigned people', enabled:'dashboard access', email:'email address', name:'name',
+            phone:'phone number', owner:'contractor owner', planned:'planned trucks', total:'total trucks',
+            spot:'parking space', assignee:'assigned contractor', dispatcher:'dispatcher',
+            nextRoutes:'planned next-day routes', confirmedRoutes:'confirmed next-day routes',
+            completedRoutesCount:'completed routes', uniformCount:'teams in uniform', offDockCount:'routes off dock',
+            etaCount:'routes with ETA', basicDeliveryCount:'basic deliveries', thresholdCount:'threshold deliveries',
+            whiteGloveCount:'white-glove deliveries', podsReconciled:'proofs of delivery reconciled',
+            customerNotHome:'customers not home', claimsOpen:'open claims', transitDamage:'transit damage',
+            escalations:'escalations', earlyCount:'early-delivery violations', surveyCnt:'survey count',
+            surveyAvg:'survey average', onTime:'on-time delivery', completion:'completion', exchange:'exchange rate',
+            muted:'sound mute', volume:'sound volume', motion:'ring movement', glowMode:'ring lighting',
+            temperature:'ring color temperature', autoRotate:'automatic style rotation', intensity:'ring intensity',
+            repeatMinutes:'repeat interval', deadline:'deadline', cutoff:'cutoff time', time:'time',
+            delayMinutes:'follow-up delay', sound:'notification sound', reminder:'reminder',
+            morningReport:'Morning Report', teamAssignment:'Team Assignment',
+            uniformReminder:'uniform reminder', uniformMessage:'uniform reminder', arrivalNotes:'urgent arrival notes',
+            routeReadyTime:'loading readiness time', urgentNotes:'urgent notes', meetingTopics:'stand-up topics',
+            preloadArrival:'preload arrival', confirmedAt:'arrival confirmation',
+            nextCheckAt:'next arrival check', etaUnknown:'ETA unknown', permissions:'editing permissions',
+            driverCall:'driver call', soRma:'SO / RMA', customerName:'customer name', stopNumber:'stop number', note:'note',
+            lastNextDayTeam:'last next-day team', lastThresholdTeam:'last threshold team', lastOffDockTeam:'last team off dock',
+            doorInspection:'door inspection', uniformBadges:'uniform and badges', standUpMeeting:'stand-up meeting'
+        };
+        const activityIgnoredFields = new Set(['id','uid','authorUid','actorUid','createdByUid','updatedByUid',
+            'assignedUid','assignedUids','recipientUid','recipientUids','timestamp','createdAt','updatedAt',
+            'lastUpdatedAt','lastUpdatedBy','confirmedByUid','confirmedBy','_auditId','assignmentId',
+            'loadingDate','preloadArrivalDate','preloadAssignmentId','preloadHistoryRow','base64','mentionUids',
+            'mentionSpans','system','preloadHistory','author','editedAt','editedByUid','editedBy','category']);
+        const activityParseValue = value => {
+            if (value === undefined || value === null || value === '(not set)') return undefined;
+            if (typeof value !== 'string') return value;
+            try { return JSON.parse(value); } catch { return value; }
+        };
+        const activityDateLabel = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))
+            ? new Date(value + 'T12:00:00Z').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}) : '';
+        const activityTimeLabel = value => {
+            const match = String(value || '').match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+            if (match) return `${Number(match[1]) % 12 || 12}:${match[2]} ${Number(match[1]) >= 12 ? 'PM' : 'AM'}`;
+            if (typeof value === 'number' && value >= 0 && value < 1440) return `${Math.floor(value / 60) % 12 || 12}:${String(value % 60).padStart(2,'0')} ${value >= 720 ? 'PM' : 'AM'}`;
+            if (/^\d{4}-\d{2}-\d{2}T/.test(String(value || '')) && Number.isFinite(Date.parse(value)))
+                return new Date(value).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'});
+            return String(value || 'Not set');
+        };
+        const activityPlainValue = (value, field = '', max = 500) => {
+            const parsed = activityParseValue(value);
+            if (parsed === undefined || parsed === null || parsed === '') return 'Not set';
+            if (typeof parsed === 'boolean') return parsed ? 'Yes' : 'No';
+            if (['timeOffDock','dueAt','time','deadline','cutoff','nextCheckAt','confirmedAt'].includes(field)) return activityTimeLabel(parsed);
+            if (field === 'status' && typeof TEAM_TASK_STATUSES !== 'undefined' && TEAM_TASK_STATUSES[parsed]) return TEAM_TASK_STATUSES[parsed];
+            if (typeof parsed === 'object') {
+                if (Array.isArray(parsed)) return parsed.map(item => activityPlainValue(item,field,120)).filter(item => item !== 'Details updated').join(', ') || 'None';
+                if (field === 'assignedNames') return Object.values(parsed).map(String).join(', ') || 'None';
+                return String(parsed.name || parsed.label || parsed.title || parsed.text || 'Details updated').slice(0,max);
+            }
+            const text = String(parsed);
+            if (/^[{[]/.test(text) || /^[A-Za-z0-9_-]{22,}$/.test(text) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(text)) return 'Details updated';
+            return text.length > max ? text.slice(0,max) + '…' : text;
+        };
+        const activityPathValue = (record, path) => {
+            let value = record;
+            for (const match of String(path).matchAll(/([^.[\]]+)|\[([^\]]+)\]/g)) {
+                const key = match[1] ?? match[2];
+                if (['__proto__','prototype','constructor'].includes(key) || value == null) return undefined;
+                value = Array.isArray(value) ? value.find(item => item && typeof item === 'object' && String(item.id ?? item.uid) === key) ?? (/^\d+$/.test(key) ? value[Number(key)] : undefined) : value[key];
+            }
+            return value;
+        };
+        const activityPartialItem = (changes, prefix, side) => {
+            const whole = changes.find(change => change.field === prefix);
+            const parsed = whole && activityParseValue(whole[side]);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+            const item = {};
+            for (const change of changes) {
+                if (!change.field.startsWith(prefix + '.')) continue;
+                const suffix = change.field.slice(prefix.length + 1);
+                if (!/^[A-Za-z][A-Za-z0-9]*$/.test(suffix) || ['constructor','prototype','__proto__'].includes(suffix)) continue;
+                item[suffix] = activityParseValue(change[side]);
+            }
+            return item;
+        };
+        const activityRouteName = row => {
+            const unit = activityPlainValue(row?.serviceUnit), name = activityPlainValue(row?.route);
+            if (unit !== 'Not set' && unit !== 'Details updated') return 'route ' + unit + (name !== 'Not set' && name !== 'Details updated' && name !== unit ? ' (' + name + ')' : '');
+            return name !== 'Not set' && name !== 'Details updated' ? 'route ' + name : 'a route';
+        };
+        const describeAuditActivities = (event, beforeRecord, afterRecord) => {
+            let changes = event.changes || [];
+            if (beforeRecord && afterRecord) {
+                const arrays = event.collection === 'dailyRecaps' ? ['routeTable','shiftNotes'] : event.collection === 'teamChat' ? ['messages'] : event.collection === 'teamTasks' ? ['events'] : event.collection === 'config' ? ['contractors','drivers','helpers','parkingAssignments'] : [];
+                const before = {...beforeRecord}, after = {...afterRecord};
+                for (const key of arrays) { before[key] ||= []; after[key] ||= []; }
+                changes = describeSavedChanges(before,after);
+            }
+            const lines = [], handled = new Set(), add = line => { if (line && !lines.includes(line)) lines.push(line); };
+            const consume = prefix => changes.forEach(change => { if (change.field === prefix || change.field.startsWith(prefix+'.') || change.field.startsWith(prefix+'[')) handled.add(change); });
+            const itemAt = (record,prefix,side) => activityPathValue(record,prefix) || activityPartialItem(changes,prefix,side);
+            const setLine = (label, before, after, field) => `changed ${label} from ${activityPlainValue(before,field)} to ${activityPlainValue(after,field)}.`;
+            const actorName = uid => accessProfilesCache.get(uid)?.name || DEFAULT_ACCOUNT_NAMES[uid] || 'a team member';
+            const routePrefixes = [...new Set(changes.map(change => change.field.match(/^routeTable\[[^\]]+\]/)?.[0]).filter(Boolean))];
+            for (const prefix of routePrefixes) {
+                const old = itemAt(beforeRecord,prefix,'before'), row = itemAt(afterRecord,prefix,'after');
+                const root = changes.find(change => change.field === prefix);
+                const removed = root && activityParseValue(root.after) === undefined;
+                const added = root && activityParseValue(root.before) === undefined;
+                const chosen = removed ? old : row, route = activityRouteName(chosen);
+                if (removed || added) {
+                    const sameDay = /\bsame[\s-]*(?:day|s[\s-]*d)\b|\bs[\s-]*d\b/i.test(String(chosen.route || '')) ? 'same-day ' : '';
+                    const team = [['contractor',chosen.contractor],['driver',chosen.driver],['helper',chosen.helper]].filter(([,value])=>value).map(([label,value])=>label+': '+activityPlainValue(value)).join(' · ');
+                    add(`${removed ? 'removed' : 'added'} ${sameDay}${route}${team ? ' · '+team : ''}.`);
+                    if (added && chosen.checkedIn === true) add(`checked in ${route}.`);
+                    consume(prefix); continue;
+                }
+                for (const change of changes.filter(change=>change.field.startsWith(prefix+'.'))) {
+                    const field = change.field.slice(prefix.length+1), last = field.split('.').at(-1);
+                    handled.add(change);
+                    if (activityIgnoredFields.has(last)) continue;
+                    const before = activityParseValue(change.before), after = activityParseValue(change.after);
+                    if (field === 'checkedIn') add(`${after === true ? 'checked in' : 'removed check-in for'} ${route}.`);
+                    else if (field === 'timeOffDock') add(setLine(`${row.preloadArrival || old.preloadArrival ? 'preload warehouse ' : ''}ETA for ${route}`,change.before,change.after,'timeOffDock'));
+                    else if (field === 'preloadArrival' || field.startsWith('preloadArrival.')) {
+                        const left = old.preloadArrival || {}, right = row.preloadArrival || {};
+                        if (field === 'preloadArrival') add(after && typeof after === 'object' ? `selected ${row.contractor || 'the contractor'} — driver ${row.driver || 'not assigned'}, helper ${row.helper || 'not assigned'} — as the preload team.` : 'removed the selected preload team.');
+                        else if (last === 'confirmedAt' && after) add(`confirmed ${row.contractor || old.contractor || 'the preload team'} arrived at ${activityTimeLabel(after)}.`);
+                        else if (last === 'unknownUntil' && Number.isFinite(after)) add(`selected “Not Yet / Still on route” for ${row.contractor || old.contractor || 'the preload team'}; ETA is unknown. Next check: ${activityTimeLabel(after)}.`);
+                        else if (last === 'etaUnknown' && after === true) add(`selected “Not Yet / Still on route” for ${row.contractor || old.contractor || 'the preload team'}; ETA is unknown.`);
+                        else if (last === 'nextCheckAt' && after) add(`moved the preload follow-up to ${activityTimeLabel(after)}.`);
+                        else if (last === 'assignmentId' && before !== after) add('changed the selected preload team.');
+                    } else if (activityFieldNames[field]) add(setLine(`${activityFieldNames[field]} for ${route}`,change.before,change.after,field));
+                }
+            }
+            const notePrefixes = [...new Set(changes.map(change=>change.field.match(/^shiftNotes\[[^\]]+\]/)?.[0]).filter(Boolean))];
+            for (const prefix of notePrefixes) {
+                const old = itemAt(beforeRecord,prefix,'before'), note = itemAt(afterRecord,prefix,'after');
+                const root = changes.find(change=>change.field===prefix), removed = root && activityParseValue(root.after)===undefined;
+                const added = root && activityParseValue(root.before)===undefined, current = removed ? old : note;
+                const label = current.category === 'Manager Note' ? 'manager note' : current.driverCall || current.category === 'Driver Calls' ? 'driver-call note' : 'shift note';
+                if (added || removed) {
+                    if (current.preloadHistory && routePrefixes.length) { consume(prefix); continue; }
+                    if (current.system) {
+                        if (current.complianceAlertId !== undefined) add(`acknowledged the ${activityTimeLabel(({12:'12:00',17:'17:00',19:'19:00'})[current.complianceAlertId] || current.complianceAlertId)} compliance reminder.`);
+                        else if (current.preloadReminder) add('acknowledged the reminder to send the preload message.');
+                        else add(`recorded ${activityPlainValue(current.text,'text',700)}${String(current.text || '').endsWith('.') ? '' : '.'}`);
+                    } else add(`${removed ? 'removed' : 'wrote'} a ${label}${current.driverCall?.driver ? ' for '+activityPlainValue(current.driverCall.driver) : ''}: “${activityPlainValue(current.driverCall?.note || current.text,'text',700)}”.`);
+                    consume(prefix); continue;
+                }
+                const replies = [...new Set(changes.map(change=>change.field.startsWith(prefix+'.') && change.field.match(/^shiftNotes\[[^\]]+\]\.replies\[[^\]]+\]/)?.[0]).filter(Boolean))];
+                for (const replyPrefix of replies) {
+                    const reply = itemAt(afterRecord,replyPrefix,'after'), prior = itemAt(beforeRecord,replyPrefix,'before');
+                    const rootReply = changes.find(change=>change.field===replyPrefix);
+                    const deletedReply = rootReply && activityParseValue(rootReply.after)===undefined;
+                    if (reply.managerNoteAcknowledgement) add(`acknowledged the manager note: “${activityPlainValue(note.text,'text',240)}”.`);
+                    else if (reply.system) add(`recorded ${activityPlainValue(reply.text,'text',500)}.`);
+                    else add(`${deletedReply ? 'removed a reply' : rootReply && activityParseValue(rootReply.before)===undefined ? 'replied' : 'edited a reply'} to the ${label}: “${activityPlainValue((deletedReply ? prior : reply).text,'text',700)}”.`);
+                    consume(replyPrefix);
+                }
+                for (const change of changes.filter(change=>change.field.startsWith(prefix+'.')&&!handled.has(change))) {
+                    const suffix=change.field.slice(prefix.length+1), last=suffix.split('.').at(-1); handled.add(change);
+                    if (suffix==='text') add(setLine(`the ${label}`,change.before,change.after,'text'));
+                    else if (suffix==='acknowledgedAt' || suffix==='acknowledgedBy') add(`acknowledged the ${label}.`);
+                    else if (suffix==='likes') add(`changed reactions on the ${label}.`);
+                    else if (suffix.startsWith('driverCall.') && activityFieldNames[last]) add(setLine(`${activityFieldNames[last]} on the driver-call note`,change.before,change.after,last));
+                    else if (suffix==='category') add(setLine('the note category',change.before,change.after,'category'));
+                }
+            }
+            if (event.collection==='teamChat') {
+                const prefixes=[...new Set(changes.map(change=>change.field.match(/^messages\[[^\]]+\]/)?.[0]).filter(Boolean))];
+                for (const prefix of prefixes) {
+                    const old=itemAt(beforeRecord,prefix,'before'), message=itemAt(afterRecord,prefix,'after'), root=changes.find(change=>change.field===prefix);
+                    const removed=root && activityParseValue(root.after)===undefined, added=root && activityParseValue(root.before)===undefined;
+                    const current=removed?old:message;
+                    if (added || removed) add(`${removed?'removed':'sent'} a Team Chat message${current.attachment?.name?' with attachment “'+activityPlainValue(current.attachment.name)+'”':''}: “${activityPlainValue(current.text,'text',700)}”.`);
+                    else for (const change of changes.filter(change=>change.field.startsWith(prefix+'.'))) {
+                        if (change.field.endsWith('.text')) add(setLine('a Team Chat message',change.before,change.after,'text'));
+                        else if (change.field.includes('.likes')) add('changed reactions on a Team Chat message.');
+                    }
+                    consume(prefix);
+                }
+            }
+            if (event.collection==='teamTasks') {
+                const title=afterRecord?.title || beforeRecord?.title || changes.find(change=>change.field==='title')?.after;
+                const task=title ? 'task “'+activityPlainValue(title,'title',180)+'”' : 'a team task';
+                const prefixes=[...new Set(changes.map(change=>change.field.match(/^events\[[^\]]+\]/)?.[0]).filter(Boolean))];
+                for (const prefix of prefixes) {
+                    const update=itemAt(afterRecord,prefix,'after');
+                    const action={assigned:'assigned',edited:'edited',status:'changed progress on','update-request':'requested an update on',update:'sent an update on'}[update.type] || 'updated';
+                    add(`${action} ${task}${update.type==='status'? ' to '+activityPlainValue(update.status,'status'):''}${update.text?' — “'+activityPlainValue(update.text,'text',700)+'”':''}.`); consume(prefix);
+                    if (update.type==='status') changes.filter(change=>change.field==='status').forEach(change=>handled.add(change));
+                }
+            }
+            for (const change of changes) {
+                if (handled.has(change)) continue;
+                const field=change.field, last=field.split('.').at(-1).replace(/\[[^\]]*\]/g,'');
+                if (activityIgnoredFields.has(last) || /(?:Uid|Ids?|By)$/.test(last) && !activityFieldNames[last]) continue;
+                const before=activityParseValue(change.before), after=activityParseValue(change.after);
+                const list=field.match(/^(contractors|drivers|helpers|parkingAssignments)\[[^\]]+\](?:\.(.*))?$/);
+                if (list) {
+                    const prefix=field.match(/^[^.]+/)[0], old=itemAt(beforeRecord,prefix,'before'), item=itemAt(afterRecord,prefix,'after');
+                    const label=list[1]==='parkingAssignments'?'parking assignment':'master-list '+list[1].replace(/s$/,'');
+                    if (!list[2]) add(`${after===undefined?'removed':'added'} ${label} ${activityPlainValue((after===undefined?old:item).name || (after===undefined?old:item).assignee)}.`);
+                    else if (activityFieldNames[list[2]]) add(setLine(`${activityFieldNames[list[2]]} for ${item.name || old.name || label}`,change.before,change.after,list[2]));
+                    continue;
+                }
+                const compliance=field.match(/^(loadout\.compliance|midDay\.status|endOfDay\.admin)\[(\d+)\]\.status$/);
+                if (compliance) {
+                    const prefix=field.replace(/\.status$/,''), item=itemAt(afterRecord,prefix,'after');
+                    const defaults={ 'loadout.compliance':['morning report','12 PM route update','5 PM route update','end-of-day route update'],'midDay.status':['next-day route assignment','email review','supply-cart restock'],'endOfDay.admin':['route confirmation'] };
+                    add(`marked ${item.label || defaults[compliance[1]][Number(compliance[2])] || 'the compliance check'} ${after===true?'completed':'not completed'}.`); continue;
+                }
+                const metric=field.match(/^((?:loadout|midDay|endOfDay)\.(?:metrics|risk|drivers)|metricsTracker\.(?:wtd|mtd|feedback))\[[^\]]+\]\.(\w+)$/);
+                if (metric) {
+                    const prefix=field.replace(/\.\w+$/,''), item=itemAt(afterRecord,prefix,'after'), old=itemAt(beforeRecord,prefix,'before');
+                    const defaults=typeof DEFAULT_DATA !== 'undefined' ? activityPathValue(DEFAULT_DATA,prefix) : {};
+                    const name=item.label || old.label || defaults?.label || [item.firstName || old.firstName,item.lastName || old.lastName].filter(Boolean).join(' ');
+                    if (last==='label') add(setLine('a metric label',change.before,change.after,last));
+                    else add(setLine(`${activityFieldNames[last] || 'score'}${name?' for '+name:''}`,change.before,change.after,last));
+                    continue;
+                }
+                const root = field.split(/[.[]/)[0];
+                const label = activityFieldNames[last] || {loadout:'Overview morning figures',midDay:'midday figures',endOfDay:'end-of-day figures',metricsTracker:'performance scores',shiftNotes:'Shift Notes',routeTable:'route assignments',morningReport:'Morning Report',teamAssignment:'Team Assignment',messages:'Team Chat messages',events:'task activity',officeSchedules:'office schedule',soundSettings:'sound settings',ringSettings:'ring settings',managerAlertSettings:'manager alert settings',deletedDashboardUsers:'dashboard user access',chatDirectory:'Team Chat directory',nameOverrides:'display names',drivers:'driver list',helpers:'helper list',contractors:'contractor list'}[root] || 'saved details';
+                if (root==='permissions') add(`${after===true?'allowed':'removed'} ${PERMISSION_OPTIONS.find(([key])=>key===last)?.[1] || 'this editing permission'} access.`);
+                else if (root==='nameOverrides') add(setLine('a team member’s display name',change.before,change.after,'name'));
+                else if (root==='deletedDashboardUsers') add(`${after===undefined?'restored':'removed'} dashboard access for ${actorName(field.match(/\[([^\]]+)\]/)?.[1] || field.split('.')[1])}.`);
+                else if (last==='enabled') add(`${after===true?'enabled':'disabled'} dashboard access${beforeRecord?.name || afterRecord?.name?' for '+(afterRecord?.name || beforeRecord?.name):''}.`);
+                else if (last==='assignedNames') add(setLine('the task’s assigned people',change.before,change.after,last));
+                else if (after && typeof after==='object' || before && typeof before==='object' || /^[{[]/.test(String(change.after)) || /^[{[]/.test(String(change.before))) add(`updated ${label}.`);
+                else add(setLine(label,change.before,change.after,last));
+            }
+            if (!lines.length) add(`${event.operation==='delete'?'removed':event.operation==='restore'?'restored':event.operation==='create'?'added':'updated'} ${event.section || 'saved information'}.`);
+            if (event.operation==='restore') lines.unshift('restored this information from a backup.');
+            return lines;
+        };
+        const buildReadableAuditSummary = (event,before,after) => {
+            const lines=describeAuditActivities(event,before,after), kept=[];
+            let size=0;
+            for (const line of lines) { if (kept.length >= 150 || size+line.length > 24000) break; kept.push(line); size+=line.length+1; }
+            if (kept.length<lines.length) kept.push('saved additional changes in this update.');
+            return kept.join('\n');
+        };
+        const readableAuditActivity = event => {
+            const summary=String(event.summary || '');
+            const lines = summary && !/^\d+ fields? changed$/.test(summary) && !/^[{[]/.test(summary)
+                ? summary.split('\n').filter(Boolean) : describeAuditActivities(event);
+            const date=activityDateLabel(event.recordId);
+            return {lines,context:[event.section || 'Dashboard',date && (event.collection==='preloadSchedules'?'Loading day: ':['officeSchedules','weeklyBonuses'].includes(event.collection)?'Week of ':'For ')+date].filter(Boolean).join(' · ')};
+        };
+
         const isPreloadHistoryAppend = (before = [], after = []) => {
             const note = after.at(-1);
             return after.length === before.length + 1 && sameSavedValue(before, after.slice(0, -1))
@@ -2500,7 +2757,7 @@
                     if (!changes.length && !entry.deleted) continue;
                     const operation = entry.deleted ? 'delete' : snapshot.exists() ? 'update' : 'create';
                     validateBusinessWrite(kind, before, after, operation, kind === 'dailyRecaps' && preloadHistoryDays.has(id));
-                    business.push({ ...entry, kind, id, changes, operation });
+                    business.push({ ...entry, kind, id, changes, operation, beforeRecord: before, afterRecord: after });
                 }
                 for (const entry of queued) {
                     const tracked = business.find(item => item === entry || item.ref.path === entry.ref.path);
@@ -2512,7 +2769,7 @@
                         native.set(auditRef, { actorUid: auth.currentUser.uid, actorName: currentAuditName || getDefaultUserName(auth.currentUser),
                             timestamp: new Date().toISOString(), createdAt: serverTimestamp(), collection: tracked.kind,
                             recordId: tracked.id, section: ['dailyRecaps', 'preloadSchedules'].includes(tracked.kind) && preloadHistoryDays.has(tracked.id) ? 'Preload History' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('managerAlertSettings')) ? 'Manager Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('soundSettings')) ? 'Sounds & Alerts' : tracked.kind === 'config' && tracked.changes.every(change => change.field.startsWith('deletedDashboardUsers')) ? 'Users & Permissions' : sectionNameForRecord(tracked.kind, tracked.id), operation: options?.auditAction || tracked.operation,
-                            summary: tracked.changes.length + ' field' + (tracked.changes.length === 1 ? '' : 's') + ' changed',
+                            summary: buildReadableAuditSummary({collection:tracked.kind,recordId:tracked.id,section:sectionNameForRecord(tracked.kind,tracked.id),operation:options?.auditAction || tracked.operation,changes:tracked.changes},tracked.beforeRecord,tracked.afterRecord),
                             changeCount: tracked.changes.length, changes: tracked.changes.slice(0, 150) });
                         if (!entry.deleted) entry.value = { ...entry.value, _auditId: eventId };
                     }
@@ -2530,12 +2787,38 @@
             : firebaseSetDoc(ref, fields, options);
         const deleteDoc = ref => BUSINESS_COLLECTIONS.includes(ref.path.split('/').at(-2))
             ? runTransaction(db, async transaction => { transaction.delete(ref); }) : firebaseDeleteDoc(ref);
+        const pendingActivityKey = uid => 'geodis_pending_activity_' + uid;
+        const readPendingAccountActivities = uid => {
+            try { const records=JSON.parse(localStorage.getItem(pendingActivityKey(uid)) || '[]'); return Array.isArray(records) ? records.filter(record=>record.actorUid===uid).slice(-50) : []; } catch { return []; }
+        };
+        const persistAccountActivity = async record => {
+            if (!db || auth.currentUser?.uid!==record.actorUid) return false;
+            try {
+                const ref=doc(db,'artifacts',appId,'public','data','activityEvents',record.id);
+                await firebaseRunTransaction(db,async transaction=>{
+                    const previous=await transaction.get(ref);
+                    if (!previous.exists()) { const {id,...fields}=record; transaction.set(ref,{...fields,createdAt:serverTimestamp()}); }
+                });
+                try { localStorage.setItem(pendingActivityKey(record.actorUid),JSON.stringify(readPendingAccountActivities(record.actorUid).filter(item=>item.id!==record.id))); } catch {}
+                return true;
+            } catch { console.warn('An activity receipt is waiting to sync.'); return false; }
+        };
+        const saveAccountActivity = (type,text,account=auth.currentUser,name=currentAuditName) => {
+            if (!account?.uid || auth.currentUser?.uid!==account.uid) return Promise.resolve(false);
+            const record={id:crypto.randomUUID(),actorUid:account.uid,actorName:String(name || accessProfilesCache.get(account.uid)?.name || getDefaultUserName(account)).slice(0,100),type,text:String(text).slice(0,1500),timestamp:new Date().toISOString()};
+            try { localStorage.setItem(pendingActivityKey(account.uid),JSON.stringify([...readPendingAccountActivities(account.uid),record].slice(-50))); } catch {}
+            return persistAccountActivity(record);
+        };
+        const flushAccountActivities = async account => {
+            for (const record of readPendingAccountActivities(account.uid)) { if (auth.currentUser?.uid!==account.uid || !await persistAccountActivity(record)) break; }
+        };
         const saveManagerNoteAcknowledgement = async ({ dateKey, noteId, uid, name, timestamp, replyId }) => {
             requireTeamAccount();
             if (auth.currentUser.uid !== uid) throw new Error('Your signed-in account changed. Please try again.');
             const key = managerNoteAckKey(dateKey, noteId);
             const noteRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', dateKey);
             const stateRef = doc(db, 'artifacts', appId, 'public', 'data', 'notificationStates', uid);
+            const receiptRef = doc(db,'artifacts',appId,'public','data','activityEvents',crypto.randomUUID());
             await runTransaction(db, async transaction => {
                 const noteSnapshot = await transaction.get(noteRef);
                 const stateSnapshot = await transaction.get(stateRef);
@@ -2553,6 +2836,8 @@
                     const shiftNotes = saved.shiftNotes.map(item => item.id === noteId
                         ? { ...item, replies: [...(item.replies || []), reply] } : item);
                     transaction.set(noteRef, { shiftNotes, lastUpdatedBy: name, lastUpdatedAt: timestamp }, { merge: true });
+                } else if (!accountHasPermission(auth.currentUser,'shiftNotes')) {
+                    transaction.set(receiptRef,{actorUid:uid,actorName:String(name).slice(0,100),type:'manager-note-acknowledged',text:`acknowledged the manager note: “${String(note.text || '').slice(0,700)}”.`,timestamp,createdAt:serverTimestamp()});
                 }
             });
             return key;
@@ -5251,7 +5536,16 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         const savedName = localStorage.getItem(getUserNameKey(firebaseUser.uid))?.trim();
                         setUserName(savedName || profile.name || getDefaultUserName(firebaseUser));
                         currentAuditName = savedName || profile.name || getDefaultUserName(firebaseUser);
+                        const sessionKey='geodis_activity_session_'+firebaseUser.uid;
+                        let existingSession=false; try { existingSession=sessionStorage.getItem(sessionKey)==='recorded'; } catch {}
+                        flushAccountActivities(firebaseUser);
+                        if (dashboardLoginRequested || (!existingSession && dashboardLoggedSessionUid!==firebaseUser.uid)) {
+                            saveAccountActivity(dashboardLoginRequested?'sign-in':'session-opened',dashboardLoginRequested?'signed in.':'opened the dashboard with an existing signed-in session.',firebaseUser,currentAuditName);
+                            try { sessionStorage.setItem(sessionKey,'recorded'); } catch {}
+                        }
+                        dashboardLoginRequested=false;dashboardLoggedSessionUid=firebaseUser.uid;
                     } else {
+                        dashboardLoggedSessionUid='';
                         setUserName(''); setIsEditingName(false); setIsEditing(false);
                     }
                     setUser(firebaseUser); setAuthReady(true);
@@ -5266,9 +5560,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 setAuthError('');
                 setIsSigningIn(true);
                 try {
+                    dashboardLoginRequested=true;
                     await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
                     setLoginPassword('');
                 } catch (error) {
+                    dashboardLoginRequested=false;
                     const invalidCredentials = error?.code === 'auth/invalid-credential' ||
                         error?.code === 'auth/user-not-found' ||
                         error?.code === 'auth/wrong-password' ||
@@ -5282,12 +5578,16 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             };
 
             const handleLogout = async () => {
+                const leavingUser=auth.currentUser;
                 try {
+                    if (leavingUser) await Promise.race([saveAccountActivity('sign-out','selected Sign out.',leavingUser,userName),new Promise(resolve=>setTimeout(resolve,1500))]);
                     await window.geodisNativeNotifications?.unbind();
                     await signOut(auth);
+                    if (leavingUser) { try { sessionStorage.removeItem('geodis_activity_session_'+leavingUser.uid); } catch {} }
                     setIsEditing(false);
                     setActiveTab('overview');
                 } catch (error) {
+                    saveAccountActivity('sign-out-failed','could not complete the sign-out request.',leavingUser,userName);
                     console.error('Sign out failed:', error);
                 }
             };
@@ -6523,15 +6823,17 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             };
             const ownActiveTasks = isAdminUser ? [] : teamTasks.filter(task => isTaskAssignedTo(task, user?.uid) && task.status !== 'completed');
             const markTaskAlertsRead = async ids => {
-                if (!user || !db || !ids.length) return;
+                if (!user || !db || !ids.length) return false;
                 try {
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notificationStates', user.uid), { taskReadIds: arrayUnion(...ids), updatedAt: new Date().toISOString() }, { merge: true });
                     setTaskReadIds(previous => [...new Set([...previous, ...ids])]);
-                } catch (error) { setTeamTaskError('Could not mark the task alert read. Please try again.'); }
+                    return true;
+                } catch (error) { setTeamTaskError('Could not mark the task alert read. Please try again.'); return false; }
             };
             const dismissTaskAlert = async event => {
                 if (!event) return;
-                await markTaskAlertsRead([event.id]);
+                const account=auth.currentUser,name=userName;
+                if (await markTaskAlertsRead([event.id])) saveAccountActivity('task-alert-dismissed',`dismissed the task alert for “${event.title || 'an assigned task'}”.`,account,name);
             };
             useEffect(() => {
                 setTeamTasks([]); setTeamTasksLoaded(false); setTaskReadIds([]); taskSoundKnownRef.current = null;
@@ -6685,10 +6987,17 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             useEffect(() => {
                 if (!isSettingsOpen || settingsTab !== 'history' || !isAdminUser || !settingsReady) return;
                 setAuditLoading(true);
-                return onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'auditEvents'), snapshot => {
-                    const events = []; snapshot.forEach(item => events.push({ id: item.id, ...item.data() }));
-                    setAuditEvents(events.sort((a, b) => b.timestamp.localeCompare(a.timestamp))); setAuditLoading(false);
-                }, error => { setAuditLoading(false); setSettingsError('Could not load Change History. ' + error.message); });
+                const sources=new Map(), loaded=new Set();
+                const subscriptions=['auditEvents','activityEvents'].map(kind=>onSnapshot(collection(db,'artifacts',appId,'public','data',kind),snapshot=>{
+                    const events=[];snapshot.forEach(item=>{
+                        const saved=item.data();
+                        events.push(kind==='activityEvents'?{id:item.id,...saved,collection:'accountActivity',recordId:'',section:['sign-in','sign-out','sign-out-failed','session-opened'].includes(saved.type)?'Sign-in & Sign-out':'Alert actions',operation:'update',summary:saved.text,changes:[]}: {id:item.id,...saved});
+                    });
+                    sources.set(kind,events);loaded.add(kind);
+                    setAuditEvents([...sources.values()].flat().sort((a,b)=>String(b.timestamp).localeCompare(String(a.timestamp))));
+                    setAuditLoading(loaded.size<2);
+                },()=>{loaded.add(kind);setAuditLoading(loaded.size<2);setSettingsError('Some activity could not load. Please refresh and try again.');}));
+                return ()=>subscriptions.forEach(unsubscribe=>unsubscribe());
             }, [isSettingsOpen, settingsTab, isAdminUser, settingsReady]);
             useEffect(() => {
                 if (!isSettingsOpen) return;
@@ -7004,14 +7313,14 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 } catch (error) { setSettingsError('The record was not restored. ' + error.message); }
                 finally { setSettingsBusy(false); }
             };
-            const filteredAuditEvents = auditEvents.filter(event => {
+            const readableAuditEvents = useMemo(() => auditEvents.map(event => ({...event,...readableAuditActivity(event)})), [auditEvents]);
+            const filteredAuditEvents = readableAuditEvents.filter(event => {
                 const day = new Date(event.timestamp).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
                 const search = auditFilters.search.trim().toLowerCase();
                 return (!auditFilters.user || event.actorUid === auditFilters.user)
                     && (!auditFilters.section || event.section === auditFilters.section)
                     && (!auditFilters.from || day >= auditFilters.from) && (!auditFilters.to || day <= auditFilters.to)
-                    && (!search || [event.actorName, event.section, event.recordId, event.operation, event.summary,
-                        ...(event.changes || []).map(change => change.field + ' ' + change.before + ' ' + change.after)].join(' ').toLowerCase().includes(search));
+                    && (!search || [event.actorName, event.context, ...event.lines].join(' ').toLowerCase().includes(search));
             });
 
 
@@ -8094,7 +8403,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const resolveManagerIssue = async alert => {
                 if(!isAdminUser || !isOwnerAccount(auth.currentUser) || !db || managerAlertWriteRef.current || alert.rule!=='urgentFollowUp') return;
                 managerAlertWriteRef.current=true;setManagerAlertBusy(true);setManagerAlertError('');
-                const uid=user.uid, target=alert.target;
+                const uid=user.uid, target=alert.target, receiptRef=doc(db,'artifacts',appId,'public','data','activityEvents',crypto.randomUUID());
                 try {
                     const dailyRef=doc(db,'artifacts',appId,'public','data','dailyRecaps',target.dateKey), stateRef=doc(db,'artifacts',appId,'public','data','notificationStates',uid);
                     await firebaseRunTransaction(db,async transaction=>{
@@ -8103,6 +8412,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         const note=daily.data()?.shiftNotes?.find(item=>String(item.id)===String(target.noteId));
                         if(!note || managerAlertRevision(note)!==target.resolutionRevision) throw new Error('This issue changed. Reopen it before marking it resolved.');
                         transaction.set(stateRef,{managerIssueResolutions:{...(state.data()?.managerIssueResolutions || {}),[target.resolutionKey]:target.resolutionRevision},updatedAt:new Date().toISOString()},{merge:true});
+                        transaction.set(receiptRef,{actorUid:uid,actorName:String(userName || currentAuditName || 'Fadi').slice(0,100),type:'issue-resolved',text:`marked the issue follow-up resolved: “${String(note.driverCall?.note || note.text || 'Driver issue').slice(0,700)}”.`,timestamp:new Date().toISOString(),createdAt:serverTimestamp()});
                     });
                     if(auth.currentUser?.uid===uid) setManagerIssueResolutions(previous=>({...previous,[target.resolutionKey]:target.resolutionRevision}));
                 }catch(error){if(auth.currentUser?.uid===uid)setManagerAlertError(error.message || 'The follow-up could not be saved.');}
@@ -8111,7 +8421,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const dismissManagerAlerts = async alerts => {
                 const entries=(Array.isArray(alerts) ? alerts : []).filter(alert=>alert?.id && alert?.dismissalKey);
                 if(!isAdminUser || !isOwnerAccount(auth.currentUser) || auth.currentUser.uid!==user?.uid || !db || !managerAlertsLoaded || managerAlertWriteRef.current || !entries.length) return;
-                const uid=user.uid;
+                const uid=user.uid, receiptRef=doc(db,'artifacts',appId,'public','data','activityEvents',crypto.randomUUID());
                 const dismissed=Object.fromEntries(entries.map(alert=>[alert.id,alert.dismissalKey]));
                 managerAlertWriteRef.current=true;setManagerAlertBusy(true);setManagerAlertError('');
                 try {
@@ -8120,6 +8430,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         const state=await transaction.get(stateRef);
                         if(!isOwnerAccount(auth.currentUser) || auth.currentUser.uid!==uid) throw new Error('Your account changed. Sign in again before dismissing this warning.');
                         transaction.set(stateRef,{managerAlertDismissals:{...(state.data()?.managerAlertDismissals || {}),...dismissed},updatedAt:new Date().toISOString()},{merge:true});
+                        transaction.set(receiptRef,{actorUid:uid,actorName:String(userName || currentAuditName || 'Fadi').slice(0,100),type:'manager-alert-dismissed',text:`dismissed ${entries.length===1?'the manager warning':'the current manager warnings'}: ${entries.map(alert=>alert.title || 'Manager warning').join('; ')}.`.slice(0,1500),timestamp:new Date().toISOString(),createdAt:serverTimestamp()});
                     });
                     if(auth.currentUser?.uid===uid) setManagerAlertDismissals(previous=>({...previous,...dismissed}));
                 }catch(error){if(auth.currentUser?.uid===uid)setManagerAlertError('The warning could not be dismissed. '+(error.message || 'Check your connection and try again.'));}
@@ -10290,7 +10601,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                     <button type="button" data-settings-close aria-label="Close Settings" disabled={settingsBusy} onClick={() => setIsSettingsOpen(false)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-40"><X className="w-5 h-5" /></button>
                                 </div>
                                 <nav aria-label="Settings sections" className="dashboard-modal-tabs flex gap-1 px-3 border-b border-slate-700 bg-slate-800/40 shrink-0 overflow-x-auto">
-                                    {[['users', 'Users & Permissions'], ['history', 'Change History'], ['backup', 'Backup & Restore'], ['sounds', 'Sounds & Alerts'], ['managerAlerts', 'Manager Alerts'], ['rings', 'Rings']].map(([key, label]) => (
+                                    {[['users', 'Users & Permissions'], ['history', 'Activity History'], ['backup', 'Backup & Restore'], ['sounds', 'Sounds & Alerts'], ['managerAlerts', 'Manager Alerts'], ['rings', 'Rings']].map(([key, label]) => (
                                         <button key={key} type="button" aria-current={settingsTab === key ? 'page' : undefined} onClick={() => { setSettingsTab(key); setSettingsError(''); setSettingsMessage(''); }} className={`shrink-0 px-3 py-3 text-xs font-bold border-b-2 transition-colors ${settingsTab === key ? 'border-indigo-400 text-indigo-200' : 'border-transparent text-slate-400 hover:text-white'}`}>{label}</button>
                                     ))}
                                 </nav>
@@ -10349,16 +10660,24 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                     )}
                                     {isAdminUser && settingsTab === 'history' && (
                                         <div className="space-y-4">
-                                            <div><h3 className="font-bold text-white">Change History</h3><p className="text-xs text-slate-400 mt-1">New saved changes appear here with the person, time, and before/after values. Earlier changes cannot be reconstructed.</p></div>
+                                            <div><h3 className="font-bold text-white">Activity History</h3><p className="text-sm text-slate-400 mt-1">See who did what, when it happened, and what changed. Open an entry for all its actions.</p></div>
                                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                                                <label className="text-xs font-bold text-slate-300">Search<input type="search" value={auditFilters.search} onChange={event => setAuditFilters({ ...auditFilters, search: event.target.value })} placeholder="Name, field, or value" className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-sm font-normal" /></label>
+                                                <label className="text-xs font-bold text-slate-300">Search<input type="search" value={auditFilters.search} onChange={event => setAuditFilters({ ...auditFilters, search: event.target.value })} placeholder="Name, route, message, or action" className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-sm font-normal" /></label>
                                                 <label className="text-xs font-bold text-slate-300">User<select value={auditFilters.user} onChange={event => setAuditFilters({ ...auditFilters, user: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-sm font-normal"><option value="">All users</option>{[...new Map(auditEvents.map(item => [item.actorUid, item.actorName])).entries()].map(([uid, name]) => <option key={uid} value={uid}>{name}</option>)}</select></label>
                                                 <label className="text-xs font-bold text-slate-300">Section<select value={auditFilters.section} onChange={event => setAuditFilters({ ...auditFilters, section: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-sm font-normal"><option value="">All sections</option>{[...new Set(auditEvents.map(item => item.section))].sort().map(section => <option key={section} value={section}>{section}</option>)}</select></label>
                                                 <label className="text-xs font-bold text-slate-300">From<input type="date" value={auditFilters.from} onChange={event => setAuditFilters({ ...auditFilters, from: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-sm font-normal" /></label>
                                                 <label className="text-xs font-bold text-slate-300">To<input type="date" value={auditFilters.to} onChange={event => setAuditFilters({ ...auditFilters, to: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-sm font-normal" /></label>
                                             </div>
                                             <div className="flex items-center justify-between gap-3 text-xs text-slate-400"><span>{filteredAuditEvents.length} matching changes</span><button type="button" onClick={() => setAuditFilters({ search: '', user: '', section: '', from: '', to: '' })} className="font-bold text-indigo-200">Clear filters</button></div>
-                                            {auditLoading ? <div className="flex gap-2 items-center p-4 text-sm text-slate-400"><Loader2 className="w-4 h-4 animate-spin" />Loading changes…</div> : !filteredAuditEvents.length ? <div className="rounded-xl border border-slate-700 p-6 text-sm text-slate-400">No matching changes. New saved edits will appear here.</div> : filteredAuditEvents.slice(0, auditVisibleCount).map(event => <details key={event.id} className="rounded-xl border border-slate-700 bg-slate-800/30 overflow-hidden"><summary className="cursor-pointer p-4 text-sm text-slate-200"><span className="font-bold">{event.actorName}</span> · {event.section} · <span className="break-all">{event.recordId}</span><span className="block text-xs text-slate-400 mt-1">{new Date(event.timestamp).toLocaleString('en-US', { timeZone: 'America/Chicago' })} Central · {event.operation} · {event.summary}</span></summary><div className="overflow-x-auto border-t border-slate-700"><table className="w-full min-w-[520px] text-xs text-slate-300"><thead><tr className="bg-slate-950/50 text-left"><th className="p-3">Field</th><th className="p-3">Before</th><th className="p-3">After</th></tr></thead><tbody>{(event.changes || []).map((change, index) => <tr key={index} className="border-t border-slate-700/50 align-top"><td className="p-3 break-all max-w-[240px]">{change.field}</td><td className="p-3 whitespace-pre-wrap break-words max-w-[300px]">{change.before}</td><td className="p-3 whitespace-pre-wrap break-words max-w-[300px]">{change.after}</td></tr>)}</tbody></table></div>{event.changeCount > (event.changes || []).length && <p className="text-xs text-slate-400 p-3">Showing the first {event.changes.length} fields of {event.changeCount}. Large values are shortened in history.</p>}</details>)}
+                                            {auditLoading ? <div className="flex gap-2 items-center p-4 text-sm text-slate-400"><Loader2 className="w-4 h-4 animate-spin" />Loading activity…</div> : !filteredAuditEvents.length ? <div className="rounded-xl border border-slate-700 p-6 text-sm text-slate-400">No matching activity. New saved actions will appear here.</div> : filteredAuditEvents.slice(0, auditVisibleCount).map(event => <details data-activity-history-entry key={event.id} className="rounded-xl border border-slate-700 bg-slate-800/30 overflow-hidden">
+                                                <summary className="cursor-pointer p-4 text-sm text-slate-200 break-words">
+                                                    <span className="font-semibold text-white">{event.actorName || 'A team member'}</span>{' '}{event.lines[0]}
+                                                    <span className="block text-xs text-slate-400 mt-2">{event.context} · {Number.isFinite(Date.parse(event.timestamp)) ? new Date(event.timestamp).toLocaleString('en-US', {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'})+' Central' : 'Time not recorded'}</span>
+                                                    <span className="block text-xs text-indigo-300 mt-2">{event.lines.length > 1 ? `${event.lines.length - 1} more action${event.lines.length > 2 ? 's' : ''} · View details` : 'View details'}</span>
+                                                </summary>
+                                                <ul className="border-t border-slate-700 divide-y divide-slate-700/50 bg-slate-950/30">{event.lines.map((line,index) => <li key={index} className="px-4 py-3 text-sm text-slate-200 whitespace-pre-wrap break-words"><span className="font-semibold text-white">{event.actorName || 'A team member'}</span>{' '}{line}</li>)}</ul>
+                                                {/^\d+ fields? changed$/.test(String(event.summary || '')) && event.changeCount > (event.changes || []).length && <p className="text-xs text-slate-400 p-3">This older entry saved only part of a large update. Some details were not recorded.</p>}
+                                            </details>)}
                                             {filteredAuditEvents.length > auditVisibleCount && <button type="button" onClick={() => setAuditVisibleCount(value => value + 50)} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">Show more changes</button>}
                                         </div>
                                     )}
