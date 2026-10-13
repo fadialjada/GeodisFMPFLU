@@ -22,7 +22,7 @@
 
     <!-- React and Module Import Map -->
     <script type="importmap">
-    {"imports": {"react":"https://esm.sh/react@18.2.0","react-dom/client":"https://esm.sh/react-dom@18.2.0/client","lucide-react":"https://esm.sh/lucide-react@0.292.0?external=react","firebase/app":"https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js","firebase/auth":"https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js","firebase/firestore":"https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+    {"imports": {"react":"https://esm.sh/react@18.2.0","react-dom":"https://esm.sh/react-dom@18.2.0?external=react","react-dom/client":"https://esm.sh/react-dom@18.2.0/client","lucide-react":"https://esm.sh/lucide-react@0.292.0?external=react","firebase/app":"https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js","firebase/auth":"https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js","firebase/firestore":"https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
       }
     }
     </script>
@@ -32,6 +32,36 @@
 
     <style>
         /* Custom scrollbar for a cleaner dashboard look */
+        .route-name-trigger { font: inherit; font-weight: 500; color: #e7edf6; border: 0; padding: 0; margin: 0; background: transparent; cursor: help; text-decoration: none; }
+        .route-name-trigger:hover { color: #bdc9e4; }
+        .route-name-trigger:focus-visible { outline: 2px solid #9cafda; outline-offset: 3px; border-radius: 2px; }
+        .route-name-popup { position: fixed; z-index: 400; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; background: #17202c; color: #e7edf6; border: 1px solid #5a6880; border-radius: 12px; box-shadow: 0 14px 28px rgba(0,0,0,.35); padding: 16px; font: 13px/1.5 Arial, Helvetica, sans-serif; text-align: left; }
+        .route-name-popup * { box-sizing: border-box; }
+        .route-name-popup .route-name-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+        .route-name-popup h3 { font-size: 15px; font-weight: 700; margin: 2px 0 0; overflow-wrap: anywhere; }
+        .route-name-eyebrow { font-size: 11px; color: #a4afc1; display: block; }
+        .route-name-close { display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #a4afc1; background: transparent; border: 0; padding: 4px; cursor: pointer; }
+        .route-name-close:focus-visible { outline: 2px solid #9cafda; outline-offset: 2px; border-radius: 3px; }
+        .route-name-popup svg { width: 16px; height: 16px; flex-shrink: 0; }
+        .route-name-owner { display: flex; flex-direction: column; align-items: center; gap: 1px; margin: 16px 0 0; }
+        .route-name-owner span { font-size: 11px; color: #a4afc1; }
+        .route-name-owner strong { font-size: 14px; color: #bdc9e4; text-align: center; overflow-wrap: anywhere; }
+        .route-name-trunk { height: 14px; width: 1px; background: #465269; margin: 5px auto 0; }
+        .route-name-branches { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; position: relative; padding-top: 13px; }
+        .route-name-branches::before { content: ''; position: absolute; top: 0; left: 23%; right: 23%; height: 1px; background: #465269; }
+        .route-name-branch { position: relative; min-width: 0; }
+        .route-name-branch::before { content: ''; position: absolute; top: -13px; left: 50%; width: 1px; height: 13px; background: #465269; }
+        .route-name-branch h4 { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; font-weight: 700; margin: 0 0 9px; color: #a4afc1; }
+        .route-name-branch ul { list-style: none; margin: 0; padding: 0 0 0 13px; border-left: 1px solid #465269; }
+        .route-name-branch li { position: relative; font-size: 12px; padding: 3px 0 3px 3px; overflow-wrap: anywhere; }
+        .route-name-branch li::before { content: ''; position: absolute; left: -13px; top: 12px; width: 9px; height: 1px; background: #465269; }
+        .route-name-empty { font-size: 12px; color: #a4afc1; margin: 0; overflow-wrap: anywhere; }
+        .route-name-popup .route-name-footer { border-top: 1px solid #465269; padding-top: 10px; margin-top: 13px; font-size: 11px; color: #a4afc1; }
+        .route-name-contact { margin: 15px 0 0; }
+        .route-name-contact > div { display: grid; grid-template-columns: 94px minmax(0,1fr); gap: 8px; align-items: start; padding: 9px 0; border-top: 1px solid #465269; }
+        .route-name-contact dt { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #a4afc1; }
+        .route-name-contact dd { margin: 0; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+        @media(pointer: coarse) { .route-name-close { min-width: 44px; min-height: 44px; } }
         html {
             background: #101722 !important;
         }
@@ -1269,6 +1299,7 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
         import { createRoot } from 'react-dom/client';
+        import { createPortal } from 'react-dom';
         import { initializeApp, deleteApp } from 'firebase/app';
         import { getAuth, initializeAuth, inMemoryPersistence, validatePassword, createUserWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
         import { getFirestore, doc, setDoc as firebaseSetDoc, getDoc, getDocs, onSnapshot, collection, query, where, deleteDoc as firebaseDeleteDoc, runTransaction as firebaseRunTransaction, arrayUnion, serverTimestamp } from 'firebase/firestore';
@@ -1279,7 +1310,7 @@
             Table as TableIcon, Trash2, Route, Settings, ClipboardPaste, Award, DollarSign,
             PlusCircle, X, Loader2, ActivitySquare, MessageSquare, User, Share2,
             FileText, History, Maximize, Minimize, Bell, ThumbsUp, Smile, Search, ClipboardList,
-            Heart, Coffee, PartyPopper, Hand, Moon, Sparkles, Pizza, Cookie, Mic, Paperclip, MoreHorizontal
+            Heart, Coffee, PartyPopper, Hand, Moon, Sparkles, Pizza, Cookie, Mic, Paperclip, MoreHorizontal, Phone, Building2
         } from 'lucide-react';
 
         let firebaseConfig = {
@@ -4801,6 +4832,75 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
     </div>;
 };
 
+        const getRouteNameDetails = (col, value, lists = {}, row = {}) => {
+            const name=String(value || '').trim();
+            if (!name || !['contractor','driver','helper'].includes(col?.key)) return null;
+            const contractors=lists.contractors || [];
+            if (col.key==='contractor') {
+                const company=contractors.find(item=>normalizeContractorNameKey(item.name)===normalizeContractorNameKey(name));
+                const members=role=>company?.id===undefined || company?.id===null ? [] : sortMasterPeople((lists[role] || []).filter(person=>String(person.contractorId || '')===String(company.id)));
+                return {type:'contractor',name:company?.name || name,owner:String(company?.owner || '').trim() || 'Owner not added',drivers:members('drivers'),helpers:members('helpers'),found:Boolean(company)};
+            }
+            const person=(lists[col.key==='driver'?'drivers':'helpers'] || []).find(item=>normalizeAssignmentName(item.name).toLowerCase()===normalizeAssignmentName(name).toLowerCase());
+            const savedCompany=person?.contractorId ? masterPersonContractorName(person,contractors) : '';
+            const routeCompany=String(row.contractor || '').trim();
+            return {type:'person',role:col.key==='driver'?'Driver':'Helper',name:person?.name || name,phone:String(person?.phone || '').trim() || 'Phone not added',contractor:savedCompany || routeCompany || 'Not assigned',contractorLabel:!savedCompany && routeCompany?'Route contractor':'Contractor'};
+        };
+        const positionRouteNamePopup = (anchor, viewport, size) => {
+            const margin=12,width=Math.min(size.width,Math.max(1,viewport.width-margin*2)),maxHeight=Math.max(1,viewport.height-margin*2),height=Math.min(size.height,maxHeight);
+            const left=Math.max(margin,Math.min(anchor.left+anchor.width/2-width/2,viewport.width-width-margin));
+            const preferredTop=anchor.bottom+8+height<=viewport.height-margin ? anchor.bottom+8 : anchor.top-height-8;
+            return {left,top:Math.max(margin,Math.min(preferredTop,viewport.height-height-margin)),width,maxHeight};
+        };
+        const RouteNameDetails = ({col,value,masterLists,row}) => {
+            const details=useMemo(()=>getRouteNameDetails(col,value,masterLists,row),[col.key,value,masterLists,row?.contractor]);
+            const [open,setOpen]=useState(false),[position,setPosition]=useState(null);
+            const [popupId]=useState(()=>`route-name-${crypto.randomUUID()}`);
+            const triggerRef=useRef(null),popupRef=useRef(null),timerRef=useRef(null),hoverTimerRef=useRef(null),skipFocusRef=useRef(false);
+            const cancelHover=()=>{if(hoverTimerRef.current!==null){clearTimeout(hoverTimerRef.current);hoverTimerRef.current=null;}};
+            const cancelClose=()=>{if(timerRef.current!==null){clearTimeout(timerRef.current);timerRef.current=null;}};
+            const close=()=>{cancelHover();cancelClose();setOpen(false);setPosition(null);};
+            const place=()=>{
+                const anchor=triggerRef.current?.getBoundingClientRect();if(!anchor)return;
+                const measured=popupRef.current?.getBoundingClientRect();
+                const next=positionRouteNamePopup(anchor,{width:window.innerWidth,height:window.innerHeight},{width:details?.type==='contractor'?450:330,height:measured?.height || (details?.type==='contractor'?290:180)});
+                setPosition(previous=>sameSavedValue(previous,next)?previous:next);
+            };
+            const show=()=>{if(!details)return;cancelHover();cancelClose();document.dispatchEvent(new CustomEvent('route-name-details-open',{detail:popupId}));place();setOpen(true);};
+            const scheduleHover=event=>{cancelHover();cancelClose();if(open || event.pointerType==='touch' || !details)return;hoverTimerRef.current=setTimeout(()=>{hoverTimerRef.current=null;if(triggerRef.current?.matches(':hover'))show();},1000);};
+            const scheduleClose=()=>{cancelHover();cancelClose();timerRef.current=setTimeout(()=>{timerRef.current=null;if(!popupRef.current?.contains(document.activeElement) && document.activeElement!==triggerRef.current){setOpen(false);setPosition(null);}},220);};
+            const closeAndFocus=()=>{close();if(document.activeElement!==triggerRef.current){skipFocusRef.current=true;triggerRef.current?.focus();}};
+            useLayoutEffect(()=>{if(open && details)place();},[open,details]);
+            useEffect(()=>{
+                if(!open)return;
+                const outside=event=>{if(!triggerRef.current?.contains(event.target) && !popupRef.current?.contains(event.target))close();};
+                const key=event=>{if(event.key==='Escape'){event.preventDefault();closeAndFocus();}};
+                const scroll=event=>{if(!popupRef.current?.contains(event.target))close();};
+                const other=event=>{if(event.detail!==popupId)close();};
+                document.addEventListener('pointerdown',outside);document.addEventListener('keydown',key);document.addEventListener('route-name-details-open',other);
+                window.addEventListener('resize',place);window.addEventListener('scroll',scroll,true);
+                return ()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',key);document.removeEventListener('route-name-details-open',other);window.removeEventListener('resize',place);window.removeEventListener('scroll',scroll,true);};
+            },[open,details,popupId]);
+            useEffect(()=>()=>{if(timerRef.current!==null)clearTimeout(timerRef.current);if(hoverTimerRef.current!==null)clearTimeout(hoverTimerRef.current);},[]);
+            useEffect(()=>()=>{cancelHover();},[details]);
+            if(!details)return <span className={`font-medium ${value?'text-slate-200':'text-slate-600'}`}>{value || '-'}</span>;
+            return <>
+                <button type="button" ref={triggerRef} className="route-name-trigger" aria-haspopup="dialog" aria-expanded={open} aria-controls={open?popupId:undefined}
+                    onPointerEnter={scheduleHover} onPointerLeave={scheduleClose} onFocus={()=>{if(skipFocusRef.current){skipFocusRef.current=false;return;}show();}}
+                    onBlur={event=>{if(!popupRef.current?.contains(event.relatedTarget))scheduleClose();}} onClick={show}>{value}</button>
+                {open && position && createPortal(<section id={popupId} ref={popupRef} className="route-name-popup" role="dialog" aria-modal="false" aria-labelledby={`${popupId}-heading`}
+                    data-dashboard-edit-ignore="true" data-panel-screenshot-ignore="true" style={position} onPointerEnter={cancelClose} onPointerLeave={scheduleClose}
+                    onFocusCapture={cancelClose} onBlurCapture={event=>{if(!popupRef.current?.contains(event.relatedTarget) && event.relatedTarget!==triggerRef.current)scheduleClose();}}>
+                    <header className="route-name-header"><div><span className="route-name-eyebrow">{details.type==='contractor'?'Contractor':details.role}</span><h3 id={`${popupId}-heading`}>{details.name}</h3></div><button type="button" className="route-name-close" aria-label="Close name details" onClick={closeAndFocus}><X /></button></header>
+                    {details.type==='contractor'?<>
+                        <div className="route-name-owner"><span>Owner</span><strong>{details.owner}</strong></div><div className="route-name-trunk" aria-hidden="true" />
+                        <div className="route-name-branches">{[['Drivers',details.drivers,Truck],['Helpers',details.helpers,Users]].map(([label,people,Icon])=><div className="route-name-branch" key={label}><h4><Icon aria-hidden="true" />{label}</h4>{people.length?<ul>{people.map(person=><li key={person.id}>{person.name}</li>)}</ul>:<p className="route-name-empty">No {label.toLowerCase()} linked yet.</p>}</div>)}</div>
+                        <footer className="route-name-footer">{details.found?'People assigned to this contractor in Master Lists':'Add this contractor in Master Lists to show its owner and team.'}</footer>
+                    </>:<dl className="route-name-contact"><div><dt><Phone aria-hidden="true" />Phone</dt><dd>{details.phone}</dd></div><div><dt><Building2 aria-hidden="true" />{details.contractorLabel}</dt><dd>{details.contractor}</dd></div></dl>}
+                </section>,document.body)}
+            </>;
+        };
+
         const RouteContractorCell = ({ isPreload, children }) => (
             <div className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap w-full">
                 {children}
@@ -7605,18 +7705,6 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             });
 
 
-            const getRoutePersonPhoneTitle = (col, name) => {
-                if (!name || (col.key !== 'driver' && col.key !== 'helper')) return undefined;
-                const targetName = normalizeAssignmentName(name).toLowerCase();
-                const person = (masterLists[col.list] || []).find(item => normalizeAssignmentName(item.name).toLowerCase() === targetName);
-                return person?.phone ? `${person.name}: ${person.phone}` : undefined;
-            };
-            const getRouteContractorOwnerTitle = (col, name) => {
-                if (!name || col.key !== 'contractor') return undefined;
-                const targetName = normalizeContractorNameKey(name);
-                const contractor = (masterLists.contractors || []).find(item => normalizeContractorNameKey(item.name) === targetName);
-                return contractor?.owner ? `${contractor.name} owner: ${contractor.owner}` : undefined;
-            };
             const getOnlineDisplayName = (onlineUser) => cleanFirstName((masterLists.nameOverrides || {})[onlineUser.uid] || onlineUser.name || 'Teammate');
             const getPresenceStatus = (onlineUser) => {
                 if (!onlineUser) return 'active';
@@ -9643,7 +9731,6 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                                 const val = row[col.key];
                                                                 const listItems = masterLists[col.list] || [];
                                                                 const isNotInList = val && !listItems.find(i => i.name === val);
-                                                                const hoverTitle = getRoutePersonPhoneTitle(col, val) || getRouteContractorOwnerTitle(col, val);
                                                                 const CellContent = col.key === 'contractor' ? RouteContractorCell : React.Fragment;
                                                                 const cellProps = col.key === 'contractor' ? { isPreload: row.preloadArrival?.date === activeDate } : {};
 
@@ -9663,7 +9750,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                                             ) : col.type === 'time' ? (
                                                                                 <span className="font-medium text-slate-300">{formatTime(val) || '-'}</span>
                                                                             ) : (
-                                                                                <span title={hoverTitle} className={`font-medium ${hoverTitle ? 'cursor-help decoration-dotted underline-offset-2 hover:underline' : ''} ${val ? 'text-slate-200' : 'text-slate-600'}`}>{val || '-'}</span>
+                                                                                <RouteNameDetails col={col} value={val} masterLists={masterLists} row={row} />
                                                                             )
                                                                         ) : (
                                                                             col.type === 'select' ? (
@@ -9990,7 +10077,6 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                                 <td className="px-3 py-2 text-[10px] font-bold text-indigo-400 whitespace-nowrap border-r border-slate-700/30">{h.date}</td>
                                                                 {ROUTE_COLUMNS.map((col, colIdx) => {
                                                                     const val = row[col.key];
-                                                                    const hoverTitle = getRoutePersonPhoneTitle(col, val) || getRouteContractorOwnerTitle(col, val);
                                                                     return (
                                                                         <td key={colIdx} className={`px-2 py-1 text-[10px] border-r border-slate-700/30 last:border-r-0 align-middle text-center ${col.noWrap ? 'whitespace-nowrap' : 'break-words'}`}>
                                                                             {col.type === 'checkbox' ? (
@@ -10000,7 +10086,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                                             ) : col.type === 'time' ? (
                                                                                 <span className="text-slate-300 font-medium">{formatTime(val) || '-'}</span>
                                                                             ) : (
-                                                                                <span title={hoverTitle} className={`${hoverTitle ? 'cursor-help decoration-dotted underline-offset-2 hover:underline' : ''} ${val ? 'text-slate-200 font-medium' : 'text-slate-600'}`}>{val || '-'}</span>
+                                                                                <RouteNameDetails col={col} value={val} masterLists={masterLists} row={row} />
                                                                             )}
                                                                         </td>
                                                                     );
