@@ -1328,6 +1328,41 @@
         .issue-review-panel input[type="date"] { color-scheme: dark; }
         @media(max-width:767px) { .issue-review-panel { padding:18px 16px; } .issue-review-panel input,.issue-review-panel select { font-size:16px; } }
         @media(pointer:coarse) { .issue-review-panel button,.issue-review-panel input,.issue-review-panel select { min-height:44px; } }
+        .truck-assignment-request-sheet { --tar-page:#141e2a; --tar-card:#222d3c; --tar-line:#53667f; --tar-text:#f1f5f9; --tar-muted:#b0bfd5; background:var(--tar-page); color:var(--tar-text); border:1px solid var(--tar-line); border-radius:18px; overflow:hidden; font-family:Arial,Helvetica,sans-serif; }
+        .truck-assignment-request-sheet * { box-sizing:border-box; }
+        .truck-assignment-request-sheet .tar-header { padding:20px 24px; background:var(--tar-card); border-bottom:1px solid var(--tar-line); }
+        .truck-assignment-request-sheet .tar-brand { display:flex; align-items:center; gap:9px; color:var(--tar-muted); font-size:12px; font-weight:700; letter-spacing:.5px; }
+        .truck-assignment-request-sheet .tar-brand svg { width:21px; height:21px; flex-shrink:0; }
+        .truck-assignment-request-sheet .tar-title-line { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; margin-top:13px; }
+        .truck-assignment-request-sheet .tar-title-line h2 { margin:0; font-size:23px; line-height:1.25; letter-spacing:-.4px; font-weight:700; }
+        .truck-assignment-request-sheet .tar-title-line time { color:var(--tar-muted); font-size:12px; }
+        .truck-assignment-request-sheet .tar-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding:20px 20px 16px; }
+        .truck-assignment-request-sheet .tar-contractor { min-width:0; background:var(--tar-card); border:1px solid var(--tar-line); border-radius:16px; padding:17px 17px 13px; }
+        .truck-assignment-request-sheet .tar-card-top { display:flex; align-items:flex-start; gap:10px; min-height:47px; }
+        .truck-assignment-request-sheet .tar-card-top > svg { width:28px; height:28px; margin-top:3px; flex-shrink:0; color:#dce3ed; }
+        .truck-assignment-request-sheet .tar-contractor h3 { font-size:15px; line-height:1.2; margin:0 0 5px; font-weight:700; overflow-wrap:anywhere; }
+        .truck-assignment-request-sheet .tar-owner { color:var(--tar-muted); font-size:11px; line-height:1.3; overflow-wrap:anywhere; }
+        .truck-assignment-request-sheet .tar-card-bottom { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:13px; padding-top:11px; border-top:1px solid #3a4a60; }
+        .truck-assignment-request-sheet .tar-count-label { color:var(--tar-muted); font-size:10px; font-weight:700; letter-spacing:1px; }
+        .truck-assignment-request-sheet .tar-count { display:flex; align-items:baseline; gap:7px; }
+        .truck-assignment-request-sheet .tar-count strong { font-size:29px; line-height:1; font-weight:700; font-variant-numeric:tabular-nums; }
+        .truck-assignment-request-sheet .tar-count span { color:var(--tar-muted); font-size:11px; }
+        .truck-assignment-request-sheet .tar-summary { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:0 20px 17px; padding:3px 2px; color:var(--tar-muted); font-size:12px; }
+        .truck-assignment-request-sheet .tar-summary strong { font-size:17px; color:var(--tar-text); margin-right:4px; }
+        .truck-assignment-request-sheet .tar-footer { display:flex; align-items:center; gap:13px; padding:20px 24px; background:var(--tar-card); border-top:1px solid var(--tar-line); }
+        .truck-assignment-request-sheet .tar-footer > svg { width:30px; height:30px; flex-shrink:0; color:#93a8cd; }
+        .truck-assignment-request-sheet .tar-footer strong { display:block; font-size:16px; line-height:1.3; }
+        .truck-assignment-request-sheet .tar-footer span { display:block; margin-top:5px; color:var(--tar-muted); font-size:12px; line-height:1.5; }
+        .truck-assignment-request-sheet .tar-empty { padding:28px 24px; color:var(--tar-muted); font-size:14px; }
+        @media(max-width:460px) {
+            .truck-assignment-request-sheet:not(.truck-assignment-request-export) .tar-header { padding:18px; }
+            .truck-assignment-request-sheet:not(.truck-assignment-request-export) .tar-title-line h2 { font-size:21px; }
+            .truck-assignment-request-sheet:not(.truck-assignment-request-export) .tar-grid { grid-template-columns:minmax(0,1fr); padding:16px; gap:10px; }
+            .truck-assignment-request-sheet:not(.truck-assignment-request-export) .tar-contractor { padding:15px; }
+            .truck-assignment-request-sheet:not(.truck-assignment-request-export) .tar-card-top { min-height:0; }
+            .truck-assignment-request-sheet:not(.truck-assignment-request-export) .tar-summary { margin:0 16px 16px; }
+            .truck-assignment-request-sheet:not(.truck-assignment-request-export) .tar-footer { padding:18px; align-items:flex-start; }
+        }
     </style>
     <script>
         (() => {
@@ -1376,7 +1411,7 @@
         import { createPortal } from 'react-dom';
         import { initializeApp, deleteApp } from 'firebase/app';
         import { getAuth, initializeAuth, inMemoryPersistence, validatePassword, createUserWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-        import { getFirestore, doc, setDoc as firebaseSetDoc, getDoc, getDocs, onSnapshot, collection, query, where, deleteDoc as firebaseDeleteDoc, runTransaction as firebaseRunTransaction, arrayUnion, serverTimestamp } from 'firebase/firestore';
+        import { getFirestore, doc, setDoc as firebaseSetDoc, getDoc, getDocs, onSnapshot, collection, query, where, orderBy, limit, deleteDoc as firebaseDeleteDoc, runTransaction as firebaseRunTransaction, arrayUnion, serverTimestamp } from 'firebase/firestore';
         import { 
             Truck, Package, Clock, CheckCircle2, AlertCircle, Navigation, ShieldCheck, 
             Calendar, LayoutDashboard, Info, Edit3, Save, Check, Users, UserCheck, 
@@ -1772,6 +1807,23 @@
                 });
             });
             return [...people];
+        };
+
+        const stableOfficeWarningValue = value => Array.isArray(value) ? value.map(stableOfficeWarningValue)
+            : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, stableOfficeWarningValue(value[key])])) : value;
+        const officeWarningScheduleSignature = schedule => JSON.stringify(stableOfficeWarningValue({ employees: schedule?.employees || [], afterHours: schedule?.afterHours || {} }));
+        const officeWarningDismissalStorageKey = uid => 'finalmile_office_conflict_dismissed_v1:' + uid;
+        const readDismissedOfficeWarnings = uid => {
+            if (!uid) return {};
+            try { const value = JSON.parse(localStorage.getItem(officeWarningDismissalStorageKey(uid)) || '{}'); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+            catch (error) { return {}; }
+        };
+        const getLocalOfficeWarningNotice = (context, uid, schedule, boundaries, dismissed = {}) => {
+            if (!uid || context?.uid !== uid || context.week !== boundaries.startStr || context.signature !== officeWarningScheduleSignature(schedule)) return null;
+            const warnings = calculateOfficeWarnings(schedule, boundaries.days);
+            if (!Object.keys(warnings.coverage).length && !Object.values(warnings.conflicts).some(items => items.length)) return null;
+            const key = uid + '|' + boundaries.startStr + '|' + JSON.stringify(stableOfficeWarningValue(warnings));
+            return dismissed[key] === true ? null : { key, warnings };
         };
 
         // Only local route controls create this context; shared snapshots never do.
@@ -3924,12 +3976,12 @@
             return {name, size:file.size, contentType};
         };
         const chatFilePath = (uid, messageId, fileId) => `artifacts/${appId}/public/data/teamChatFiles/${fileId}`;
-        const isChatAttachment = (attachment, messageId, uid) => Boolean(attachment && /^[A-Za-z0-9_-]{1,128}$/.test(attachment.id || '')
+        const isChatAttachment = (attachment, messageId, uid, conversationId = null) => Boolean(attachment && /^[A-Za-z0-9_-]{1,128}$/.test(attachment.id || '')
             && /^[A-Za-z0-9_-]{1,128}$/.test(messageId || '') && /^[A-Za-z0-9_-]{1,128}$/.test(uid || '')
             && attachment.name === chatFileName(attachment.name) && attachment.name.length > 0
             && Number.isInteger(attachment.size) && attachment.size > 0 && attachment.size <= CHAT_FILE_MAX_BYTES
             && attachment.contentType === chatFileType(attachment.name) && Boolean(attachment.contentType)
-            && attachment.path === chatFilePath(uid, messageId, attachment.id));
+            && attachment.path === (conversationId ? privateFilePath(conversationId, attachment.id) : chatFilePath(uid, messageId, attachment.id)));
         const downloadChatFile = (blob, name) => {
             const url = URL.createObjectURL(blob), link = document.createElement('a');
             link.href = url; link.download = chatFileName(name); document.body.appendChild(link); link.click(); link.remove();
@@ -3952,10 +4004,10 @@
             return new Blob([Uint8Array.from(decoded, character => character.charCodeAt(0))], {type:attachment.contentType});
         };
 
-        const ChatAttachmentCard = ({ attachment, messageId, uid, active, onPreview }) => {
+        const ChatAttachmentCard = ({ attachment, messageId, uid, active, onPreview, conversationId = null }) => {
             const [imageUrl, setImageUrl] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('');
             const cardRef = useRef(null), blobRef = useRef(null), aliveRef = useRef(true);
-            const valid = isChatAttachment(attachment, messageId, uid);
+            const valid = isChatAttachment(attachment, messageId, uid, conversationId);
             const kind = valid ? chatFilePreviewKind(attachment.contentType) : 'document';
             useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
             const readFile = async () => {
@@ -4321,7 +4373,7 @@
                 <div className="mt-3 flex flex-wrap justify-end gap-2"><button type="button" disabled={busy} onClick={onCancel} className="rounded-lg border border-slate-600 px-3 py-2 text-slate-300 hover:bg-slate-800 disabled:opacity-40">Cancel</button><button type="button" disabled={busy} onClick={onConfirm} className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-40">{busy?'Clearing…':'Clear for everyone'}</button></div>
             </section>;
         };
-        const TeamChatComposer = ({ open, canSend, sendMessage, publishTyping, mentionUsers = [] }) => {
+        const TeamChatComposer = ({ open, canSend, sendMessage, publishTyping, mentionUsers = [], messageLabel = "Team message", placeholder = "Write a team message... @ to mention" }) => {
             const [draft, setDraft] = useState('');
             const [sending, setSending] = useState(false);
             const [emojiOpen, setEmojiOpen] = useState(false);
@@ -4427,7 +4479,7 @@
                     <button ref={emojiRef} type="button" disabled={!canSend || sending} aria-label="Add emoji" title="Emojis and stickers" aria-expanded={emojiOpen} aria-controls="team-chat-emoji-picker" onClick={() => setEmojiOpen(value => !value)} className={`flex h-10 w-9 shrink-0 items-center justify-center rounded-lg transition hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300 ${emojiOpen ? 'bg-slate-700 text-white' : 'text-slate-300 hover:text-white'}`}><Smile className="h-5 w-5" /></button>
                     <input ref={fileInputRef} type="file" accept={CHAT_FILE_ACCEPT} onChange={chooseFile} className="hidden" aria-label="Choose chat attachment" tabIndex={-1} />
                     <button type="button" disabled={!canSend || sending} aria-label="Attach file" title="Attach a file up to 500 KB" onClick={() => fileInputRef.current?.click()} className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-40"><Paperclip className="h-5 w-5" /></button>
-                    <textarea ref={inputRef} aria-label="Team message" aria-autocomplete="list" aria-controls={mentionMatches.length ? 'team-chat-mention-picker' : undefined} aria-activedescendant={mentionMatches.length ? `mention-option-${mentionIndex}` : undefined} disabled={!canSend || sending || Boolean(selectedSticker)} value={selectedSticker ? '' : draft} onChange={event => { changeDraft(event.target.value); setMentionToken(getChatMentionToken(event.target.value, event.target.selectionStart)); setMentionIndex(0); setEmojiOpen(false); }} onClick={event => { setMentionToken(getChatMentionToken(draft, event.target.selectionStart)); setMentionIndex(0); }} onBlur={stopTyping} onKeyDown={event => {
+                    <textarea ref={inputRef} aria-label={messageLabel} aria-autocomplete="list" aria-controls={mentionMatches.length ? 'team-chat-mention-picker' : undefined} aria-activedescendant={mentionMatches.length ? `mention-option-${mentionIndex}` : undefined} disabled={!canSend || sending || Boolean(selectedSticker)} value={selectedSticker ? '' : draft} onChange={event => { changeDraft(event.target.value); setMentionToken(getChatMentionToken(event.target.value, event.target.selectionStart)); setMentionIndex(0); setEmojiOpen(false); }} onClick={event => { setMentionToken(getChatMentionToken(draft, event.target.selectionStart)); setMentionIndex(0); }} onBlur={stopTyping} onKeyDown={event => {
                         if (event.nativeEvent.isComposing) return;
                         if (mentionMatches.length && ['ArrowDown','ArrowUp','Enter','Tab'].includes(event.key) && !event.shiftKey) {
                             event.preventDefault();
@@ -4435,9 +4487,146 @@
                             else selectMention(mentionMatches[mentionIndex] || mentionMatches[0]);
                         } else if (event.key === 'Escape') setMentionToken(null);
                         else if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); }
-                    }} rows="2" placeholder={selectedSticker ? 'Sticker ready to send' : 'Write a team message... @ to mention'} className="min-h-[42px] min-w-0 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500 disabled:opacity-60" />
+                    }} rows="2" placeholder={selectedSticker ? 'Sticker ready to send' : placeholder} className="min-h-[42px] min-w-0 flex-1 resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-indigo-500 disabled:opacity-60" />
                     <button type="button" onClick={send} disabled={!canSend || sending || (!draft.trim() && !selectedSticker && !selectedFile)} className="team-chat-send rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">{sending ? 'Sending…' : 'Send'}</button>
                 </div>
+            </div>;
+        };
+
+        // Private conversations never use the shared chat, mentions, or public audit writer.
+        const privateConversationId = (a, b) => {
+            if (a === b || ![a,b].every(uid => /^[A-Za-z0-9_-]{1,128}$/.test(uid || '') && !uid.includes('__'))) throw new Error('Choose a teammate.');
+            return [a,b].sort().join('__');
+        };
+        const privateChatPath = id => `artifacts/${appId}/public/data/privateChats/${id}`;
+        const privateFilePath = (id, fileId) => `${privateChatPath(id)}/files/${fileId}`;
+        const sendPrivateChatRecord = async (database, current, recipient, text, file = null) => {
+            const id = privateConversationId(current.uid, recipient.uid), trimmed = String(text || '').trim();
+            if ((!trimmed && !file) || trimmed.length > 5000) throw new Error('Write a message up to 5,000 characters.');
+            const message = {id:crypto.randomUUID(), text:trimmed, author:current.name, authorUid:current.uid, timestamp:new Date().toISOString()};
+            let fileRecord = null;
+            if (file) {
+                const metadata = validateChatFile(file), fileId = crypto.randomUUID(), base64 = await encodeChatFile(file);
+                if (base64.length !== 4 * Math.ceil(metadata.size / 3)) throw new Error('This file could not be read. Choose it again.');
+                message.attachment = {id:fileId, ...metadata, path:privateFilePath(id,fileId)};
+                fileRecord = {...metadata, ownerUid:current.uid, messageId:message.id, base64, createdAt:message.timestamp};
+            }
+            if (auth.currentUser?.uid !== current.uid) throw new Error('Sign in again before sending.');
+            const ref = doc(database,...privateChatPath(id).split('/'));
+            await firebaseRunTransaction(database, async transaction => {
+                if (auth.currentUser?.uid !== current.uid) throw new Error('Your account changed. Sign in again.');
+                const saved = await transaction.get(ref), before = saved.exists() ? saved.data() : null;
+                const participants = [current.uid,recipient.uid].sort();
+                if (before && JSON.stringify(before.participantUids) !== JSON.stringify(participants)) throw new Error('Conversation unavailable.');
+                message.sequence = (before?.sequence || 0) + 1;
+                const incomingSequence = {...(before?.incomingSequence || Object.fromEntries(participants.map(uid=>[uid,0]))), [recipient.uid]:message.sequence};
+                const readSequence = {...(before?.readSequence || Object.fromEntries(participants.map(uid=>[uid,0]))), [current.uid]:message.sequence};
+                transaction.set(ref,{participantUids:participants, names:{...(before?.names || {}),[current.uid]:current.name,[recipient.uid]:recipient.name},
+                    createdAt:before?.createdAt || message.timestamp, updatedAt:message.timestamp, lastMessageId:message.id,
+                    lastAuthorUid:current.uid, sequence:message.sequence, incomingSequence, readSequence});
+                transaction.set(doc(database,...privateChatPath(id).split('/'),'messages',message.id),message);
+                if (fileRecord) transaction.set(doc(database,...message.attachment.path.split('/')),fileRecord);
+            });
+            return message;
+        };
+        const PrivateChatPanel = ({user, users, currentName, active, canSend, soundReady, onUnread, onPreview}) => {
+            const [conversations,setConversations] = useState([]), [recipientUid,setRecipientUid] = useState('');
+            const [messages,setMessages] = useState([]), [loaded,setLoaded] = useState(false), [error,setError] = useState('');
+            const [directoryReady,setDirectoryReady] = useState(false), [busy,setBusy] = useState(false), [messageLimit,setMessageLimit] = useState(150);
+            const [peerTyping,setPeerTyping] = useState(null), [clock,setClock] = useState(Date.now());
+            const [editing,setEditing] = useState(null), [editText,setEditText] = useState('');
+            const uid = user?.uid, cid = recipientUid && uid ? privateConversationId(uid,recipientUid) : '';
+            const conversation = conversations.find(item=>item.id===cid), recipient = users.find(person=>person.uid===recipientUid);
+            const endRef = useRef(null), knownRef = useRef(null), soundRef = useRef(soundReady), readPending = useRef(''), typingRef = useRef(0);
+            soundRef.current = soundReady;
+            useEffect(()=>{
+                if (!uid || !canSend || !db) {onUnread(0);return;}
+                return onSnapshot(query(collection(db,'artifacts',appId,'public','data','privateChats'),where('participantUids','array-contains',uid)),snapshot=>{
+                    const rows=[];snapshot.forEach(item=>rows.push({id:item.id,...item.data()}));
+                    const incoming = rows.some(item=>item.incomingSequence?.[uid] > (knownRef.current?.get(item.id) || 0));
+                    if (knownRef.current && incoming && soundRef.current) playNotificationChime(['E5','B5'],'chat');
+                    knownRef.current=new Map(rows.map(item=>[item.id,item.incomingSequence?.[uid] || 0]));
+                    setConversations(rows);setDirectoryReady(true);setError(previous=>previous.startsWith('Private Chat is not available yet.')?'':previous);
+                    onUnread(rows.filter(item=>(item.incomingSequence?.[uid] || 0)>(item.readSequence?.[uid] || 0)).length);
+                },()=>{setDirectoryReady(false);onUnread(0);setError('Private Chat is not available yet. Its Firebase privacy rules need to be published, or your chat access needs to be checked.');});
+            },[uid,canSend,onUnread]);
+            useEffect(()=>{
+                setMessages([]);setLoaded(false);setEditing(null);setMessageLimit(150);readPending.current='';setError(previous=>previous.startsWith('Private Chat is not available yet.')?previous:'');
+            },[cid]);
+            useEffect(()=>{
+                if (!active || !cid || !directoryReady || !recipient) return;
+                return onSnapshot(query(collection(db,...privateChatPath(cid).split('/'),'messages'),orderBy('sequence','desc'),limit(messageLimit)),{includeMetadataChanges:true},snapshot=>{
+                    const rows=[];snapshot.forEach(item=>rows.push({...item.data(),id:item.id}));
+                    rows.sort((a,b)=>a.sequence-b.sequence);setMessages(rows);setLoaded(!snapshot.metadata?.fromCache && !snapshot.metadata?.hasPendingWrites);setError(previous=>previous.startsWith('This conversation could not load.')?'':previous);
+                },()=>{setLoaded(false);setMessages([]);setError('This conversation could not load. Check your connection or chat permissions.');});
+            },[active,cid,directoryReady,Boolean(recipient),messageLimit]);
+            useEffect(()=>{
+                if (!active || !cid || !conversation) {setPeerTyping(null);return;}
+                const stop=onSnapshot(doc(db,...privateChatPath(cid).split('/'),'typing',recipientUid),snapshot=>setPeerTyping(snapshot.exists()?snapshot.data():null),()=>setPeerTyping(null));
+                const timer=setInterval(()=>setClock(Date.now()),1000);return()=>{stop();clearInterval(timer);};
+            },[active,cid,Boolean(conversation),recipientUid]);
+            const publishTyping = useCallback(value=>{
+                if (!cid || !canSend || !conversation || auth.currentUser?.uid!==uid) return;
+                const now=Date.now();if(value && now-typingRef.current<4000)return;typingRef.current=value?now:0;
+                firebaseSetDoc(doc(db,...privateChatPath(cid).split('/'),'typing',uid),{uid,name:currentName,typingUntil:value?now+8000:0}).catch(()=>{});
+            },[cid,canSend,Boolean(conversation),uid,currentName]);
+            useEffect(()=>{
+                if (!active || !loaded || !conversation || document.visibilityState!=='visible' || !messages.length) return;
+                const latest = messages.at(-1).sequence;
+                if (latest < (conversation.incomingSequence?.[uid] || 0) || (conversation.readSequence?.[uid] || 0)>=latest) return;
+                const marker=cid+':'+latest;if(readPending.current===marker)return;readPending.current=marker;
+                firebaseRunTransaction(db,async transaction=>{
+                    if(auth.currentUser?.uid!==uid)throw new Error('Account changed');
+                    const ref=doc(db,...privateChatPath(cid).split('/')),snapshot=await transaction.get(ref);
+                    if(!snapshot.exists())return;const before=snapshot.data();
+                    if(before.sequence!==latest)return;
+                    transaction.set(ref,{readSequence:{...before.readSequence,[uid]:latest}},{merge:true});
+                }).catch(()=>{readPending.current='';});
+            },[active,loaded,conversation,cid,uid,messages,clock]);
+            useEffect(()=>{if(active)endRef.current?.scrollIntoView({block:'nearest'});},[active,cid,messages.at(-1)?.id]);
+            const send = async (text,file) => {
+                if(!recipient || !canSend || busy || !directoryReady)return false;
+                setBusy(true);setError('');
+                try {await sendPrivateChatRecord(db,{uid,name:currentName},recipient,text,file);return true;}
+                catch(failure){setError(failure.code==='permission-denied'?'Message did not send. Check the published Private Chat rules and both users’ chat access.':failure.message || 'Message did not send. It is ready to retry.');return false;}
+                finally{setBusy(false);}
+            };
+            const saveEdit = async () => {
+                if(busy || !editing || !canSend)return;setBusy(true);setError('');
+                try {
+                    const ref=doc(db,...privateChatPath(cid).split('/'),'messages',editing);
+                    await firebaseRunTransaction(db,async transaction=>{
+                        if(auth.currentUser?.uid!==uid)throw new Error('Sign in again.');
+                        const snapshot=await transaction.get(ref),saved=snapshot.exists()?snapshot.data():null;
+                        if(saved?.authorUid!==uid)throw new Error('You can edit only your own messages.');
+                        const text=editText.trim();if((!text&&!saved.attachment)||text.length>5000)throw new Error('Write a message up to 5,000 characters.');
+                        transaction.set(ref,{text,editedAt:new Date().toISOString()},{merge:true});
+                    });setEditing(null);
+                }catch(failure){setError(failure.message || 'Your edit could not be saved.');}finally{setBusy(false);}
+            };
+            return <div style={{display:active?undefined:'none',minHeight:0,flex:1,flexDirection:'column'}} className={active?'flex min-h-0 flex-1 flex-col':''}>
+                <div className="border-b border-slate-800 bg-slate-900/50 px-4 py-3">
+                    <label className="block text-xs font-semibold text-slate-300">Chat with
+                        <select aria-label="Private chat teammate" value={recipientUid} disabled={busy||!canSend} onChange={event=>setRecipientUid(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100">
+                            <option value="">Choose a teammate</option>{users.map(person=>{const saved=conversations.find(item=>item.participantUids.includes(person.uid));const unread=(saved?.incomingSequence?.[uid]||0)>(saved?.readSequence?.[uid]||0);return <option key={person.uid} value={person.uid}>{person.name}{unread?' · New message':''}</option>;})}
+                        </select>
+                    </label><p className="mt-2 text-[11px] text-slate-400">Only you and the selected teammate can see this conversation.</p>
+                </div>
+                <div data-popover-scroll="true" className="team-chat-messages bg-slate-950/90"><div className="team-chat-conversation">
+                    {!recipient ? <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">Choose a teammate to start a private conversation.</div>
+                    : !loaded ? <div role="status" className="py-10 text-center text-xs text-slate-400">{error?'Conversation unavailable.':'Loading conversation…'}</div>
+                    : messages.length===0 ? <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">No private messages with {recipient.name} yet.</div> : <>
+                        {messages.length>=messageLimit&&<button type="button" onClick={()=>setMessageLimit(value=>value+150)} className="mx-auto text-xs text-slate-300 hover:text-white">Load earlier messages</button>}
+                        {messages.map(message=>{const mine=message.authorUid===uid;return <div key={message.id} data-private-chat-message data-chat-message-owner={mine?'self':'other'} className={`flex min-w-0 ${mine?'justify-end':'justify-start'}`}><div className={`team-chat-message group min-w-0 max-w-[84%] text-slate-100 ${mine?'text-right':'text-left'}`}>
+                            <div className={`mb-1.5 flex items-center gap-3 ${mine?'flex-row-reverse':''}`}><span className="text-xs font-semibold text-slate-300">{mine?'You':recipient.name}</span><span className="text-[11px] font-normal text-slate-500">{new Date(message.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</span>{mine&&!getTeamChatSticker(message.text)&&<button type="button" aria-label="Edit your private message" onClick={()=>{setEditing(message.id);setEditText(message.text);}} className="chat-message-edit text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100">Edit</button>}</div>
+                            {editing===message.id?<div><textarea aria-label="Edit private message" value={editText} disabled={busy} onChange={event=>setEditText(event.target.value)} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3"/><div className="mt-2 flex gap-3"><button type="button" onClick={saveEdit} disabled={busy} className="text-xs text-emerald-300">Save</button><button type="button" disabled={busy} onClick={()=>setEditing(null)} className="text-xs text-slate-300">Cancel</button></div></div>:<><ChatMessageText text={message.text}/>{message.attachment&&<ChatAttachmentCard conversationId={cid} attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={active} onPreview={onPreview}/>} {message.editedAt&&<span className="text-[9px] text-slate-400">Edited</span>}</>}
+                            {mine&&(conversation?.readSequence?.[recipientUid]||0)>=message.sequence&&<div className="mt-1.5 text-[11px] font-normal text-slate-400">Seen by {recipient.name}</div>}
+                        </div></div>;})}</>}
+                    <div ref={endRef}/>
+                </div></div>
+                {error&&<div role="alert" className="border-t border-rose-900/40 bg-rose-950/30 px-4 py-2 text-[11px] font-semibold text-rose-300">{error}</div>}
+                {peerTyping?.typingUntil>clock&&<div role="status" className="px-4 py-2 text-[11px] text-slate-400">{recipient?.name} is typing…</div>}
+                <TeamChatComposer key={cid||'choose'} messageLabel="Private message" placeholder={recipient?'Write a private message…':'Choose a teammate first'} open={active} canSend={canSend&&directoryReady&&Boolean(recipient)&&loaded&&!busy} sendMessage={send} publishTyping={publishTyping}/>
             </div>;
         };
 
@@ -5277,6 +5466,44 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             </section>;
         };
 
+        const getTruckAssignmentRequestRows = contractors => (Array.isArray(contractors) ? contractors : []).flatMap(item => {
+            if (!item || typeof item !== 'object') return [];
+            const count = Number(item.planned), trucks = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+            return trucks > 0 ? [{ id: item.id, name: String(item.name || 'Unnamed contractor').trim(), owner: String(item.owner || '').trim(), trucks }] : [];
+        });
+        const isTruckAssignmentRequestDate = value => {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false;
+            const date = new Date(value + 'T12:00:00Z');
+            return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+        };
+        const getNextTruckAssignmentDate = () => {
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+            const date = new Date(today + 'T12:00:00Z');
+            date.setUTCDate(date.getUTCDate() + 1);
+            return date.toISOString().slice(0, 10);
+        };
+        const formatTruckAssignmentRequestDate = value => isTruckAssignmentRequestDate(value)
+            ? new Intl.DateTimeFormat('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric', timeZone:'UTC' }).format(new Date(value + 'T12:00:00Z'))
+            : 'Choose a delivery date';
+        const TruckAssignmentRequestSheet = ({ contractors, deliveryDate, sheetRef }) => {
+            const rows = getTruckAssignmentRequestRows(contractors);
+            const total = rows.reduce((sum, row) => sum + row.trucks, 0);
+            return <article ref={sheetRef} data-truck-assignment-request="true" className="truck-assignment-request-sheet" aria-label="Truck assignment request">
+                <header className="tar-header">
+                    <div className="tar-brand"><Truck aria-hidden="true" /><span>Final Mile Operations</span></div>
+                    <div className="tar-title-line"><h2>{deliveryDate === getNextTruckAssignmentDate() ? 'Tomorrow’s Truck Assignments' : 'Truck Assignments'}</h2><time dateTime={isTruckAssignmentRequestDate(deliveryDate) ? deliveryDate : undefined}>{formatTruckAssignmentRequestDate(deliveryDate)}</time></div>
+                </header>
+                {rows.length ? <>
+                    <div className="tar-grid">{rows.map((row, index) => <section className="tar-contractor" key={row.id || index} aria-label={`${row.name}: ${row.trucks} assigned ${row.trucks === 1 ? 'truck' : 'trucks'}`}>
+                        <div className="tar-card-top"><Truck aria-hidden="true" /><div><h3>{row.name}</h3>{row.owner && <div className="tar-owner">Owner: {row.owner}</div>}</div></div>
+                        <div className="tar-card-bottom"><span className="tar-count-label">ASSIGNED</span><div className="tar-count"><strong>{row.trucks}</strong><span>{row.trucks === 1 ? 'truck' : 'trucks'}</span></div></div>
+                    </section>)}</div>
+                    <div className="tar-summary"><span><strong>{total}</strong> {total === 1 ? 'truck assigned' : 'trucks assigned'}</span><span>{rows.length} {rows.length === 1 ? 'contractor' : 'contractors'}</span></div>
+                    <footer className="tar-footer"><Users aria-hidden="true" /><div><strong>Please send your driver and helper names.</strong><span>Send one driver and one helper for each truck assigned to your company.</span></div></footer>
+                </> : <p className="tar-empty">No trucks are currently planned. Add the planned truck counts in Contractors before downloading this request.</p>}
+            </article>;
+        };
+
         const App = () => {
             const [user, setUser] = useState(null);
             const isAdminUser = isOwnerAccount(user);
@@ -5399,7 +5626,10 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             useEffect(()=>{setShiftNotesView('notes');setIssueReviews({});setIssueReviewsLoaded(false);setIssueReviewError('');setSavingIssueReviewKey('');},[user?.uid]);
             const [shiftReplyDrafts, setShiftReplyDrafts] = useState({});
             const [savingShiftReplyId, setSavingShiftReplyId] = useState(null);
-            const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
+            const [isChatPanelOpen, setIsTeamChatOpen] = useState(false);
+            const [chatTab,setChatTab] = useState('team'), [privateChatUnread,setPrivateChatUnread] = useState(0);
+            const isTeamChatOpen = isChatPanelOpen && chatTab === 'team';
+            useEffect(()=>{setPrivateChatUnread(0);setChatTab('team');setChatFilePreview(null);},[user?.uid]);
             const [chatFilePreview, setChatFilePreview] = useState(null);
             const [teamChatMessages, setTeamChatMessages] = useState([]);
             const [teamChatTypingSessions, setTeamChatTypingSessions] = useState([]);
@@ -5442,6 +5672,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const parkingScreenshotRef = useRef(null);
             const preloadScreenshotRef = useRef(null);
             const masterScreenshotRef = useRef(null);
+            const truckAssignmentRequestRef = useRef(null), truckAssignmentRequestTriggerRef = useRef(null);
             const routesScreenshotRef = useRef(null);
             const morningReportScreenshotRef = useRef(null);
             const teamAssignmentScreenshotRef = useRef(null);
@@ -5497,7 +5728,20 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [officeActiveDate, setOfficeActiveDate] = useState(openDates[0]);
             const [officeData, setOfficeData] = useState(generateDefaultOfficeSchedule(getOfficeWeekBoundaries(openDates[0]).days));
             const [isOfficeOneTimeChange, setIsOfficeOneTimeChange] = useState(false);
-            const [dismissedOfficeWarningKey, setDismissedOfficeWarningKey] = useState('');
+            const [localOfficeWarningContext, setLocalOfficeWarningContext] = useState(null);
+            const [dismissedOfficeWarnings, setDismissedOfficeWarnings] = useState({});
+            useEffect(() => {
+                setLocalOfficeWarningContext(null);
+                setDismissedOfficeWarnings(readDismissedOfficeWarnings(user?.uid));
+            }, [user?.uid, officeActiveDate]);
+            const applyLocalOfficeScheduleChange = nextSchedule => {
+                if (!user?.uid || !isEditing || activeTab !== 'office' || !canEditSection('office')) return;
+                const signature = officeWarningScheduleSignature(nextSchedule);
+                if (signature === officeWarningScheduleSignature(officeData)) return;
+                officeDirtyRef.current = true;
+                setLocalOfficeWarningContext({ uid: user.uid, week: getOfficeWeekBoundaries(officeActiveDate).startStr, signature });
+                setOfficeData(nextSchedule);
+            };
 
             const [pasteFeedback, setPasteFeedback] = useState('');
             const [routePasteFeedback, setRoutePasteFeedback] = useState('');
@@ -5593,6 +5837,19 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const teamChatSoundSignature = useRef(null);
 
             const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
+            const [isTruckAssignmentRequestOpen, setIsTruckAssignmentRequestOpen] = useState(false);
+            const [truckAssignmentDeliveryDate, setTruckAssignmentDeliveryDate] = useState(getNextTruckAssignmentDate);
+            const closeTruckAssignmentRequest = () => {
+                if (isCapturing) return;
+                setIsTruckAssignmentRequestOpen(false);
+                truckAssignmentRequestTriggerRef.current?.focus();
+            };
+            useEffect(() => {
+                if (!isTruckAssignmentRequestOpen) return;
+                const onKeyDown = event => { if (event.key === 'Escape' && !isCapturing) { event.preventDefault(); closeTruckAssignmentRequest(); } };
+                document.addEventListener('keydown', onKeyDown);
+                return () => document.removeEventListener('keydown', onKeyDown);
+            }, [isTruckAssignmentRequestOpen, isCapturing]);
             const [masterActiveTab, setMasterActiveTab] = useState('contractors');
             const [masterSortBy, setMasterSortBy] = useState('name');
             const [isMasterEditing, setIsMasterEditing] = useState(false);
@@ -7160,8 +7417,9 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         const isPreloadTable = element.matches('[data-preload-screenshot-table="true"]');
                         const isMorningReport = element.matches('[data-morning-report-screenshot="true"]');
                         const isTeamAssignment = element.matches('[data-team-assignment-screenshot="true"]');
-                        const isReportPanel = isMorningReport || isTeamAssignment;
-                        const baseWidth = Math.ceil(isReportPanel ? Math.max(1100, element.getBoundingClientRect().width) : isMasterPanel
+                        const isTruckAssignmentRequest = element.matches('[data-truck-assignment-request="true"]');
+                        const isReportPanel = isMorningReport || isTeamAssignment || isTruckAssignmentRequest;
+                        const baseWidth = Math.ceil(isReportPanel ? Math.max(isTruckAssignmentRequest ? 900 : 1100, element.getBoundingClientRect().width) : isMasterPanel
                             ? element.getBoundingClientRect().width
                             : Math.max(element.offsetWidth, element.scrollWidth, element.getBoundingClientRect().width));
                         screenshotClone = element.cloneNode(true);
@@ -7200,6 +7458,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                             screenshotClone.querySelectorAll('.ta-edit-only').forEach(node => node.style.setProperty('display', 'none', 'important'));
                             screenshotClone.querySelectorAll('.ta-read-value').forEach(node => node.style.setProperty('display', 'block', 'important'));
                         }
+                        if (isTruckAssignmentRequest) screenshotClone.classList.add('truck-assignment-request-export');
                         if (isPreloadTable) {
                             // Export the currently selected values as text, without dropdown arrows or inputs.
                             const liveControls = element.querySelectorAll('input, select, button');
@@ -7283,6 +7542,10 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const handleDownloadParkingScreenshot = () => downloadPanelScreenshot(parkingScreenshotRef.current, `Geodis-Parking-Assignments-${new Date().toISOString().split('T')[0]}.png`);
             const handleDownloadPreloadScreenshot = () => downloadPanelScreenshot(preloadScreenshotRef.current, `Geodis-Driver-Preload-${getOfficeWeekBoundaries(preloadActiveDate).days[0]}.png`);
             const handleDownloadMasterScreenshot = () => downloadPanelScreenshot(masterScreenshotRef.current, `Geodis-Master-List-${masterActiveTab}-${new Date().toISOString().split('T')[0]}.png`);
+            const handleDownloadTruckAssignmentRequest = () => {
+                if (!isTruckAssignmentRequestDate(truckAssignmentDeliveryDate) || !getTruckAssignmentRequestRows(masterLists.contractors).length) return;
+                return downloadPanelScreenshot(truckAssignmentRequestRef.current, `Final-Mile-Truck-Assignments-${truckAssignmentDeliveryDate}.png`);
+            };
 
             const saveMasterLists = async (newLists) => {
                 if (!db) return;
@@ -8080,27 +8343,24 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
 
             const updateOfficeEmployeeName = (empId, newName) => {
                 if (!isAdminUser) return;
-                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 const emp = nd.employees.find(e => e.id === empId);
-                if (emp) { emp.name = newName; setOfficeData(nd); }
+                if (emp) { emp.name = newName; applyLocalOfficeScheduleChange(nd); }
             };
 
             const updateOfficeShift = (empId, dayStr, field, value) => {
                 if (!canEditSection('office')) return;
-                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 const emp = nd.employees.find(e => e.id === empId);
                 if (emp) {
                     if (!emp.shifts[dayStr]) emp.shifts[dayStr] = { start: '', end: '', isOff: false };
                     emp.shifts[dayStr][field] = value;
-                    setOfficeData(nd);
+                    applyLocalOfficeScheduleChange(nd);
                 }
             };
 
             const addOfficeEmployee = () => {
                 if (!isAdminUser) return;
-                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 const newId = `e${Date.now()}`;
                 const newEmp = { id: newId, name: '', shifts: {} };
@@ -8108,25 +8368,23 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     newEmp.shifts[d] = { start: '', end: '', isOff: false };
                 });
                 nd.employees.push(newEmp);
-                setOfficeData(nd);
+                applyLocalOfficeScheduleChange(nd);
             };
 
             const removeOfficeEmployee = (empId) => {
                 if (!isAdminUser) return;
-                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 nd.employees = nd.employees.filter(e => e.id !== empId);
-                setOfficeData(nd);
+                applyLocalOfficeScheduleChange(nd);
             };
 
             const updateAfterHours = (dayStr, field, value) => {
                 if (!canEditSection('office')) return;
-                officeDirtyRef.current = true;
                 const nd = JSON.parse(JSON.stringify(officeData));
                 if (!nd.afterHours) nd.afterHours = {};
                 if (!nd.afterHours[dayStr]) nd.afterHours[dayStr] = { person1: '', person2: '' };
                 nd.afterHours[dayStr][field] = value;
-                setOfficeData(nd);
+                applyLocalOfficeScheduleChange(nd);
             };
 
             const acknowledgeUrgentNote = async (noteId) => {
@@ -8763,7 +9021,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const openShiftNoteFromNotification = (item) => {
                 if (item?.type === 'mention') {
                     setChatJumpMessage(item.chatMessage); setHighlightedChatMessageId(item.messageId);
-                    setIsShiftNotificationOpen(false); setIsTeamChatOpen(true);
+                    setIsShiftNotificationOpen(false); setChatTab('team');setIsTeamChatOpen(true);
                     saveChatMentionReadIds([item.id]);
                     return;
                 }
@@ -8994,7 +9252,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 if(isEditMode || isCreatingDriverCall || savingShiftReplyId!=null)return;
                 setPendingPhoneNotification(null);
                 if(item.kind==='manager' && isAdminUser){setNotificationView('manager');setIsShiftNotificationOpen(true);setIsTeamChatOpen(false);}
-                else if(item.kind==='chat'){setHighlightedChatMessageId(item.messageId || null);setIsTeamChatOpen(true);setIsShiftNotificationOpen(false);}
+                else if(item.kind==='chat'){setHighlightedChatMessageId(item.messageId || null);setChatTab('team');setIsTeamChatOpen(true);setIsShiftNotificationOpen(false);}
                 else if(item.kind==='task')openTaskAssignment(item.taskId);
                 else if(item.noteId && item.dateKey)openShiftNoteFromNotification({noteId:item.noteId,dateKey:item.dateKey,id:item.activityId});
                 else if(item.dateKey){setDashboardActiveDate(item.dateKey);setActiveTab('routes');setRoutesSubTab('table');}
@@ -9045,22 +9303,28 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
 
             // Assignment/schedule alerts stay silent by default; an admin can enable them.
             const officeSoundBoundaries = getOfficeWeekBoundaries(officeActiveDate);
-            const officeSoundWarnings = calculateOfficeWarnings(officeData, officeSoundBoundaries.days);
-            const officeSoundHasWarnings = Object.keys(officeSoundWarnings.coverage).length > 0 || Object.values(officeSoundWarnings.conflicts).some(items => items.length > 0);
-            const officeSoundWarningKey = officeSoundBoundaries.startStr + '|' + JSON.stringify(officeSoundWarnings);
+            const officeWarningNotice = getLocalOfficeWarningNotice(localOfficeWarningContext, user?.uid, officeData, officeSoundBoundaries, dismissedOfficeWarnings);
+            const officeSoundHasWarnings = Boolean(officeWarningNotice);
+            const officeSoundWarningKey = officeWarningNotice?.key || '';
+            const dismissOfficeScheduleWarning = () => {
+                if (!officeWarningNotice || !user?.uid) return;
+                const next = Object.fromEntries(Object.entries({ ...readDismissedOfficeWarnings(user.uid), ...dismissedOfficeWarnings, [officeWarningNotice.key]: true }).slice(-256));
+                setDismissedOfficeWarnings(next);
+                try { localStorage.setItem(officeWarningDismissalStorageKey(user.uid), JSON.stringify(next)); } catch (error) { /* Keep dismissal effective in memory if browser storage is unavailable. */ }
+            };
             useEffect(() => {
                 if (!user || isLoading || !soundSettingsLoaded) return;
                 const warnings = [
                     ['driverAssignment', driverAssignmentAlertKey, showDriverAssignmentAlert],
                     ['preloadAssignment', preloadAssignmentAlertKey, !isEditing && isPreloadModalOpen && preloadAssignmentWarnings.length > 0 && !isAssignmentAlertAcknowledged(preloadAssignmentAlertKey)],
-                    ['officeConflict', officeSoundWarningKey, !isEditing && activeTab === 'office' && officeSoundHasWarnings && dismissedOfficeWarningKey !== officeSoundWarningKey]
+                    ['officeConflict', officeSoundWarningKey, !isEditing && activeTab === 'office' && officeSoundHasWarnings]
                 ];
                 warnings.forEach(([eventKey, signature, visible]) => {
                     const key = eventKey + '|' + signature;
                     if (visible && !warningSoundsPlayed.current.has(key) && playDashboardSound(eventKey)) warningSoundsPlayed.current.add(key);
                 });
             }, [user?.uid, isLoading, soundSettingsLoaded, isEditing, activeTab, isPreloadModalOpen, audioReady,
-                driverAssignmentAlertKey, showDriverAssignmentAlert, preloadAssignmentAlertKey, officeSoundWarningKey, officeSoundHasWarnings, dismissedOfficeWarningKey, acknowledgedAssignmentAlerts]);
+                driverAssignmentAlertKey, showDriverAssignmentAlert, preloadAssignmentAlertKey, officeSoundWarningKey, officeSoundHasWarnings, acknowledgedAssignmentAlerts]);
 
             const TrendIndicator = ({ current, previous, inverse = false, isPercent = true }) => {
                 const curr = Number(current) || 0;
@@ -9262,20 +9526,23 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                     )}
                                 </div>
                                 <div className="relative">
-                                    <button aria-label={teamChatUnreadCount ? `Team Chat, ${teamChatUnreadCount} unread messages` : 'Team Chat'} onClick={() => { setIsTeamChatOpen(prev => !prev); setIsShiftNotificationOpen(false); }} className={`p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${isTeamChatOpen ? 'text-indigo-300' : 'text-slate-300 hover:text-white'}`} title="Team Chat">
+                                    <button aria-label={teamChatUnreadCount + privateChatUnread ? `Chat, ${teamChatUnreadCount} unread team messages, ${privateChatUnread} unread private conversations` : 'Team Chat'} onClick={() => { setIsTeamChatOpen(prev => !prev); setIsShiftNotificationOpen(false); }} className={`p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${isChatPanelOpen ? 'text-indigo-300' : 'text-slate-300 hover:text-white'}`} title="Team Chat">
                                         <MessageSquare className="w-4 h-4" />
-                                        {!isTeamChatOpen && teamChatUnreadCount > 0 && (
-                                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{teamChatUnreadCount > 9 ? '9+' : teamChatUnreadCount}</span>
+                                        {!isChatPanelOpen && teamChatUnreadCount + privateChatUnread > 0 && (
+                                            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{teamChatUnreadCount + privateChatUnread > 9 ? '9+' : teamChatUnreadCount + privateChatUnread}</span>
                                         )}
                                     </button>
-                                        <div role="dialog" aria-label="Team Chat" style={{display:isTeamChatOpen ? undefined : 'none'}} data-dashboard-edit-ignore="true" className="team-chat-panel dashboard-header-popover absolute right-0 top-8 z-[120] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                        <div role="dialog" aria-label="Team Chat" style={{display:isChatPanelOpen ? undefined : 'none'}} data-dashboard-edit-ignore="true" className="team-chat-panel dashboard-header-popover absolute right-0 top-8 z-[120] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
                                             <div className="team-chat-titlebar flex items-center justify-between gap-3 border-b border-slate-800 px-6 py-4">
                                                 <div className="min-w-0">
-                                                    <div className="text-base font-bold text-white">Team Chat</div>
-                                                    <div className="mt-0.5 text-xs font-normal text-slate-400">Messages for your team</div>
+                                                    <div className="text-base font-bold text-white">{chatTab==='team'?'Team Chat':'Private Chat'}</div>
+                                                    <div className="mt-0.5 text-xs font-normal text-slate-400">{chatTab==='team'?'Messages for your team':'One-to-one conversations'}</div>
                                                 </div>
-                                                <div className="flex shrink-0 items-center gap-1">{isAdminUser && <button type="button" aria-label="Clear Team Chat" disabled={!teamChatLoaded || !settingsReady || teamChatClearBusy || isSavingChatEdit || teamChatMessages.some(message=>message.pending)} onClick={()=>{setTeamChatError('');setTeamChatNotice('');setConfirmTeamChatClear(true);}} className="rounded-lg px-2 py-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-rose-200 disabled:opacity-40">Clear Chat</button>}<button type="button" aria-label="Close" title="Close Team Chat" onClick={() => {setIsTeamChatOpen(false);if(!teamChatClearBusy)setConfirmTeamChatClear(false);}} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"><X className="h-5 w-5" /></button></div>
+                                                <div className="flex shrink-0 items-center gap-1">{isAdminUser && chatTab==='team' && <button type="button" aria-label="Clear Team Chat" disabled={!teamChatLoaded || !settingsReady || teamChatClearBusy || isSavingChatEdit || teamChatMessages.some(message=>message.pending)} onClick={()=>{setTeamChatError('');setTeamChatNotice('');setConfirmTeamChatClear(true);}} className="rounded-lg px-2 py-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-rose-200 disabled:opacity-40">Clear Chat</button>}<button type="button" aria-label="Close" title="Close Team Chat" onClick={() => {setIsTeamChatOpen(false);if(!teamChatClearBusy)setConfirmTeamChatClear(false);}} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"><X className="h-5 w-5" /></button></div>
                                             </div>
+                                            <div role="tablist" aria-label="Chat conversations" className="flex gap-2 border-b border-slate-800 px-4 py-2">{['team','private'].map(tab=><button key={tab} type="button" role="tab" aria-selected={chatTab===tab} onClick={()=>{setChatTab(tab);setConfirmTeamChatClear(false);}} className={`rounded-lg px-4 py-2 text-xs font-semibold ${chatTab===tab?'bg-slate-800 text-white':'text-slate-400 hover:text-white'}`}>{tab==='team'?'Team Chat':'Private Chat'}{tab==='private'&&privateChatUnread>0?' ('+privateChatUnread+')':''}</button>)}</div>
+                                            <PrivateChatPanel key={user?.uid || 'signed-out'} user={user} users={chatMentionUsers} currentName={getCurrentShiftUser().name} active={isChatPanelOpen&&chatTab==='private'} canSend={canEditSection('chat')} soundReady={soundSettingsLoaded} onUnread={setPrivateChatUnread} onPreview={setChatFilePreview}/>
+                                            <div style={{display:chatTab==='team'?'contents':'none'}}>
                                             <TeamChatClearConfirmation owner={isAdminUser} open={confirmTeamChatClear} busy={teamChatClearBusy} onConfirm={clearTeamChat} onCancel={()=>setConfirmTeamChatClear(false)}/>
                                             <div ref={teamChatScrollRef} data-popover-scroll="true" style={{scrollBehavior:'auto'}} className="team-chat-messages bg-slate-950/90">
                                                 <div ref={teamChatContentRef} className="team-chat-conversation">
@@ -9333,6 +9600,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             {teamChatNotice && <div role="status" className="border-t border-slate-800 px-4 py-2 text-[11px] text-emerald-300">{teamChatNotice}</div>}
                                             <TeamChatTypingIndicator sessions={teamChatTypingSessions} uid={user?.uid} names={masterLists.nameOverrides || {}} />
                                             <TeamChatComposer key={user?.uid || 'local'} open={isTeamChatOpen} canSend={canSendTeamChat && !teamChatClearBusy} sendMessage={sendTeamChatMessage} publishTyping={publishTeamChatTyping} mentionUsers={chatMentionUsers} />
+                                            </div>
                                         </div>
                                 </div>
                                 {isAdminUser && <button type="button" onClick={openTeamTasks} aria-label={taskNotifications.length ? `Team Tasks, ${taskNotifications.length} unread alerts` : 'Team Tasks'} title="Team Tasks" className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${taskNotifications.length ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`}>
@@ -10941,17 +11209,14 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
 
                                 {(() => {
                                     const bnds = getOfficeWeekBoundaries(officeActiveDate);
-                                    const officeWarnings = calculateOfficeWarnings(officeData, bnds.days);
-                                    const hasWarnings = Object.keys(officeWarnings.coverage).length > 0 || Object.keys(officeWarnings.conflicts).some(d => officeWarnings.conflicts[d].length > 0);
-                                    const warningKey = `${bnds.startStr}|${JSON.stringify(officeWarnings)}`;
-                                    
-                                    if (!hasWarnings || dismissedOfficeWarningKey === warningKey) return null;
+                                    if (!officeWarningNotice) return null;
+                                    const officeWarnings = officeWarningNotice.warnings;
 
                                     return (
                                         <div className="mb-6 bg-amber-950/30 border border-amber-500/40 rounded-xl p-4 shadow-inner animate-in slide-in-from-top-2">
                                             <div className="flex items-center justify-between gap-3 mb-2">
                                                 <h3 className="text-amber-400 font-black text-xs tracking-widest uppercase flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> Schedule Conflicts Detected</h3>
-                                                <button type="button" onClick={() => setDismissedOfficeWarningKey(warningKey)} className="shrink-0 rounded-lg border border-amber-400/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-200 hover:bg-amber-500/20 transition-colors cursor-pointer" title="Dismiss these schedule warnings">Dismiss</button>
+                                                <button type="button" onClick={dismissOfficeScheduleWarning} className="shrink-0 rounded-lg border border-amber-400/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-200 hover:bg-amber-500/20 transition-colors cursor-pointer" title="Dismiss these schedule warnings">Dismiss</button>
                                             </div>
                                             <ul className="list-disc pl-6 text-xs text-amber-200/90 space-y-1.5">
                                                 {bnds.days.map(dayStr => {
@@ -11488,6 +11753,22 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     )}
 
                     {}
+                    {canOpenMasterLists && isTruckAssignmentRequestOpen && (
+                        <div className="dashboard-modal fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="truck-assignment-request-title" onClick={event => { if (event.target === event.currentTarget) closeTruckAssignmentRequest(); }}>
+                            <div className="w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 bg-slate-800 p-4 sm:px-6">
+                                    <h2 id="truck-assignment-request-title" className="text-base sm:text-lg font-black text-white flex items-center gap-2"><Truck className="w-5 h-5 text-slate-300" />Truck Assignment Request</h2>
+                                    <button type="button" aria-label="Close Truck Assignment Request" disabled={isCapturing} onClick={closeTruckAssignmentRequest} className="rounded-lg p-2 text-slate-400 hover:text-white disabled:opacity-50"><X className="w-5 h-5" /></button>
+                                    <div className="flex w-full flex-wrap items-end gap-3">
+                                        <label className="text-xs font-semibold text-slate-300">Delivery date<input autoFocus type="date" required aria-label="Truck assignment delivery date" disabled={isCapturing} value={truckAssignmentDeliveryDate} onChange={event => setTruckAssignmentDeliveryDate(event.target.value)} className="mt-1 block max-w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-base text-white disabled:opacity-50" /></label>
+                                        <button type="button" onClick={handleDownloadTruckAssignmentRequest} disabled={isCapturing || !isTruckAssignmentRequestDate(truckAssignmentDeliveryDate) || !getTruckAssignmentRequestRows(masterLists.contractors).length} className="inline-flex items-center gap-2 rounded-lg border border-slate-500 bg-slate-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"><Download className="w-4 h-4" />{isCapturing ? 'Preparing image…' : 'Download Image'}</button>
+                                    </div>
+                                    <p className="w-full text-xs text-slate-400">Uses the current Contractor Plan. Check the planned truck counts before downloading.</p>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-3 sm:p-5"><TruckAssignmentRequestSheet contractors={masterLists.contractors} deliveryDate={truckAssignmentDeliveryDate} sheetRef={truckAssignmentRequestRef} /></div>
+                            </div>
+                        </div>
+                    )}
                     {canOpenMasterLists && isMasterModalOpen && (
                         <div className={`dashboard-modal fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm transition-all ${isMasterFullscreen ? 'p-0' : 'p-4'}`}>
                             <div className={`bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ${isMasterFullscreen ? 'w-full h-full rounded-none' : 'rounded-2xl w-full max-w-[98%] md:max-w-6xl max-h-[90vh]'}`}>
@@ -11497,6 +11778,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                         <button onClick={handleDownloadMasterScreenshot} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title="Download Master List Screenshot">
                                             <Camera className="w-4 h-4" />
                                         </button>
+                                        {masterActiveTab === 'contractors' && <button ref={truckAssignmentRequestTriggerRef} type="button" aria-label="Truck Assignment Request" title="Truck Assignment Request" disabled={isCapturing || editingMasterId !== null} onClick={() => { setTruckAssignmentDeliveryDate(getNextTruckAssignmentDate()); setIsTruckAssignmentRequestOpen(true); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"><Truck className="w-4 h-4" /><span className="hidden sm:inline">Truck Assignment Request</span></button>}
                                         <button onClick={() => setIsMasterFullscreen(!isMasterFullscreen)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title={isMasterFullscreen ?"Restore Size" :"Maximize"}>
                                             {isMasterFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
