@@ -4534,6 +4534,8 @@
             });
             return message;
         };
+        // Enable after the matching manager-removal Firebase rules are published.
+        const MANAGER_CHAT_REMOVAL_RULES_READY = true;
         const normalizePrivateChatUI = value => {
             const validUid = uid => typeof uid === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(uid) && !uid.includes('__');
             const openedUids = [...new Set(Array.isArray(value?.openedUids) ? value.openedUids.filter(validUid) : [])].slice(0,100);
@@ -4662,6 +4664,7 @@
             };
             const remove=async()=>{
                 if(!removeTarget||busy||!viewsReady)return;
+                if(owner&&removeScope!=='mine'&&!MANAGER_CHAT_REMOVAL_RULES_READY){setError('Removing the other person’s view is not activated yet. You can still choose Only me.');return;}
                 const peer=removeTarget;setBusy(true);setError('');
                 try{const next=await removePrivateChatAsManager(db,uid,peer.uid,owner?removeScope:'mine');if(auth.currentUser?.uid!==uid)return;
                     setUI(next);setRemoveTarget(null);
@@ -4718,7 +4721,8 @@
                 {newChatOpen&&<div className="border-b border-slate-800 bg-slate-900/50 px-4 py-3"><label className="block text-xs text-slate-300">Start a conversation</label><div className="mt-2 flex gap-2"><select aria-label="New chat teammate" value={newPeer} disabled={busy} onChange={event=>setNewPeer(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"><option value="">Choose a teammate</option>{users.map(person=><option key={person.uid} value={person.uid}>{person.name}</option>)}</select><button type="button" disabled={!newPeer||busy} onClick={()=>choose(newPeer)} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Start chat</button></div></div>}
                 {removeTarget&&<section role="alertdialog" aria-label="Remove conversation" className="border-b border-slate-700 bg-slate-900 px-4 py-3 text-xs text-slate-200">
                     <p className="font-semibold">Remove your chat with {removeTarget.name}?</p>
-                    {owner&&<label className="mt-3 block text-slate-300">Remove chat for<select aria-label="Remove chat for" value={removeScope} disabled={busy} onChange={event=>setRemoveScope(event.target.value)} className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"><option value="mine">Only me</option><option value="peer" disabled={!conversations.some(row=>row.participantUids.includes(removeTarget.uid))}>Only {removeTarget.name}</option><option value="both" disabled={!conversations.some(row=>row.participantUids.includes(removeTarget.uid))}>Both of us</option></select></label>}
+                    {owner&&<label className="mt-3 block text-slate-300">Remove chat for<select aria-label="Remove chat for" value={removeScope} disabled={busy} onChange={event=>setRemoveScope(event.target.value)} className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"><option value="mine">Only me</option><option value="peer" disabled={!MANAGER_CHAT_REMOVAL_RULES_READY||!conversations.some(row=>row.participantUids.includes(removeTarget.uid))}>Only {removeTarget.name}</option><option value="both" disabled={!MANAGER_CHAT_REMOVAL_RULES_READY||!conversations.some(row=>row.participantUids.includes(removeTarget.uid))}>Both of us</option></select></label>}
+                    {owner&&!MANAGER_CHAT_REMOVAL_RULES_READY&&<p className="mt-2 text-slate-400">Only me is available now. The other removal choices are awaiting activation.</p>}
                     <p className="mt-2 text-slate-400">{owner&&removeScope==='both'?'Existing messages will be removed from both views. New messages can start the conversation again.':owner&&removeScope==='peer'?'This removes '+removeTarget.name+'’s view of existing messages. Your view stays available.':'This removes your view of existing messages. '+removeTarget.name+' keeps theirs.'}</p>
                     <div className="mt-3 flex gap-2"><button type="button" disabled={busy} onClick={remove} className="rounded-lg border border-rose-800 px-3 py-2 text-xs font-semibold text-rose-300 disabled:opacity-40">{busy?'Removing…':owner&&removeScope==='both'?'Remove for both':owner&&removeScope==='peer'?'Remove for '+removeTarget.name:'Remove for me'}</button><button type="button" disabled={busy} onClick={()=>setRemoveTarget(null)} className="rounded-lg border border-slate-600 px-3 py-2 text-slate-300">Cancel</button></div>
                 </section>}
