@@ -1404,6 +1404,107 @@
         .dashboard-header-popover[aria-label="Notifications"] { display:flex; flex-direction:column; max-height:calc(var(--phone-viewport-height,100dvh) - 5rem); }
         .dashboard-header-popover[aria-label="Notifications"] > :not([data-popover-scroll="true"]) { flex-shrink:0; }
         .dashboard-header-popover[aria-label="Notifications"] > [data-popover-scroll="true"] { flex:1 1 auto; min-height:0; }
+
+        /* Conversation inbox: scoped to Chat; the dashboard keeps its original layout. */
+        .team-chat-panel { width:800px; height:min(660px,calc(100dvh - 7rem)); }
+        .team-chat-panel[data-sidebar-open="false"] { width:560px; }
+        .team-chat-panel .chat-inbox-layout { display:grid; grid-template-columns:minmax(0,1fr); flex:1 1 auto; min-height:0; overflow:hidden; }
+        .team-chat-panel .chat-inbox-layout[data-show-list="true"] { grid-template-columns:244px minmax(0,1fr); }
+        .chat-inbox-layout[data-show-list="false"] .chat-inbox-sidebar { display:none; }
+        .chat-inbox-layout[data-show-list="false"] .chat-inbox-pane { grid-column:1; }
+        .chat-inbox-sidebar { display:flex; flex-direction:column; min-height:0; min-width:0; border-right:1px solid #293548; background:#172130; }
+        .chat-inbox-sidebar-head { padding:17px 14px 12px; }
+        .chat-inbox-sidebar-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:12px; font-size:13px; font-weight:600; color:#e2e8f0; }
+        .chat-inbox-sidebar-heading button { display:flex; align-items:center; gap:4px; padding:5px 7px; border-radius:6px; color:#c4cedd; font-size:11px; background:#263347; }
+        .chat-inbox-search { display:flex; gap:8px; align-items:center; border:1px solid #334155; border-radius:8px; padding:8px 10px; background:#111b29; color:#8393aa; }
+        .chat-inbox-search input { min-width:0; width:100%; padding:0; border:0; outline:none; font-size:12px; line-height:18px; background:transparent; color:#e2e8f0; font-weight:400; }
+        .chat-inbox-search:focus-within { border-color:#8295b8; box-shadow:0 0 0 1px #8295b8; }
+        .chat-inbox-list { overflow-y:auto; min-height:0; flex:1; padding:0 7px 12px; }
+        .chat-inbox-person { position:relative; margin:3px 0; border-radius:9px; }
+        .chat-inbox-row { display:flex; align-items:center; gap:10px; width:100%; min-height:71px; padding:11px 12px; text-align:left; border-radius:9px; color:#d4deeb; }
+        .chat-inbox-row:hover { background:#202d40; }
+        .chat-inbox-row[aria-selected=true] { background:#2a3a51; box-shadow:inset 2px 0 #94a8cb; }
+        .chat-inbox-row:focus-visible,.chat-inbox-sidebar button:focus-visible { outline:2px solid #9baccc; outline-offset:-2px; }
+        .chat-inbox-row-copy { flex:1; min-width:0; }
+        .chat-inbox-row-title { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+        .chat-inbox-row-name { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .chat-inbox-row-time { font-size:10px; font-weight:400; color:#95a4ba; white-space:nowrap; padding-right:8px; }
+        .chat-inbox-row-preview { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:400; line-height:18px; color:#97a8c0; margin-top:3px; padding-right:10px; }
+        .chat-inbox-badge { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px; border-radius:9px; padding:0 4px; font-size:10px; background:#8397bd; color:#101b2b; font-weight:700; }
+        .chat-inbox-person .chat-tab-remove { position:absolute; right:3px; top:2px; width:18px; height:18px; opacity:0; border-radius:5px; display:flex; align-items:center; justify-content:center; color:#a6b4c8; background:#233147; }
+        .chat-inbox-person:hover .chat-tab-remove,.chat-inbox-person:focus-within .chat-tab-remove { opacity:1; }
+        .chat-inbox-empty { padding:20px 12px; font-size:12px; color:#9bacbf; line-height:1.6; }
+        .chat-inbox-pane { grid-column:2; grid-row:1; display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; }
+        .chat-inbox-conversation-head { display:flex; align-items:center; gap:10px; padding:13px 19px; border-bottom:1px solid #293548; background:#182231; flex:none; }
+        .chat-inbox-conversation-head strong { display:block; font-size:14px; font-weight:600; color:#e2e8f0; }
+        .chat-inbox-conversation-head small { display:block; margin-top:2px; font-size:11px; color:#94a3b8; font-weight:400; }
+        .team-chat-panel .chat-inbox-layout .team-chat-messages { height:auto; min-height:70px; padding:21px; }
+        .team-chat-panel .chat-inbox-pane > :not(.team-chat-messages) { flex-shrink:0; }
+        .chat-inbox-pane .team-chat-message { padding:11px 13px; border-radius:12px; background:#1a2637; max-width:94%; }
+        .chat-inbox-pane [data-chat-message-owner=self] .team-chat-message { background:#26394f; }
+        .chat-inbox-pane .team-chat-conversation { gap:18px; }
+        .chat-inbox-pane .team-chat-composer { border-top:1px solid #293548; background:#172130; }
+        .chat-inbox-pane .chat-message-text { font-size:14px; line-height:1.6; }
+        .user-profile-avatar { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; border-radius:28%; background:#30425c; color:#d9e4f5; font-weight:600; line-height:1; vertical-align:middle; }
+        .user-profile-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+        .profile-photo-overlay { position:fixed; inset:0; z-index:250; display:flex; align-items:center; justify-content:center; padding:20px; background:#020617b8; backdrop-filter:blur(5px); }
+        .profile-photo-editor { width:390px; max-width:100%; max-height:calc(100dvh - 40px); overflow:auto; background:#172130; border:1px solid #435169; padding:22px; border-radius:18px; box-shadow:0 20px 80px #0008; }
+        .profile-photo-editor button:focus-visible { outline:2px solid #a5b4cf; outline-offset:2px; }
+        .profile-photo-editor button:disabled { opacity:.45; }
+        .footer-profile-button { display:inline-flex; position:relative; border-radius:7px; padding:2px; flex-shrink:0; }
+        .footer-profile-button:focus-visible { outline:2px solid #a5b4cf; }
+        .chat-inbox-toggle { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:28px; height:28px; border-radius:7px; color:#b3c1d6; background:#243145; font-size:22px; line-height:1; }
+        .chat-inbox-toggle:hover { background:#334155; color:#fff; }
+        .chat-inbox-toggle:focus-visible { outline:2px solid #a5b4cf; outline-offset:2px; }
+        @media(max-width:600px) {
+            .team-chat-panel .chat-inbox-layout,.team-chat-panel .chat-inbox-layout[data-show-list="true"] { grid-template-columns:1fr; }
+            .chat-inbox-layout[data-show-list=false] .chat-inbox-sidebar { display:none; }
+            .chat-inbox-layout[data-show-list=true] .chat-inbox-pane { display:none!important; }
+            .chat-inbox-pane { grid-column:1; }
+            .chat-inbox-sidebar { border-right:0; }
+            .chat-inbox-layout[data-show-list="true"] .chat-inbox-sidebar { grid-column:1; }
+        }
+        @media(hover:none) { .chat-inbox-person .chat-tab-remove { opacity:1; width:24px; height:24px; } }
+
+        .team-chat-panel .team-chat-compose-controls { grid-template-columns:28px 28px minmax(0,1fr) auto; }
+        .team-chat-panel .team-chat-compose-controls > button[aria-label="Add emoji"],.team-chat-panel .team-chat-compose-controls > button[aria-label="Attach file"] { width:28px; height:28px; min-height:28px; padding:0; border-radius:7px; }
+        .team-chat-panel .team-chat-compose-controls > button[aria-label="Add emoji"] svg,.team-chat-panel .team-chat-compose-controls > button[aria-label="Attach file"] svg { width:16px; height:16px; }
+        .team-chat-panel .team-chat-message { max-width:96%; }
+        button.user-profile-avatar { border:0; padding:0; cursor:zoom-in; }
+        button.user-profile-avatar:focus-visible { outline:2px solid #b5c5e0; outline-offset:2px; }
+        .profile-crop-stage { position:relative; width:192px; height:192px; border:1px solid #75859e; border-radius:28%; overflow:hidden; background:#101827; cursor:grab; touch-action:none; user-select:none; }
+        .profile-crop-stage:active { cursor:grabbing; }
+        .profile-crop-stage:focus-visible { outline:2px solid #b5c5e0; outline-offset:3px; }
+        .profile-crop-stage img { position:absolute; max-width:none; pointer-events:none; object-fit:fill; user-select:none; }
+        .profile-crop-grid { position:absolute; inset:0; pointer-events:none; background:linear-gradient(to right,transparent calc(33.333% - .5px),#ffffff30 33.333%,transparent calc(33.333% + .5px),transparent calc(66.666% - .5px),#ffffff30 66.666%,transparent calc(66.666% + .5px)),linear-gradient(to bottom,transparent calc(33.333% - .5px),#ffffff30 33.333%,transparent calc(33.333% + .5px),transparent calc(66.666% - .5px),#ffffff30 66.666%,transparent calc(66.666% + .5px)); }
+        .profile-crop-zoom { display:flex; width:100%; gap:10px; align-items:center; font-size:12px; font-weight:400; color:#b5c1d4; }
+        .profile-crop-zoom input { flex:1; min-width:0; accent-color:#94a8cb; }
+        .profile-viewer-overlay { z-index:280; }
+        .user-profile-viewer { width:560px; max-width:100%; max-height:calc(100dvh - 40px); overflow:auto; padding:16px 22px 24px; border-radius:18px; border:1px solid #435169; background:#172130; box-shadow:0 20px 80px #0008; }
+        .expanded-profile-photo { display:block; width:100%; max-height:60dvh; aspect-ratio:1; object-fit:contain; border-radius:14px; background:#101827; }
+        .user-profile-avatar[data-has-photo="true"] { background:transparent; border:0; padding:0; box-shadow:none; }
+        .user-profile-avatar img { border:0; padding:0; box-shadow:none; }
+        .team-chat-panel .chat-inbox-pane .team-chat-message { max-width:94%; padding:14px 16px; border:0; border-radius:18px 18px 18px 6px; background:linear-gradient(145deg,#253244 0%,#1c2838 85%); box-shadow:0 5px 16px #02061720,inset 0 1px 0 #ffffff08; transition:box-shadow 160ms ease; }
+        .team-chat-panel .chat-inbox-pane [data-chat-message-owner="self"] .team-chat-message { border-radius:18px 18px 6px 18px; background:linear-gradient(145deg,#354b67 0%,#283d57 75%,#26364e 100%); box-shadow:0 5px 16px #02061725,inset 0 1px 0 #c7daff12; }
+        .team-chat-panel .chat-inbox-pane .team-chat-message:focus-within { box-shadow:0 5px 18px #02061735,inset 0 1px 0 #ffffff12; }
+        .team-chat-panel .chat-inbox-pane .team-chat-message > div:first-child { gap:8px; }
+        .team-chat-panel .chat-inbox-pane .chat-message-text { line-height:1.65; }
+        .chat-conversation-heading-copy { flex:1; min-width:0; }
+        .chat-conversation-heading-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .chat-window-close { display:flex; align-items:center; justify-content:center; width:28px; height:28px; flex-shrink:0; color:#a6b5ca; border-radius:7px; background:transparent; }
+        .chat-window-close:hover { color:#fff; background:#2a384e; }
+        .chat-window-close:focus-visible { outline:2px solid #a5b4cf; outline-offset:2px; }
+        .chat-sidebar-mobile-control { display:none; }
+        @media(max-width:600px) { .chat-sidebar-mobile-control { display:contents; } .chat-inbox-sidebar-heading > span:not(.chat-sidebar-mobile-control) { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .chat-inbox-sidebar-heading button { flex-shrink:0; } }
+        .minimal-chat-row { display:flex; align-items:flex-end; justify-content:flex-start; width:100%; min-width:0; gap:10px; }
+        .minimal-chat-row[data-chat-message-owner="self"] { flex-direction:row-reverse; }
+        .minimal-chat-stack { min-width:0; max-width:calc(100% - 50px); }
+        .team-chat-panel .chat-inbox-pane .minimal-chat-stack .team-chat-message { max-width:100%; min-width:0; padding:12px 15px 9px; border-radius:20px 20px 20px 5px; background:#243143; text-align:left; box-shadow:0 4px 12px #02061715; }
+        .team-chat-panel .chat-inbox-pane .minimal-chat-row[data-chat-message-owner="self"] .team-chat-message { border-radius:20px 20px 5px 20px; background:#30465f; }
+        .minimal-chat-author { display:block; margin:0 8px 5px; font-size:12px; line-height:1.5; font-weight:600; color:#b8c7dc; }
+        .minimal-chat-meta { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px; margin-top:7px; font-size:11px; line-height:1.5; font-weight:400; color:#a4b2c6; }
+        .minimal-chat-read-status { margin-top:4px; text-align:right; font-size:11px; line-height:1.5; font-weight:400; color:#a4b2c6; }
+        @media(hover:none) { .minimal-chat-meta .chat-message-edit { opacity:1; min-height:26px; padding:3px 0; } }
     </style>
     <script>
         (() => {
@@ -4740,11 +4841,100 @@
                 transaction.set(stateRef,{privateChatUI:next},{merge:true});return next;
             });
         };
-        const PrivateChatPanel = ({user,users,currentName,active,chatOpen,selectedUid,onSelectPerson,onSelectTeam,sharedUnread,canSend,soundReady,onUnread,onIncoming,onBusy,onPreview,owner}) => {
+        const profilePhotoSource = value => typeof value==='string' && value.length<=65536 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(value) ? value : '';
+        const chatInitials = name => String(name||'Teammate').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
+        const chatPreviewText = message => !message ? 'Start a conversation' : getTeamChatSticker(message.text) ? 'Sent a sticker' : String(message.text|| (message.attachment?'Shared '+message.attachment.name:'New message')).replace(/\s+/g,' ').slice(0,100);
+        const chatInboxTime = value => {
+            const date=new Date(value);if(!value||!Number.isFinite(date.getTime()))return '';
+            const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'}),day=date.toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+            return date.toLocaleString('en-US',day===today?{hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'}:{month:'short',day:'numeric',timeZone:'America/Chicago'});
+        };
+        const UserAvatar = ({uid,name,photos={},titles={},size=48,onView}) => {
+            const photo=profilePhotoSource(photos[uid]),[failed,setFailed]=useState(false);
+            useEffect(()=>setFailed(false),[photo]);
+            const content=photo&&!failed?<img src={photo} alt="" onError={()=>setFailed(true)}/>:chatInitials(name),style={width:size,height:size,fontSize:Math.max(9,Math.round(size*.32))},title=[name,titles[uid]].filter(Boolean).join(' — ');
+            return onView?<button type="button" data-profile-avatar="true" data-has-photo={photo&&!failed?'true':undefined} className="user-profile-avatar" style={style} title={title} aria-label={'View '+name+' profile'} onClick={()=>onView({uid,name,photo:failed?'':photo})}>{content}</button>:<span data-profile-avatar="true" data-has-photo={photo&&!failed?'true':undefined} className="user-profile-avatar" style={style} title={title} aria-hidden="true">{content}</span>;
+        };
+        
+        const saveProfilePhoto = async(database,uid,photo,jobTitle)=>{
+            if(!uid||auth.currentUser?.uid!==uid)throw new Error('Sign in again before changing your photo.');
+            if(photo&&!profilePhotoSource(photo))throw new Error('Choose a valid profile photo.');
+            if(typeof jobTitle!=='string'||jobTitle.trim().length>80)throw new Error('Use a job title of 80 characters or fewer.');
+            // A permanent, self-owned profile record is separate from expiring session presence.
+            await firebaseSetDoc(doc(database,'artifacts',appId,'public','data','presence',uid),{uid,recordType:'profile-photo',profilePhoto:photo,jobTitle:jobTitle.trim(),lastSeen:0,updatedAt:new Date().toISOString()},{merge:true});
+        };
+        const profileCropGeometry = (width,height,crop={},size=192) => {
+            if(!(width>0&&height>0))throw new Error('Choose another photo.');
+            const zoom=Math.min(4,Math.max(1,Number(crop.zoom)||1)),scale=size/Math.min(width,height)*zoom;
+            const displayWidth=width*scale,displayHeight=height*scale,maxX=(displayWidth-size)/2,maxY=(displayHeight-size)/2;
+            const x=Math.min(maxX,Math.max(-maxX,Number(crop.x)||0)),y=Math.min(maxY,Math.max(-maxY,Number(crop.y)||0));
+            const left=(size-displayWidth)/2+x,top=(size-displayHeight)/2+y;
+            return {zoom,x,y,maxX,maxY,left,top,displayWidth,displayHeight,sourceX:Math.max(0,-left/scale),sourceY:Math.max(0,-top/scale),sourceEdge:size/scale};
+        };
+        const loadProfileImage = src => new Promise((resolve,reject)=>{
+            const image=new Image();image.onerror=()=>reject(new Error('This photo could not be opened. Try another picture.'));
+            image.onload=()=>{if(!image.naturalWidth||!image.naturalHeight){reject(new Error('Choose another photo.'));return;}resolve({src,image,width:image.naturalWidth,height:image.naturalHeight});};image.src=src;
+        });
+        const loadProfilePhoto = file => new Promise((resolve,reject)=>{
+            if(!file||!['image/jpeg','image/png','image/webp'].includes(file.type)){reject(new Error('Choose a JPG, PNG, or WebP photo.'));return;}
+            if(file.size>10*1024*1024){reject(new Error('Choose a photo smaller than 10 MB.'));return;}
+            const reader=new FileReader();reader.onerror=()=>reject(new Error('This photo could not be opened.'));
+            reader.onload=()=>loadProfileImage(String(reader.result)).then(resolve,reject);reader.readAsDataURL(file);
+        });
+        const renderProfileCrop = (source,crop={}) => {
+            const geometry=profileCropGeometry(source.width,source.height,crop),canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;
+            const context=canvas.getContext('2d');if(!context)throw new Error('Photo editing is unavailable in this browser.');
+            context.fillStyle='#e2e8f0';context.fillRect(0,0,512,512);context.drawImage(source.image,geometry.sourceX,geometry.sourceY,geometry.sourceEdge,geometry.sourceEdge,0,0,512,512);
+            for(const quality of [.84,.72,.6,.48,.36,.26]){const result=canvas.toDataURL('image/jpeg',quality);if(profilePhotoSource(result))return result;}
+            throw new Error('This photo is too large. Try another picture.');
+        };
+        const prepareProfilePhoto = async file => renderProfileCrop(await loadProfilePhoto(file));
+        const ProfilePhotoEditor = ({user,name,photos,titles,onClose,onSaved,onView}) => {
+            const [draft,setDraft]=useState(()=>photos[user.uid]||''),[jobTitle,setJobTitle]=useState(()=>titles[user.uid]||''),[busy,setBusy]=useState(false),[preparing,setPreparing]=useState(false),[error,setError]=useState('');
+            const [cropSource,setCropSource]=useState(null),[crop,setCrop]=useState({zoom:1,x:0,y:0});
+            const fileRef=useRef(null),dialogRef=useRef(null),alive=useRef(true),pickVersion=useRef(0),dragRef=useRef(null);
+            useEffect(()=>{alive.current=true;const before=document.activeElement;dialogRef.current?.focus();return()=>{alive.current=false;pickVersion.current++;before?.focus?.();};},[]);
+            const beginCrop=async loader=>{const version=++pickVersion.current;setPreparing(true);setError('');try{const source=await loader();if(alive.current&&version===pickVersion.current){setCropSource(source);setCrop({zoom:1,x:0,y:0});}}catch(failure){if(alive.current&&version===pickVersion.current)setError(failure.message);}finally{if(alive.current&&version===pickVersion.current)setPreparing(false);}};
+            const pick=event=>{const file=event.target.files?.[0];event.target.value='';if(file)beginCrop(()=>loadProfilePhoto(file));};
+            const geometry=cropSource?profileCropGeometry(cropSource.width,cropSource.height,crop):null;
+            const updateCrop=next=>{if(!cropSource)return;const value=profileCropGeometry(cropSource.width,cropSource.height,next);setCrop({zoom:value.zoom,x:value.x,y:value.y});};
+            const dragStart=event=>{if(busy||preparing||event.button!==0)return;event.preventDefault();event.currentTarget.focus();event.currentTarget.setPointerCapture(event.pointerId);dragRef.current={id:event.pointerId,startX:event.clientX,startY:event.clientY,x:geometry.x,y:geometry.y};};
+            const dragMove=event=>{const drag=dragRef.current;if(!drag||drag.id!==event.pointerId)return;const scale=192/event.currentTarget.getBoundingClientRect().width;updateCrop({...crop,x:drag.x+(event.clientX-drag.startX)*scale,y:drag.y+(event.clientY-drag.startY)*scale});};
+            const dragEnd=event=>{if(dragRef.current?.id===event.pointerId)dragRef.current=null;};
+            const cropKeys=event=>{const move={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[event.key];if(!move||busy)return;event.preventDefault();const step=event.shiftKey?12:3;updateCrop({...crop,x:geometry.x+move[0]*step,y:geometry.y+move[1]*step});};
+            const applyCrop=()=>{try{setDraft(renderProfileCrop(cropSource,crop));setCropSource(null);setError('');}catch(failure){setError(failure.message);}};
+            const save=async()=>{if(busy||preparing)return;setBusy(true);setError('');try{const photo=cropSource?renderProfileCrop(cropSource,crop):draft;await saveProfilePhoto(db,user.uid,photo,jobTitle);if(alive.current&&auth.currentUser?.uid===user.uid){onSaved(user.uid,photo,jobTitle.trim());onClose();}}catch(failure){if(alive.current)setError(failure.code==='permission-denied'?'Your profile could not be saved. Check your account access.':failure.message||'Your profile could not be saved. Try again.');}finally{if(alive.current)setBusy(false);}};
+            const trap=event=>{if(event.key==='Escape'&&!busy){onClose();return;}if(event.key!=='Tab')return;const controls=[...dialogRef.current.querySelectorAll('button:not(:disabled),input:not([type=hidden]):not(:disabled),[tabindex="0"]')].filter(node=>node.getClientRects().length);if(!controls.length){event.preventDefault();return;}const first=controls[0],last=controls.at(-1);if(event.shiftKey&&(document.activeElement===first||document.activeElement===dialogRef.current)){event.preventDefault();last.focus();}else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===dialogRef.current)){event.preventDefault();first.focus();}};
+            return createPortal(<div className="profile-photo-overlay" data-dashboard-edit-ignore="true" onClick={event=>{if(event.target===event.currentTarget&&!busy)onClose();}}><section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="My profile" onKeyDown={trap} className="profile-photo-editor">
+                <div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-white">My profile</h2><button type="button" aria-label="Close my profile" disabled={busy} onClick={onClose} className="p-2 text-slate-400 hover:text-white"><X className="h-5 w-5"/></button></div>
+                <div className="my-5 flex flex-col items-center gap-3">
+                    {cropSource?<><div className="profile-crop-stage" tabIndex={0} role="group" aria-label="Photo crop preview. Drag the photo or use arrow keys to move it." onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} onLostPointerCapture={dragEnd} onKeyDown={cropKeys}>
+                        <img src={cropSource.src} alt="Adjust your profile photo" draggable={false} style={{width:geometry.displayWidth,height:geometry.displayHeight,left:geometry.left,top:geometry.top}}/><span className="profile-crop-grid" aria-hidden="true"/>
+                    </div><p className="text-xs font-normal text-slate-400">Drag to move · Zoom to crop</p><label className="profile-crop-zoom"><span>Zoom</span><input type="range" aria-label="Photo zoom" min="1" max="4" step="0.01" value={crop.zoom} disabled={busy} onChange={event=>{const zoom=Number(event.target.value);updateCrop({zoom,x:geometry.x*zoom/geometry.zoom,y:geometry.y*zoom/geometry.zoom});}}/><span>{crop.zoom.toFixed(1)}×</span></label><div className="flex gap-3"><button type="button" disabled={busy} onClick={()=>setCrop({zoom:1,x:0,y:0})} className="text-xs text-slate-400">Reset</button><button type="button" disabled={busy} onClick={()=>setCropSource(null)} className="text-xs text-slate-400">Cancel crop</button><button type="button" disabled={busy} onClick={applyCrop} className="rounded-lg bg-slate-700 px-3 py-2 text-xs text-slate-100">Use crop</button></div></>:<UserAvatar uid={user.uid} name={name} photos={{[user.uid]:draft}} titles={{[user.uid]:jobTitle}} onView={onView} size={104}/>}
+                    <span className="text-sm font-semibold text-slate-200">{name}</span>
+                </div>
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose profile photo" hidden onChange={pick}/>
+                <div className="flex flex-wrap justify-center gap-3"><button type="button" disabled={busy||preparing} onClick={()=>fileRef.current?.click()} className="rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-100">{preparing?'Preparing…':'Choose photo'}</button>{draft&&!cropSource&&<><button type="button" disabled={busy||preparing} onClick={()=>beginCrop(()=>loadProfileImage(draft))} className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200">Adjust photo</button><button type="button" disabled={busy||preparing} onClick={()=>setDraft('')} className="px-2 py-2 text-sm text-slate-400">Remove photo</button></>}</div>
+                <p className="mt-3 text-center text-xs font-normal text-slate-500">Choose the original photo again to recover areas outside an older crop.</p>
+                <label className="mt-5 block text-sm text-slate-300">Job title<input aria-label="Job title" maxLength={80} value={jobTitle} disabled={busy} onChange={event=>setJobTitle(event.target.value)} placeholder="e.g. Operations Manager" className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm font-normal text-slate-100"/></label>
+                {error&&<p role="alert" className="mt-4 text-sm text-rose-300">{error}</p>}
+                <div className="mt-6 flex justify-end gap-2 border-t border-slate-700 pt-4"><button type="button" disabled={busy} onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-slate-300">Cancel</button><button type="button" disabled={busy||preparing} onClick={save} className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-40">{busy?'Saving…':'Save profile'}</button></div>
+            </section></div>,document.body);
+        };
+        const UserProfileViewer = ({person,title,own,onClose,onEdit}) => {
+            const ref=useRef(null);useEffect(()=>{const before=document.activeElement;ref.current?.focus();return()=>before?.focus?.();},[]);
+            const keys=event=>{if(event.key==='Escape'){event.stopPropagation();onClose();return;}if(event.key!=='Tab')return;const buttons=[...ref.current.querySelectorAll('button')],first=buttons[0],last=buttons.at(-1);if(event.shiftKey&&(document.activeElement===first||document.activeElement===ref.current)){event.preventDefault();last?.focus();}else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===ref.current)){event.preventDefault();first?.focus();}};
+            return createPortal(<div className="profile-photo-overlay profile-viewer-overlay" data-dashboard-edit-ignore="true" onClick={event=>{if(event.target===event.currentTarget)onClose();}}><section className="user-profile-viewer" role="dialog" aria-label={person.name+' profile'} aria-modal="true" tabIndex={-1} ref={ref} onKeyDown={keys}><div className="flex justify-end"><button type="button" aria-label="Close profile view" onClick={onClose} className="p-2 text-slate-300"><X className="h-5 w-5"/></button></div>{person.photo?<img className="expanded-profile-photo" src={person.photo} alt={person.name+' profile photo'}/>:<div className="flex justify-center"><UserAvatar name={person.name} size={150}/></div>}<h2 className="mt-5 text-center text-lg font-semibold text-white">{person.name}</h2>{title&&<p className="mt-1 text-center text-sm font-normal text-slate-400">{title}</p>}{own&&<div className="mt-5 text-center"><button type="button" onClick={onEdit} className="rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-100">Edit my profile</button></div>}</section></div>,document.body);
+        };
+
+        const ChatSidebarToggle = ({open,onToggle}) => <button type="button" aria-label={open?'Hide conversations':'Show conversations'} title={open?'Hide conversations':'Show conversations'} aria-expanded={open} aria-controls="chat-conversation-inbox" onClick={onToggle} className="chat-inbox-toggle">{open?'‹':'›'}</button>;
+        const ChatWindowClose = ({onClose}) => <button type="button" aria-label="Close" title="Close chat" onClick={onClose} className="chat-window-close"><X className="h-4 w-4"/></button>;
+        const PrivateChatPanel = ({user,users,currentName,active,chatOpen,selectedUid,onSelectPerson,onSelectTeam,sharedUnread,canSend,soundReady,onUnread,onIncoming,onBusy,onPreview,owner,photos,titles,sharedPreview,onViewProfile,sidebarOpen,onToggleSidebar,onCloseChat}) => {
             const uid=user?.uid,recipientUid=selectedUid;
             const [conversations,setConversations]=useState([]),[ui,setUI]=useState(()=>normalizePrivateChatUI(null)),[viewsReady,setViewsReady]=useState(false);
-            const [localOpened,setLocalOpened]=useState([]),[newChatOpen,setNewChatOpen]=useState(false),[newPeer,setNewPeer]=useState(''),[removeTarget,setRemoveTarget]=useState(null),[removeScope,setRemoveScope]=useState('mine');
+            const [localOpened,setLocalOpened]=useState([]),[newChatOpen,setNewChatOpen]=useState(false),[search,setSearch]=useState(''),[removeTarget,setRemoveTarget]=useState(null),[removeScope,setRemoveScope]=useState('mine');
             const [localOpenThrough,setLocalOpenThrough]=useState({});
+            const [previews,setPreviews]=useState({}),previewRequests=useRef(new Set());
             const [messages,setMessages]=useState([]),[loaded,setLoaded]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
             const [directoryReady,setDirectoryReady]=useState(false),[busy,setBusy]=useState(false),[messageLimit,setMessageLimit]=useState(150);
             const [peerTyping,setPeerTyping]=useState(null),[clock,setClock]=useState(Date.now()),[editing,setEditing]=useState(null),[editText,setEditText]=useState('');
@@ -4763,6 +4953,22 @@
                 const ids=[...new Set([...reopened,...local,...sorted.filter(row=>privateChatRowVisible(row,ui,uid)).flatMap(row=>row.participantUids.filter(id=>id!==uid))])];
                 return ids.filter(id=>id!==uid).map(id=>byUid.get(id)||{uid:id,name:conversations.find(row=>row.participantUids.includes(id))?.names?.[id]||'Former teammate'});
             },[users,conversations,ui,localOpened,localOpenThrough,uid]);
+            const inboxPeople=useMemo(()=>[...people].sort((a,b)=>{
+                const last=peer=>conversations.find(row=>row.participantUids.includes(peer))?.updatedAt||'';
+                return String(last(b.uid)).localeCompare(String(last(a.uid)))||a.name.localeCompare(b.name);
+            }),[people,conversations]);
+            useEffect(()=>{
+                if(!chatOpen||!directoryReady||!viewsReady||!uid)return;
+                people.forEach(person=>{const row=conversations.find(item=>item.participantUids.includes(person.uid));if(!row?.lastMessageId||!privateChatRowVisible(row,ui,uid))return;
+                    const key=row.id+':'+row.lastMessageId;if(previewRequests.current.has(key))return;previewRequests.current.add(key);
+                    getDoc(doc(db,...privateChatPath(row.id).split('/'),'messages',row.lastMessageId)).then(snapshot=>{
+                        if(!aliveRef.current||auth.currentUser?.uid!==uid||!snapshot.exists())return;
+                        const message=snapshot.data(),current=latestRef.current,latest=current.conversations.find(item=>item.id===row.id);
+                        if(latest?.lastMessageId!==row.lastMessageId||message.sequence<=privateChatCutoff(current.ui,row.id,latest,uid))return;
+                        setPreviews(previous=>({...previous,[row.id]:{sequence:message.sequence,text:chatPreviewText(message)}}));
+                    }).catch(()=>previewRequests.current.delete(key));
+                });
+            },[chatOpen,directoryReady,viewsReady,uid,people,conversations,ui]);
             useEffect(()=>{onBusy(busy);return()=>onBusy(false);},[busy,onBusy]);
             useEffect(()=>{
                 if(!uid||!canSend||!db){onUnread(0);return;}
@@ -4807,7 +5013,7 @@
             const choose=peerUid=>{
                 if(busy||!viewsReady)return;setError('');setNotice('');setNewChatOpen(false);setRemoveTarget(null);
                 if(peerUid){const row=conversations.find(item=>item.participantUids.includes(peerUid));setLocalOpenThrough(previous=>({...previous,[peerUid]:privateChatCutoff(ui,privateConversationId(uid,peerUid),row,uid)}));clearedDraftKeys.current.delete(privateConversationId(uid,peerUid));setLocalOpened(previous=>[...new Set([...previous,peerUid])]);onSelectPerson(peerUid);}else onSelectTeam();
-                savePrivateChatChoice(db,uid,peerUid,peerUid?privateChatCutoff(ui,privateConversationId(uid,peerUid),conversations.find(row=>row.participantUids.includes(peerUid)),uid):0).catch(()=>setError('The tab selection could not be saved. Your messages are still saved.'));
+                savePrivateChatChoice(db,uid,peerUid,peerUid?privateChatCutoff(ui,privateConversationId(uid,peerUid),conversations.find(row=>row.participantUids.includes(peerUid)),uid):0).catch(()=>setError('The conversation selection could not be saved. Your messages are still saved.'));
             };
             const remove=async()=>{
                 if(!removeTarget||busy||!viewsReady)return;
@@ -4865,16 +5071,23 @@
                 }catch(failure){setError(failure.message||'Your edit could not be saved.');}finally{setBusy(false);}
             };
             return <>
-                <div role="tablist" aria-label="Chat conversations" className="chat-conversation-tabs flex max-h-28 flex-wrap gap-1 overflow-y-auto border-b border-slate-800 px-4 py-2">
-                    <button type="button" role="tab" aria-selected={!active} disabled={busy} onClick={()=>choose('')} className={`rounded-lg px-3 py-2 text-xs font-semibold ${!active?'bg-slate-800 text-white':'text-slate-400 hover:text-white'}`}>Team Chat{sharedUnread>0?' ('+sharedUnread+')':''}</button>
-                    {people.map(person=>{const row=conversations.find(item=>item.participantUids.includes(person.uid)),unread=row&&privateChatUnread(row,uid,ui);return <span key={person.uid} role="presentation" className="chat-person-tab group relative inline-flex rounded-lg">
-                        <button type="button" role="tab" aria-label={'Chat with '+person.name} aria-selected={active&&recipientUid===person.uid} disabled={busy} onClick={()=>choose(person.uid)} className={`flex items-center gap-1.5 rounded-lg py-2 pl-3 pr-8 text-xs font-semibold ${active&&recipientUid===person.uid?'bg-slate-800 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span className="max-w-[10rem] break-words">{person.name}</span>{unread&&<span aria-label="New message" className="rounded-full bg-rose-500 px-1.5 text-[10px] text-white">1</span>}</button>
-                        <button type="button" aria-label={'Remove '+person.name+' chat'} disabled={busy||!viewsReady} onClick={()=>{setRemoveScope('mine');setRemoveTarget(person);setError('');}} className="chat-tab-remove absolute right-1 top-1.5 flex h-6 w-6 items-center justify-center rounded text-slate-400 opacity-0 hover:bg-slate-700 hover:text-white group-hover:opacity-100 group-focus-within:opacity-100 disabled:opacity-30"><X className="h-3 w-3"/></button>
-                    </span>;})}
-                        <button type="button" disabled={busy||!canSend||!viewsReady} onClick={()=>{setNewChatOpen(value=>!value);setNewPeer('');setRemoveTarget(null);}} className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-40">+ New chat</button>
-                </div>
-                {newChatOpen&&<div className="border-b border-slate-800 bg-slate-900/50 px-4 py-3"><label className="block text-xs text-slate-300">Start a conversation</label><div className="mt-2 flex gap-2"><select aria-label="New chat teammate" value={newPeer} disabled={busy} onChange={event=>setNewPeer(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"><option value="">Choose a teammate</option>{users.map(person=><option key={person.uid} value={person.uid}>{person.name}</option>)}</select><button type="button" disabled={!newPeer||busy} onClick={()=>choose(newPeer)} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Start chat</button></div></div>}
-                {removeTarget&&<section role="alertdialog" aria-label="Remove conversation" className="border-b border-slate-700 bg-slate-900 px-4 py-3 text-xs text-slate-200">
+                <aside id="chat-conversation-inbox" className="chat-inbox-sidebar" aria-label="Conversation inbox">
+                    <div className="chat-inbox-sidebar-head">
+                        <div className="chat-inbox-sidebar-heading"><span className="chat-sidebar-mobile-control"><ChatSidebarToggle open={sidebarOpen} onToggle={onToggleSidebar}/></span><span>{newChatOpen?'New message':'Conversations'}</span><button type="button" disabled={busy||!canSend||!viewsReady} onClick={()=>{setNewChatOpen(value=>!value);setSearch('');setRemoveTarget(null);}} aria-label={newChatOpen?'Back to conversations':'New message'}>{newChatOpen?'Cancel':<><Edit3 className="h-3 w-3"/>New</>}</button><span className="chat-sidebar-mobile-control"><ChatWindowClose onClose={onCloseChat}/></span></div>
+                        <label className="chat-inbox-search"><Search className="h-3.5 w-3.5 shrink-0"/><input aria-label={newChatOpen?'Search teammates':'Search conversations'} placeholder={newChatOpen?'Find a teammate…':'Search conversations…'} value={search} onChange={event=>setSearch(event.target.value)}/></label>
+                    </div>
+                    <div className="chat-inbox-list" role="tablist" aria-orientation="vertical" aria-label="Chat conversations">
+                        {!newChatOpen&&(!search.trim()||'team chat'.includes(search.trim().toLowerCase()))&&<button type="button" role="tab" aria-selected={!active} disabled={busy} onClick={()=>choose('')} className="chat-inbox-row"><span className="user-profile-avatar" style={{width:34,height:34}}><Users className="h-4 w-4"/></span><span className="chat-inbox-row-copy"><span className="chat-inbox-row-title"><span className="chat-inbox-row-name">Team Chat</span>{sharedUnread>0&&<span className="chat-inbox-badge" aria-label={sharedUnread+' unread team messages'}>{sharedUnread}</span>}</span><span className="chat-inbox-row-preview">{sharedPreview||'Messages for your team'}</span></span></button>}
+                        {(newChatOpen?users:inboxPeople).filter(person=>person.uid!==uid&&person.name.toLowerCase().includes(search.trim().toLowerCase())).map(person=>{
+                            const row=conversations.find(item=>item.participantUids.includes(person.uid)),unread=row&&privateChatUnread(row,uid,ui),preview=row&&previews[row.id],canPreview=preview&&preview.sequence>privateChatCutoff(ui,row.id,row,uid);
+                            return <div key={person.uid} className="chat-inbox-person">
+                                <button type="button" role="tab" aria-label={'Chat with '+person.name} aria-selected={active&&recipientUid===person.uid} disabled={busy||!viewsReady} onClick={event=>{if(event.target.closest('[data-profile-avatar]')){onViewProfile({uid:person.uid,name:person.name,photo:photos[person.uid]});return;}setSearch('');choose(person.uid);}} className="chat-inbox-row"><UserAvatar uid={person.uid} name={person.name} photos={photos} titles={titles}/><span className="chat-inbox-row-copy"><span className="chat-inbox-row-title"><span className="chat-inbox-row-name" title={titles[person.uid]||undefined}>{person.name}</span>{unread?<span aria-label="New message" className="chat-inbox-badge">1</span>:<span className="chat-inbox-row-time">{row&&privateChatRowVisible(row,ui,uid)?chatInboxTime(row.updatedAt):''}</span>}</span><span className="chat-inbox-row-preview">{newChatOpen?'Private conversation':canPreview?preview.text:row&&privateChatRowVisible(row,ui,uid)?'Open conversation':'Start a conversation'}</span></span></button>
+                                {!newChatOpen&&<button type="button" aria-label={'Remove '+person.name+' chat'} title="Remove conversation" disabled={busy||!viewsReady} onClick={()=>{setRemoveScope('mine');setRemoveTarget(person);setError('');}} className="chat-tab-remove"><X className="h-3 w-3"/></button>}
+                            </div>;
+                        })}
+                        {(newChatOpen?users:inboxPeople).filter(person=>person.uid!==uid&&person.name.toLowerCase().includes(search.trim().toLowerCase())).length===0&&<p className="chat-inbox-empty">{search?'No matching people.':newChatOpen?'No teammates available.':'Choose New to start a private conversation. Your chats will stay here.'}</p>}
+                    </div>
+                                    {removeTarget&&<section role="alertdialog" aria-label="Remove conversation" className="border-b border-slate-700 bg-slate-900 px-4 py-3 text-xs text-slate-200">
                     <p className="font-semibold">Remove your chat with {removeTarget.name}?</p>
                     {owner&&<label className="mt-3 block text-slate-300">Remove chat for<select aria-label="Remove chat for" value={removeScope} disabled={busy} onChange={event=>setRemoveScope(event.target.value)} className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"><option value="mine">Only me</option><option value="peer" disabled={!MANAGER_CHAT_REMOVAL_RULES_READY||!conversations.some(row=>row.participantUids.includes(removeTarget.uid))}>Only {removeTarget.name}</option><option value="both" disabled={!MANAGER_CHAT_REMOVAL_RULES_READY||!conversations.some(row=>row.participantUids.includes(removeTarget.uid))}>Both of us</option></select></label>}
                     {owner&&!MANAGER_CHAT_REMOVAL_RULES_READY&&<p className="mt-2 text-slate-400">Only me is available now. The other removal choices are awaiting activation.</p>}
@@ -4883,18 +5096,23 @@
                 </section>}
                 {notice&&<div role="status" className="border-b border-slate-800 px-4 py-2 text-[11px] text-emerald-300">{notice}</div>}
                 {!active&&error&&<div role="alert" className="border-b border-rose-900/40 px-4 py-2 text-[11px] text-rose-300">{error}</div>}
-                <div style={{display:active?undefined:'none',minHeight:0,flex:1,flexDirection:'column'}} className={active?'flex min-h-0 flex-1 flex-col':''}>
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/50 px-4 py-3"><span className="text-xs font-semibold text-slate-200">{recipient?.name||'Private conversation'}</span><span className="text-[11px] text-slate-400">Only you and {recipient?.name||'your teammate'}</span></div>
+
+                </aside>
+                <div style={{display:active?'flex':'none'}} className="chat-inbox-pane">
+                    <div className="chat-inbox-conversation-head"><ChatSidebarToggle open={sidebarOpen} onToggle={onToggleSidebar}/><UserAvatar uid={recipientUid} name={recipient?.name} photos={photos} titles={titles} onView={onViewProfile}/><div className="chat-conversation-heading-copy"><strong title={titles[recipientUid]||undefined}>{recipient?.name||'Private conversation'}</strong><small>Only you and {recipient?.name||'your teammate'}</small></div><ChatWindowClose onClose={onCloseChat}/></div>
                 <div ref={messageViewportRef} data-private-chat-scroll="true" data-popover-scroll="true" style={{scrollBehavior:'auto'}} className="team-chat-messages bg-slate-950/90"><div ref={messageContentRef} className="team-chat-conversation">
                     {!recipient ? <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">Choose a teammate to start a private conversation.</div>
                     : !loaded ? <div role="status" className="py-10 text-center text-xs text-slate-400">{error?'Conversation unavailable.':'Loading conversation…'}</div>
                     : visibleMessages.length===0 ? <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">No private messages with {recipient.name} yet.</div> : <>
                         {messages.length>=messageLimit&&<button type="button" onClick={()=>setMessageLimit(value=>value+150)} className="mx-auto text-xs text-slate-300 hover:text-white">Load earlier messages</button>}
-                        {visibleMessages.map(message=>{const mine=message.authorUid===uid;return <div key={message.id} data-private-chat-message data-chat-message-owner={mine?'self':'other'} className={`flex min-w-0 ${mine?'justify-end':'justify-start'}`}><div className={`team-chat-message group min-w-0 max-w-[84%] text-slate-100 ${mine?'text-right':'text-left'}`}>
-                            <div className={`mb-1.5 flex items-center gap-3 ${mine?'flex-row-reverse':''}`}><span className="text-xs font-semibold text-slate-300">{mine?'You':recipient.name}</span><span className="text-[11px] font-normal text-slate-500">{new Date(message.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</span>{mine&&!getTeamChatSticker(message.text)&&<button type="button" aria-label="Edit your private message" onClick={()=>{setEditing(message.id);setEditText(message.text);}} className="chat-message-edit text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100">Edit</button>}</div>
-                            {editing===message.id?<div><textarea aria-label="Edit private message" value={editText} disabled={busy} onChange={event=>setEditText(event.target.value)} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3"/><div className="mt-2 flex gap-3"><button type="button" onClick={saveEdit} disabled={busy} className="text-xs text-emerald-300">Save</button><button type="button" disabled={busy} onClick={()=>setEditing(null)} className="text-xs text-slate-300">Cancel</button></div></div>:<><ChatMessageText text={message.text}/>{message.attachment&&<ChatAttachmentCard conversationId={cid} attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={active} onPreview={onPreview}/>} {message.editedAt&&<span className="text-[9px] text-slate-400">Edited</span>}</>}
-                            {mine&&(conversation?.readSequence?.[recipientUid]||0)>=message.sequence&&<div className="mt-1.5 text-[11px] font-normal text-slate-400">Seen by {recipient.name}</div>}
-                        </div></div>;})}</>}
+                        {visibleMessages.map(message=>{const mine=message.authorUid===uid;return <div key={message.id} data-private-chat-message data-chat-message-owner={mine?'self':'other'} className="minimal-chat-row">
+                            <UserAvatar uid={message.authorUid} name={mine?currentName:recipient.name} photos={photos} titles={titles} onView={onViewProfile} size={40}/>
+                            <div className="minimal-chat-stack"><div className="team-chat-message group text-slate-100">
+                                {editing===message.id?<div><textarea aria-label="Edit private message" value={editText} disabled={busy} onChange={event=>setEditText(event.target.value)} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3"/><div className="mt-2 flex gap-3"><button type="button" onClick={saveEdit} disabled={busy} className="text-xs text-emerald-300">Save</button><button type="button" disabled={busy} onClick={()=>setEditing(null)} className="text-xs text-slate-300">Cancel</button></div></div>:<><ChatMessageText text={message.text}/>{message.attachment&&<ChatAttachmentCard conversationId={cid} attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={active} onPreview={onPreview}/>}</>}
+                                <div className="minimal-chat-meta">{mine&&!getTeamChatSticker(message.text)&&editing!==message.id&&<button type="button" aria-label="Edit your private message" onClick={()=>{setEditing(message.id);setEditText(message.text);}} className="chat-message-edit opacity-0 group-hover:opacity-100 focus:opacity-100">Edit</button>}{message.editedAt&&<span>Edited</span>}<span>{new Date(message.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</span></div>
+                                {mine&&(conversation?.readSequence?.[recipientUid]||0)>=message.sequence&&<div className="minimal-chat-read-status">Seen by {recipient.name}</div>}
+                            </div></div>
+                        </div>;})}</>}
                 </div></div>
                 {error&&<div role="alert" className="border-t border-rose-900/40 bg-rose-950/30 px-4 py-2 text-[11px] font-semibold text-rose-300">{error}</div>}
                 {peerTyping?.typingUntil>clock&&<div role="status" className="px-4 py-2 text-[11px] text-slate-400">{recipient?.name} is typing…</div>}
@@ -5856,6 +6074,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
         const App = () => {
             const [user, setUser] = useState(null);
             const isAdminUser = isOwnerAccount(user);
+            const CurrentUserNameLabel = isAdminUser ? 'button' : 'span';
             const [accessProfile, setAccessProfile] = useState(null);
             const [settingsReady, setSettingsReady] = useState(false);
             const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -5946,6 +6165,14 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [isSigningIn, setIsSigningIn] = useState(false);
             const [userName, setUserName] = useState('');
             const [isEditingName, setIsEditingName] = useState(false);
+            const [profilePhotos,setProfilePhotos]=useState({}),[profileTitles,setProfileTitles]=useState({}),[profilesReady,setProfilesReady]=useState(false),[profileLoadError,setProfileLoadError]=useState(''),[profilePhotoOpen,setProfilePhotoOpen]=useState(false),[viewedUserProfile,setViewedUserProfile]=useState(null),[chatInboxList,setChatInboxList]=useState(false);
+            const viewUserProfile=useCallback(person=>{if(person?.uid)setViewedUserProfile({uid:person.uid,name:String(person.name||'Teammate').slice(0,100),photo:profilePhotoSource(person.photo)});},[]);
+            useEffect(()=>{
+                setViewedUserProfile(null);setProfilePhotos({});setProfileTitles({});setProfilesReady(false);setProfileLoadError('');setProfilePhotoOpen(false);if(!user?.uid||!db)return;
+                return onSnapshot(query(collection(db,'artifacts',appId,'public','data','presence'),where('recordType','==','profile-photo')),snapshot=>{
+                    const photos={},titles={};snapshot.forEach(item=>{const record=item.data();if(item.id===record.uid){const photo=profilePhotoSource(record.profilePhoto);if(photo)photos[record.uid]=photo;if(typeof record.jobTitle==='string')titles[record.uid]=record.jobTitle.trim().slice(0,80);}});setProfilePhotos(photos);setProfileTitles(titles);if(snapshot.metadata?.fromCache!==true)setProfilesReady(true);
+                },()=>{setProfilesReady(false);setProfileLoadError('Your profile could not load. Refresh to retry.');});
+            },[user?.uid]);
             const [isEditMode, setIsEditing] = useState(false);
             const [activeTab, setActiveTab] = useState('overview');
             const [routesSubTab, setRoutesSubTab] = useState('table');
@@ -5979,9 +6206,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [isChatPanelOpen, setIsTeamChatOpen] = useState(false);
             const [chatTab,setChatTab] = useState('team'), [privateChatUnread,setPrivateChatUnread] = useState(0);
             const [privateRecipientUid,setPrivateRecipientUid]=useState(''),[privateChatPopup,setPrivateChatPopup]=useState(null),[privateChatBusy,setPrivateChatBusy]=useState(false);
-            const selectPrivateChat=useCallback(uid=>{setPrivateRecipientUid(uid);setChatTab('private');setConfirmTeamChatClear(false);},[]);
-            const selectSharedChat=useCallback(()=>{setChatTab('team');setConfirmTeamChatClear(false);},[]);
+            const selectPrivateChat=useCallback(uid=>{setPrivateRecipientUid(uid);setChatTab('private');setConfirmTeamChatClear(false);setChatInboxList(false);},[]);
+            const selectSharedChat=useCallback(()=>{setChatTab('team');setConfirmTeamChatClear(false);setChatInboxList(false);},[]);
             const isTeamChatOpen = isChatPanelOpen && chatTab === 'team';
+            const closeChatWindow=()=>{setIsTeamChatOpen(false);if(!teamChatClearBusy)setConfirmTeamChatClear(false);};
+            useEffect(()=>{if(!isChatPanelOpen)setChatInboxList(false);},[isChatPanelOpen]);
             useEffect(()=>{setPrivateChatUnread(0);setChatTab('team');setPrivateRecipientUid('');setPrivateChatPopup(null);setPrivateChatBusy(false);setChatFilePreview(null);},[user?.uid]);
             const [chatFilePreview, setChatFilePreview] = useState(null);
             const [teamChatMessages, setTeamChatMessages] = useState([]);
@@ -6678,7 +6907,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                             setAuthError('This account is not authorized. Please contact Fadi.');
                             signOut(auth).catch(console.error); return;
                         }
-                        const savedName = localStorage.getItem(getUserNameKey(firebaseUser.uid))?.trim();
+                        const savedName = isOwnerAccount(firebaseUser) ? localStorage.getItem(getUserNameKey(firebaseUser.uid))?.trim() : '';
                         setUserName(savedName || profile.name || getDefaultUserName(firebaseUser));
                         currentAuditName = savedName || profile.name || getDefaultUserName(firebaseUser);
                         const sessionKey='geodis_activity_session_'+firebaseUser.uid;
@@ -9947,16 +10176,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center shadow-lg shadow-rose-950/40">{teamChatUnreadCount + privateChatUnread > 9 ? '9+' : teamChatUnreadCount + privateChatUnread}</span>
                                         )}
                                     </button>
-                                        <div role="dialog" aria-label="Team Chat" style={{display:isChatPanelOpen ? undefined : 'none'}} data-dashboard-edit-ignore="true" className="team-chat-panel dashboard-header-popover absolute right-0 top-8 z-[120] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
-                                            <div className="team-chat-titlebar flex items-center justify-between gap-3 border-b border-slate-800 px-6 py-4">
-                                                <div className="min-w-0">
-                                                    <div className="text-base font-bold text-white">Chat</div>
-                                                    <div className="mt-0.5 text-xs font-normal text-slate-400">{chatTab==='team'?'Messages for your team':'One-to-one conversation'}</div>
-                                                </div>
-                                                <div className="flex shrink-0 items-center gap-1">{isAdminUser && chatTab==='team' && <button type="button" aria-label="Clear Team Chat" disabled={!teamChatLoaded || !settingsReady || teamChatClearBusy || isSavingChatEdit || teamChatMessages.some(message=>message.pending)} onClick={()=>{setTeamChatError('');setTeamChatNotice('');setConfirmTeamChatClear(true);}} className="rounded-lg px-2 py-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-rose-200 disabled:opacity-40">Clear Chat</button>}<button type="button" aria-label="Close" title="Close Team Chat" onClick={() => {setIsTeamChatOpen(false);if(!teamChatClearBusy)setConfirmTeamChatClear(false);}} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"><X className="h-5 w-5" /></button></div>
-                                            </div>
-                                            <PrivateChatPanel key={user?.uid || 'signed-out'} user={user} users={chatMentionUsers} currentName={getCurrentShiftUser().name} active={isChatPanelOpen&&chatTab==='private'} chatOpen={isChatPanelOpen} selectedUid={privateRecipientUid} onSelectPerson={selectPrivateChat} onSelectTeam={selectSharedChat} sharedUnread={teamChatUnreadCount} canSend={canEditSection('chat')} soundReady={soundSettingsLoaded} onUnread={setPrivateChatUnread} onIncoming={setPrivateChatPopup} onBusy={setPrivateChatBusy} onPreview={setChatFilePreview} owner={isOwnerAccount(user)}/>
-                                            <div style={{display:chatTab==='team'?'contents':'none'}}>
+                                        <div role="dialog" aria-label="Team Chat" style={{display:isChatPanelOpen ? undefined : 'none'}} data-sidebar-open={chatInboxList?'true':'false'} data-dashboard-edit-ignore="true" className="team-chat-panel dashboard-header-popover absolute right-0 top-8 z-[120] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950/70">
+                                            <div className="chat-inbox-layout" data-show-list={chatInboxList?'true':'false'}>
+                                            <PrivateChatPanel key={user?.uid || 'signed-out'} user={user} users={chatMentionUsers} currentName={getCurrentShiftUser().name} active={isChatPanelOpen&&chatTab==='private'} chatOpen={isChatPanelOpen} selectedUid={privateRecipientUid} onSelectPerson={selectPrivateChat} onSelectTeam={selectSharedChat} sharedUnread={teamChatUnreadCount} canSend={canEditSection('chat')} soundReady={soundSettingsLoaded} onUnread={setPrivateChatUnread} onIncoming={setPrivateChatPopup} onBusy={setPrivateChatBusy} onPreview={setChatFilePreview} owner={isOwnerAccount(user)} photos={profilePhotos} titles={profileTitles} onViewProfile={viewUserProfile} sidebarOpen={chatInboxList} onToggleSidebar={()=>setChatInboxList(value=>!value)} onCloseChat={closeChatWindow} sharedPreview={displayedTeamChatMessages.length?chatPreviewText(displayedTeamChatMessages.at(-1)):null}/>
+                                            <div className="chat-inbox-pane" style={{display:chatTab==='team'?'flex':'none'}}>
+                                            <div className="chat-inbox-conversation-head"><ChatSidebarToggle open={chatInboxList} onToggle={()=>setChatInboxList(value=>!value)}/><span className="user-profile-avatar" style={{width:34,height:34}}><Users className="h-4 w-4"/></span><div className="chat-conversation-heading-copy"><strong>Team Chat</strong><small>Everyone on your team</small></div>{isAdminUser&&<button type="button" aria-label="Clear Team Chat" disabled={!teamChatLoaded || !settingsReady || teamChatClearBusy || isSavingChatEdit || teamChatMessages.some(message=>message.pending)} onClick={()=>{setTeamChatError('');setTeamChatNotice('');setConfirmTeamChatClear(true);}} className="rounded-lg px-2 py-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-rose-200 disabled:opacity-40">Clear Chat</button>}<ChatWindowClose onClose={closeChatWindow}/></div>
                                             <TeamChatClearConfirmation owner={isAdminUser} open={confirmTeamChatClear} busy={teamChatClearBusy} onConfirm={clearTeamChat} onCancel={()=>setConfirmTeamChatClear(false)}/>
                                             <div ref={teamChatScrollRef} data-popover-scroll="true" style={{scrollBehavior:'auto'}} className="team-chat-messages bg-slate-950/90">
                                                 <div ref={teamChatContentRef} className="team-chat-conversation">
@@ -9973,35 +10197,17 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                         const seenNames = [...readersByUid.values()].filter(entry => entry.uid !== user?.uid)
                                                             .map(entry => masterLists.nameOverrides?.[entry.uid] || entry.name || 'User');
                                                         return (
-                                                            <div key={message.id || message.timestamp} ref={element => { if (isNewestUnread) teamChatUnreadTargetRef.current = element; if (message.id === chatJumpMessage?.id) teamChatJumpTargetRef.current = element; }} data-chat-message-id={messageKey} data-chat-message-owner={mine ? 'self' : 'other'} data-mention-highlighted={highlightedChatMessageId === message.id ? 'true' : undefined} className={`flex min-w-0 ${mine ? 'justify-end' : 'justify-start'} ${highlightedChatMessageId === message.id ? 'rounded-lg bg-indigo-500/10 ring-1 ring-indigo-400/50' : ''}`}>
-                                                                <div className={`team-chat-message group min-w-0 max-w-[84%] text-slate-100 ${mine ? 'text-right' : 'text-left'} ${editingChatId === message.id ? 'w-full' : ''}`}>
-                                                                    <div className={`mb-1.5 flex items-center gap-3 ${mine ? 'flex-row-reverse' : ''}`}>
-                                                                        <span className="text-xs font-semibold text-slate-300">{mine ? 'You' : String(message.author || 'Team')}</span>
-                                                                        <div className="flex items-center gap-2">
-                                                                            {mine && !message.pending && !getTeamChatSticker(message.text) && canSendTeamChat && editingChatId !== message.id && <button type="button" onClick={() => { setEditingChatId(message.id); setEditingChatText(message.text || ''); }} className="chat-message-edit text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Edit your message">Edit</button>}
-                                                                            <span className="text-[11px] font-normal text-slate-500">{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>
-                                                                        </div>
+                                                            <div key={message.id || message.timestamp} ref={element => { if (isNewestUnread) teamChatUnreadTargetRef.current = element; if (message.id === chatJumpMessage?.id) teamChatJumpTargetRef.current = element; }} data-chat-message-id={messageKey} data-chat-message-owner={mine ? 'self' : 'other'} data-mention-highlighted={highlightedChatMessageId === message.id ? 'true' : undefined} className={`minimal-chat-row ${highlightedChatMessageId === message.id ? 'rounded-lg bg-indigo-500/10 ring-1 ring-indigo-400/50' : ''}`}>
+                                                                <UserAvatar uid={message.authorUid} name={message.author} photos={profilePhotos} titles={profileTitles} onView={viewUserProfile} size={40}/>
+                                                                <div className="minimal-chat-stack">
+                                                                    {!mine&&<span className="minimal-chat-author" title={profileTitles[message.authorUid]||undefined}>{String(message.author || 'Team')}</span>}
+                                                                    <div className={`team-chat-message group text-slate-100 ${editingChatId === message.id ? 'w-full' : ''}`}>
+                                                                        {editingChatId === message.id ? (
+                                                                            <div><textarea aria-label="Edit message" value={editingChatText} onChange={event => setEditingChatText(event.target.value)} disabled={isSavingChatEdit} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3"/><div className="mt-2 flex gap-3"><button type="button" disabled={isSavingChatEdit || (!editingChatText.trim() && !message.attachment)} onClick={saveTeamChatEdit} className="text-xs text-emerald-300 disabled:opacity-40">Save</button><button type="button" disabled={isSavingChatEdit} onClick={() => setEditingChatId(null)} className="text-xs text-slate-300">Cancel</button></div></div>
+                                                                        ) : <div data-chat-message-body className="min-w-0"><ChatMessageText text={message.text} mentionNames={message.mentionNames}/>{chatJumpMessage?.id === message.id && !teamChatMessages.some(item => item.id === message.id) && <div className="mt-1 text-[11px] text-slate-400">Earlier mentioned message · {new Date(message.timestamp).toLocaleDateString()}</div>}{message.attachment && !message.pending && <ChatAttachmentCard attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={isTeamChatOpen} onPreview={setChatFilePreview}/>}</div>}
+                                                                        <div className="minimal-chat-meta">{mine && !message.pending && !getTeamChatSticker(message.text) && canSendTeamChat && editingChatId !== message.id && <button type="button" onClick={() => { setEditingChatId(message.id); setEditingChatText(message.text || ''); }} className="chat-message-edit opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Edit your message">Edit</button>}{message.pending&&<span>Sending…</span>}{message.editedAt&&<span>Edited</span>}<span>{message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : ''}</span></div>
+                                                                        {mine && seenNames.length > 0 && <div className="minimal-chat-read-status">Seen by {seenNames.join(', ')}</div>}
                                                                     </div>
-                                                                    {editingChatId === message.id ? (
-                                                                        <div>
-                                                                            <textarea aria-label="Edit message" value={editingChatText} onChange={event => setEditingChatText(event.target.value)} disabled={isSavingChatEdit} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3" />
-                                                                            <div className="flex gap-3 mt-2">
-                                                                                <button type="button" disabled={isSavingChatEdit || (!editingChatText.trim() && !message.attachment)} onClick={saveTeamChatEdit} className="text-xs text-emerald-300 disabled:opacity-40">Save</button>
-                                                                                <button type="button" disabled={isSavingChatEdit} onClick={() => setEditingChatId(null)} className="text-xs text-slate-300">Cancel</button>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div data-chat-message-body className="min-w-0">
-                                                                            <ChatMessageText text={message.text} mentionNames={message.mentionNames} />
-                                                                            {chatJumpMessage?.id === message.id && !teamChatMessages.some(item => item.id === message.id) && <div className="mt-1 text-[9px] text-slate-400">Earlier mentioned message · {new Date(message.timestamp).toLocaleDateString()}</div>}
-                                                                            {message.attachment && !message.pending && <ChatAttachmentCard attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={isTeamChatOpen} onPreview={setChatFilePreview} />}
-                                                                            {message.pending && <span className="text-[9px] text-slate-400">Sending…</span>}
-                                                                            {message.editedAt && <span className="text-[9px] text-slate-400">Edited</span>}
-                                                                        </div>
-                                                                    )}
-                                                                    {mine && seenNames.length > 0 && (
-                                                                        <div className="mt-1.5 text-[11px] font-normal text-slate-400">Seen by {seenNames.join(', ')}</div>
-                                                                    )}
                                                                 </div>
                                                             </div>
                                                         );
@@ -10015,10 +10221,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             <TeamChatTypingIndicator sessions={teamChatTypingSessions} uid={user?.uid} names={masterLists.nameOverrides || {}} />
                                             <TeamChatComposer key={user?.uid || 'local'} open={isTeamChatOpen} canSend={canSendTeamChat && !teamChatClearBusy} sendMessage={sendTeamChatMessage} publishTyping={publishTeamChatTyping} mentionUsers={chatMentionUsers} />
                                             </div>
+                                            </div>
                                         </div>
                                 </div>
                                 {privateChatPopup&&<div role="status" aria-label="New private message" data-dashboard-edit-ignore="true" data-html2canvas-ignore="true" className="fixed bottom-16 right-4 z-[145] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-600 bg-slate-900 p-4 shadow-2xl sm:w-96">
-                                    <div className="flex items-start gap-3"><MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-indigo-300"/><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-white">New message from {privateChatPopup.name}</p><p className="mt-1 break-words text-xs text-slate-400">{privateChatPopup.preview}</p></div><button type="button" aria-label="Dismiss new message popup" onClick={()=>setPrivateChatPopup(null)} className="p-1 text-slate-400 hover:text-white"><X className="h-4 w-4"/></button></div>
+                                    <div className="flex items-start gap-3"><UserAvatar uid={privateChatPopup.uid} name={privateChatPopup.name} photos={profilePhotos} titles={profileTitles} onView={viewUserProfile}/><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-white">New message from {privateChatPopup.name}</p><p className="mt-1 break-words text-xs text-slate-400">{privateChatPopup.preview}</p></div><button type="button" aria-label="Dismiss new message popup" onClick={()=>setPrivateChatPopup(null)} className="p-1 text-slate-400 hover:text-white"><X className="h-4 w-4"/></button></div>
                                     <button type="button" disabled={privateChatBusy} onClick={()=>{selectPrivateChat(privateChatPopup.uid);setPrivateChatPopup(null);setIsTeamChatOpen(true);setIsShiftNotificationOpen(false);}} className="mt-3 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 hover:text-white disabled:opacity-40">Open chat</button>
                                 </div>}
                                 {isAdminUser && <button type="button" onClick={openTeamTasks} aria-label={taskNotifications.length ? `Team Tasks, ${taskNotifications.length} unread alerts` : 'Team Tasks'} title="Team Tasks" className={`relative p-1 bg-transparent border-0 transition-all active:scale-95 cursor-pointer ${taskNotifications.length ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-white'}`}>
@@ -11770,16 +11977,17 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                             <Users aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-500" />
                             <span className="text-[11px] font-medium text-slate-500 shrink-0">Online users</span>
                             <div className="flex items-center gap-0.5">
+                                <button type="button" aria-label="Open your profile" disabled={!profilesReady} title={profileLoadError||(!profilesReady?'Loading profile…':[getSavedDisplayName(user),profileTitles[user?.uid]].filter(Boolean).join(' — '))} className="footer-profile-button" onClick={()=>profilePhotos[user?.uid]?viewUserProfile({uid:user.uid,name:getSavedDisplayName(user),photo:profilePhotos[user.uid]}):setProfilePhotoOpen(true)}><UserAvatar uid={user?.uid} name={getSavedDisplayName(user)} photos={profilePhotos} titles={profileTitles} size={23}/></button>{profileLoadError&&<span role="status" className="text-[10px] text-rose-300">{profileLoadError}</span>}
                                 <div className="relative shrink-0">
-                                    {isEditingName ? (
+                                    {isAdminUser && isEditingName ? (
                                         <div className="flex items-center gap-1.5 animate-in slide-in-from-left-2 duration-200">
                                             <input autoFocus className="bg-slate-800 px-2 py-0.5 rounded border border-indigo-500/50 text-[10px] font-bold text-white outline-none focus:ring-1 focus:ring-indigo-500" value={String(userName)} onChange={(e) => setUserName(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') { setUserName(e.target.value); localStorage.setItem(getUserNameKey(user.uid), e.target.value); setIsEditingName(false); } }} onBlur={() => { localStorage.setItem(getUserNameKey(user.uid), userName); setIsEditingName(false); }} />
                                             <button onClick={() => { localStorage.setItem(getUserNameKey(user.uid), userName); setIsEditingName(false); }} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-500 transition-colors cursor-pointer"><Check className="w-3 h-3" /></button>
                                         </div>
                                     ) : (
-                                        <button onClick={() => setIsEditingName(true)} className={`footer-user-badge flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300 ${currentUserIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400 hover:border-slate-500' : currentUserIsIdle ? 'bg-amber-900/30 border-amber-500/30 text-amber-200 hover:border-amber-400' : 'bg-indigo-900/40 border-indigo-500/40 text-indigo-200 hover:border-indigo-400'}`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${currentUserIsAway ? 'bg-slate-500' : currentUserIsIdle ? 'bg-amber-400' : 'bg-emerald-500'}`} /> YOU: {getSavedDisplayName(user)} {currentUserIsAway ? <span className="text-[8px] normal-case tracking-normal font-semibold text-slate-400">Away</span> : currentUserIsIdle ? <span className="text-[8px] normal-case tracking-normal font-semibold text-amber-300/75">Idle</span> : null} <Edit3 className="w-2.5 h-2.5 opacity-50" />
-                                        </button>
+                                        <CurrentUserNameLabel type={isAdminUser?'button':undefined} aria-label={isAdminUser?'Rename your display name':undefined} title={profileTitles[user?.uid]||undefined} onClick={isAdminUser?()=>setIsEditingName(true):undefined} className={`footer-user-badge flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-semibold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300 ${currentUserIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400 hover:border-slate-500' : currentUserIsIdle ? 'bg-amber-900/30 border-amber-500/30 text-amber-200 hover:border-amber-400' : 'bg-indigo-900/40 border-indigo-500/40 text-indigo-200 hover:border-indigo-400'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${currentUserIsAway ? 'bg-slate-500' : currentUserIsIdle ? 'bg-amber-400' : 'bg-emerald-500'}`} /> {getSavedDisplayName(user)}  {currentUserIsAway ? <span className="text-[8px] normal-case tracking-normal font-semibold text-slate-400">Away</span> : currentUserIsIdle ? <span className="text-[8px] normal-case tracking-normal font-semibold text-amber-300/75">Idle</span> : null} {isAdminUser&&<Edit3 className="w-2.5 h-2.5 opacity-50" />}
+                                        </CurrentUserNameLabel>
                                     )}
                                 </div>
                                 {isAdminUser && <button type="button" onClick={openSettings} title="Settings" aria-label="Open Settings" className="dashboard-settings-button shrink-0 inline-flex items-center justify-center p-1.5 bg-transparent border-0 text-slate-300 hover:text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300"><Settings className="w-4 h-4" /></button>}
@@ -11787,8 +11995,9 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                     const userIsIdle = isPresenceIdle(u);
                                     const userIsAway = isPresenceAway(u);
                                     return (
-                                        <div key={u.uid} className={`footer-user-badge flex shrink-0 items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-medium whitespace-nowrap ${userIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400' : userIsIdle ? 'bg-amber-900/20 border-amber-500/25 text-amber-200/80' : 'bg-slate-800/60 border-slate-700 text-slate-400'}`}>
+                                        <div key={u.uid} title={profileTitles[u.uid]||undefined} className={`footer-user-badge flex shrink-0 items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-medium whitespace-nowrap ${userIsAway ? 'bg-slate-900/60 border-slate-600 text-slate-400' : userIsIdle ? 'bg-amber-900/20 border-amber-500/25 text-amber-200/80' : 'bg-slate-800/60 border-slate-700 text-slate-400'}`}>
                                             <div className={`w-1.5 h-1.5 rounded-full ${userIsAway ? 'bg-slate-500/80' : userIsIdle ? 'bg-amber-400/80' : 'bg-emerald-500/60'}`} />
+                                            <UserAvatar uid={u.uid} name={getOnlineDisplayName(u)} photos={profilePhotos} titles={profileTitles} onView={viewUserProfile} size={21}/>
                                             {isAdminUser && editingOnlineUserId === u.uid ? (
                                                 <div className="flex items-center gap-1">
                                                     <input autoFocus className="bg-slate-950 border border-indigo-500/50 rounded px-2 py-0.5 text-[10px] text-white outline-none w-20" value={onlineNameDraft} onChange={(e) => setOnlineNameDraft(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') saveOnlineNameOverride(u.uid); }} />
@@ -11817,6 +12026,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                             <div><DashboardSaveStatus status={dashboardSaveStatus} location="footer" /></div>
                         </div>
                     </footer>
+                    {viewedUserProfile&&<UserProfileViewer person={viewedUserProfile} title={profileTitles[viewedUserProfile.uid]||''} own={viewedUserProfile.uid===user?.uid} onClose={()=>setViewedUserProfile(null)} onEdit={()=>{setViewedUserProfile(null);setProfilePhotoOpen(true);}}/>}
+                    {profilePhotoOpen&&user&&<ProfilePhotoEditor key={user.uid} user={user} name={getSavedDisplayName(user)} photos={profilePhotos} titles={profileTitles} onView={viewUserProfile} onClose={()=>setProfilePhotoOpen(false)} onSaved={(uid,photo,title)=>{setProfilePhotos(previous=>({...previous,[uid]:photo}));setProfileTitles(previous=>({...previous,[uid]:title}));}}/>}
 
                     {}
                     {isTeamTasksOpen && (isAdminUser || teamTasks.some(task => task.id === selectedTaskId && isTaskAssignedTo(task, user?.uid))) && <TeamTasksWindow dialogRef={taskDialogRef} close={() => setIsTeamTasksOpen(false)} owner={isAdminUser} uid={user?.uid}
