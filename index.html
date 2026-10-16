@@ -1364,6 +1364,46 @@
             .truck-assignment-request-sheet:not(.truck-assignment-request-export) .tar-summary { margin:0 16px 16px; }
             .truck-assignment-request-sheet:not(.truck-assignment-request-export) .tar-footer { padding:18px; align-items:flex-start; }
         }
+        .overview-route-issues { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:16px; }
+        .overview-route-issues[data-single="true"] { grid-template-columns:1fr; }
+        .overview-route-issues .overview-route-card { position:relative; display:flex; flex-direction:column; min-height:124px; min-width:0; overflow:hidden; background:#1f2937; color:#f7f9fc; border:1px solid #465269; border-radius:12px; padding:16px 20px 12px; text-align:left; font:inherit; box-shadow:0 1px 4px #0002; cursor:pointer; }
+        .overview-route-issues .overview-route-card:hover { border-color:#6b7b94; }
+        .overview-route-issues .overview-route-card:focus-visible { outline:2px solid #bdc9e4; outline-offset:3px; }
+        .overview-route-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; position:relative; z-index:1; }
+        .overview-route-head>div { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; min-width:0; }
+        .overview-route-number { font-size:14px; line-height:20px; font-weight:700; letter-spacing:.025em; }
+        .overview-route-driver { color:#a4afc1; font-size:12px; line-height:16px; font-weight:500; overflow-wrap:anywhere; }
+        .overview-route-kind { display:flex; align-items:center; gap:5px; color:#fbbf24; font-size:10px; line-height:15px; font-weight:900; text-transform:uppercase; letter-spacing:.1em; white-space:nowrap; }
+        .overview-route-kind svg { width:13px; height:13px; flex:none; }
+        .overview-route-broken .overview-route-kind { color:#fb7185; }
+        .overview-route-issues .overview-route-watermark { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:96px; height:96px; color:#f7f9fc; opacity:.05; pointer-events:none; }
+        .overview-route-card:hover>.overview-route-watermark { opacity:.1; }
+        .overview-route-broken>.overview-route-watermark { width:192px; transform:translate(-50%,-50%); }
+        .overview-route-body { display:flex; justify-content:space-between; align-items:center; gap:14px; margin-top:8px; position:relative; z-index:1; }
+        .overview-route-delay { color:#fbbf24; font-size:11px; font-weight:700; max-width:145px; }
+        .overview-route-delay b { font-size:30px; line-height:36px; font-weight:900; margin-right:4px; }
+        .overview-route-delay>span { display:block; color:#7f8ba0; font-size:10px; line-height:15px; font-weight:400; margin-top:2px; }
+        .overview-route-counts { display:flex; gap:16px; text-align:right; }
+        .overview-route-counts>div { display:flex; flex-direction:column; gap:4px; }
+        .overview-route-counts strong { font-size:16px; line-height:24px; font-weight:700; }
+        .overview-route-counts span { color:#a4afc1; font-size:10px; line-height:15px; font-weight:700; letter-spacing:.025em; text-transform:uppercase; }
+        .overview-route-green { color:#34d399; }
+        .overview-route-red { color:#fb7185; }
+        .overview-route-bottom { display:flex; align-items:center; justify-content:flex-end; gap:12px; margin-top:8px; position:relative; z-index:1; min-height:15px; }
+        .overview-route-lines { position:absolute; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:3px; width:44%; max-width:240px; }
+        .overview-route-line { height:3px; min-width:0; flex:1; border-radius:3px; background:linear-gradient(90deg,transparent,#f43f5e 20%,#f43f5e 80%,transparent); }
+        .overview-route-done { background:linear-gradient(90deg,transparent,#10b981 20%,#10b981 80%,transparent); }
+        .overview-route-pending { background:#7f8ba066; }
+        .overview-route-credit { color:#7f8ba0; font-size:10px; line-height:15px; display:flex; align-items:center; gap:4px; white-space:nowrap; }
+        .overview-route-credit svg { width:12px; height:12px; flex:none; }
+        @media(max-width:760px) { .overview-route-issues .overview-route-card { padding:16px 14px; } .overview-route-counts { gap:10px; } }
+        @media(max-width:600px) { .overview-route-issues { grid-template-columns:1fr; } .overview-route-kind { white-space:normal; } }
+        @media(max-width:380px) { .overview-route-head { flex-direction:column; gap:5px; } .overview-route-body { flex-wrap:wrap; gap:9px; } .overview-route-counts { width:100%; justify-content:space-between; } .overview-route-bottom { padding-top:9px; } .overview-route-lines { top:0; width:70%; } }
+
+    
+        .dashboard-header-popover[aria-label="Notifications"] { display:flex; flex-direction:column; max-height:calc(var(--phone-viewport-height,100dvh) - 5rem); }
+        .dashboard-header-popover[aria-label="Notifications"] > :not([data-popover-scroll="true"]) { flex-shrink:0; }
+        .dashboard-header-popover[aria-label="Notifications"] > [data-popover-scroll="true"] { flex:1 1 auto; min-height:0; }
     </style>
     <script>
         (() => {
@@ -1420,7 +1460,7 @@
             Table as TableIcon, Trash2, Route, Settings, ClipboardPaste, Award, DollarSign,
             PlusCircle, X, Loader2, ActivitySquare, MessageSquare, User, Share2,
             FileText, History, Maximize, Minimize, Bell, ThumbsUp, Smile, Search, ClipboardList,
-            Heart, Coffee, PartyPopper, Hand, Moon, Sparkles, Pizza, Cookie, Mic, Paperclip, MoreHorizontal, Phone, Building2
+            Heart, Coffee, PartyPopper, Hand, Moon, Sparkles, Pizza, Cookie, Mic, Paperclip, MoreHorizontal, Phone, Building2, Wrench
         } from 'lucide-react';
 
         let firebaseConfig = {
@@ -1950,29 +1990,84 @@
             return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
         };
 
+        const isRouteStatusCall = call => ['late-route','truck-breakdown'].includes(call?.segment);
+        const getRouteIssueProgress = call => {
+            const keys=['routeStopsTotal','routeStopsCompleted','routeStopsLate','routeMinutesLate'];
+            const values=keys.map(key=>String(call?.[key]??'').trim());
+            if(values.some(value=>!/^\d+$/.test(value)))return null;
+            const [total,completed,late,minutes]=values.map(Number);
+            if(total<1 || total>999 || completed>total || late>total || completed+late>total || minutes>1440)return null;
+            return {total,completed,late,minutes,pending:total-completed-late};
+        };
+        const getOverviewRouteIssues = notes => {
+            const latest=new Map();
+            (notes || []).forEach((note,index)=>{
+                if(!note?.id || !isRouteStatusCall(note.driverCall))return;
+                const route=String(note.driverCall.route || '').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+                if(!route)return;
+                const stamp=Date.parse(note.driverCall.routeStatusUpdatedAt || note.timestamp || ''),time=Number.isFinite(stamp)?stamp:0,prior=latest.get(route);
+                if(!prior || time>prior.time || (time===prior.time && index<prior.index))latest.set(route,{note,index,time});
+            });
+            return [...latest.values()].sort((a,b)=>b.time-a.time || a.index-b.index).map(({note})=>({note,progress:getRouteIssueProgress(note.driverCall)}))
+                .filter(({note,progress})=>progress && note.driverCall.routeIssueStatus!=='resolved' && progress.completed<progress.total);
+        };
+        const OverviewRouteIssues = ({notes,onOpen}) => {
+            const issues=getOverviewRouteIssues(notes);
+            if(!issues.length)return null;
+            return <section className="overview-route-issues" data-single={issues.length===1?'true':undefined} aria-label="Late routes and truck breakdowns" aria-live="polite">
+                {issues.map(({note,progress})=>{
+                    const call=note.driverCall,broken=call.segment==='truck-breakdown',kind=broken?'Truck breakdown':'Late route';
+                    const stamp=Date.parse(call.routeStatusUpdatedAt || note.timestamp || ''),time=Number.isFinite(stamp)?new Date(stamp).toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit'}):'';
+                    return <button type="button" key={note.id} className={'overview-route-card'+(broken?' overview-route-broken':'')} onClick={()=>onOpen(note)} aria-label={'Open '+kind.toLowerCase()+' note for route '+call.route}>
+                        {broken?<svg className="overview-route-watermark" viewBox="0 0 48 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                            <g transform="rotate(-7 7 18)">
+                                <Truck width={24} height={24} aria-hidden="true"/>
+                            </g>
+                            <g transform="translate(24 0)">
+                                <path d="M5 18H3c-.6 0-1-.4-1-1v-3h12v4M14 9h4l4 4v4c0 .6-.4 1-1 1h-2M15 18H9"/>
+                                <circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>
+                                <path d="M4 14 8 6-1 10M7 14 9 9 1 12M-1 10v4M2 18l-2-2h-4"/>
+                            </g>
+                        </svg>:<Truck className="overview-route-watermark" aria-hidden="true"/>}
+                        <div className="overview-route-head"><div><strong className="overview-route-number">{call.route}</strong><span className="overview-route-driver">{call.driver}</span></div><span className="overview-route-kind">{broken?<Wrench aria-hidden="true"/>:<Clock aria-hidden="true"/>}{kind}</span></div>
+                        <div className="overview-route-body"><div className="overview-route-delay"><b>{progress.minutes}</b>min late<span>to next stop</span></div><div className="overview-route-counts"><div><strong>{progress.total}</strong><span>Total stops</span></div><div><strong className="overview-route-green">{progress.completed}</strong><span>Completed</span></div><div><strong className="overview-route-red">{progress.late}</strong><span>Late</span></div></div></div>
+                        <div className="overview-route-bottom"><div className="overview-route-lines" style={{gap:Math.min(3,120/progress.total)}} role="img" aria-label={progress.total+' stops: '+progress.completed+' completed, '+progress.late+' late'+(progress.pending?', '+progress.pending+' pending':'')}>
+                            {Array.from({length:progress.total},(_,index)=><span key={index} aria-hidden="true" className={'overview-route-line '+(index<progress.completed?'overview-route-done':index<progress.completed+progress.late?'overview-route-late':'overview-route-pending')}/>)}
+                        </div><span className="overview-route-credit"><FileText aria-hidden="true"/>{note.author || 'Team member'}{time?' · '+time:''}</span></div>
+                    </button>;
+                })}
+            </section>;
+        };
+
         const DRIVER_CALL_SEGMENTS = [
-            {id:'damage',label:'Damage',reasons:[{id:'concealed',label:'Concealed damage',cause:'product'},{id:'driver-damage',label:'Driver fault',cause:'driver'},{id:'damage-unknown',label:'Cause not confirmed',cause:'pending'}]},
-            {id:'refused',label:'Customer refused',reasons:[{id:'factory-defect',label:'Factory defect',cause:'product'},{id:'customer-preference',label:'Customer preference',cause:'customer'},{id:'refused-other',label:'Other / not confirmed',cause:'pending'},{id:'discoloration',label:'Discoloration',cause:'product',legacy:true}]},
-            {id:'rescue',label:'Rescue',reasons:[{id:'missing-hardware',label:'Missing hardware — not taken from warehouse',cause:'driver'},{id:'pack-pieces',label:'Missing pieces inside the hardware pack',cause:'product'},{id:'wrong-pack',label:'Wrong hardware inside the supplied pack',cause:'product'},{id:'rescue-damage',label:'Damaged item — cause not confirmed',cause:'pending'},{id:'concealed',label:'Concealed damage',cause:'product'},{id:'driver-damage',label:'Driver fault',cause:'driver'},{id:'rescue-unknown',label:'Cause not confirmed',cause:'pending'}]},
-            {id:'no-fit',label:'No fit',reasons:[{id:'fit-doorway',label:'Does not fit through the door',cause:'pending'},{id:'fit-elevator',label:'Does not fit in the elevator',cause:'pending'},{id:'fit-home',label:'Does not fit inside the customer’s home',cause:'pending'},{id:'fit-other',label:'Other / not confirmed',cause:'pending'}]},
+            {id:'damage',label:'Damage',reasons:[{id:'concealed',label:'Concealed damage',cause:'product'},{id:'driver-damage',label:'Driver fault',cause:'driver'},{id:'factory-defect',label:'Factory defect',cause:'product'},{id:'damage-unknown',label:'Cause not confirmed',cause:'pending',legacy:true,hidden:true}]},
+            {id:'refused',label:'Customer refused',reasons:[{id:'factory-defect',label:'Factory defect',cause:'product'},{id:'customer-preference',label:'Customer preference',cause:'customer'},{id:'refused-other',label:'Other',cause:'pending'},{id:'discoloration',label:'Discoloration',cause:'product',legacy:true}]},
+            {id:'rescue',label:'Rescue',reasons:[{id:'missing-hardware',label:'Missing hardware — not taken from warehouse',cause:'driver'},{id:'pack-pieces',label:'Missing pieces inside the hardware pack',cause:'product'},{id:'wrong-pack',label:'Wrong hardware inside the supplied pack',cause:'product'},{id:'rescue-damage',label:'Damaged item',cause:'pending'},{id:'concealed',label:'Concealed damage',cause:'product'},{id:'driver-damage',label:'Driver fault',cause:'driver'},{id:'rescue-unknown',label:'Cause not confirmed',cause:'pending',legacy:true,hidden:true}]},
+            {id:'no-fit',label:'No fit',reasons:[{id:'fit-doorway',label:'Does not fit through the door',cause:'pending'},{id:'fit-elevator',label:'Does not fit in the elevator',cause:'pending'},{id:'fit-home',label:'Does not fit inside the customer’s home',cause:'pending'},{id:'customer-preference',label:'Customer preference',cause:'customer'},{id:'fit-other',label:'Other / not confirmed',cause:'pending',legacy:true,hidden:true}]},
             {id:'mislabel',label:'Mislabel',reasons:[{id:'label-mismatch',label:'Label does not match the item or order',cause:'pending'}]},
-            {id:'general',label:'General',reasons:[{id:'not-home',label:'Not at home',cause:'routine'},{id:'no-answer',label:'Customer not answering',cause:'routine'},{id:'eta-update',label:'ETA update',cause:'routine'},{id:'instructions',label:'Delivery instructions',cause:'routine'},{id:'exchange-followup',label:'Exchange / return follow-up — cause not confirmed',cause:'pending'},{id:'wrong-item',label:'Incorrect item / configuration',cause:'pending'},{id:'general-other',label:'Other',cause:'pending'}]}
+            {id:'late-route',label:'Late route',reasons:[{id:'running-late',label:'Running behind schedule',cause:'pending'}]},
+            {id:'truck-breakdown',label:'Truck breakdown',reasons:[{id:'truck-disabled',label:'Truck not operational',cause:'pending'}]},
+            {id:'general',label:'General',reasons:[{id:'not-home',label:'Not at home',cause:'routine'},{id:'no-answer',label:'Customer not answering',cause:'routine'},{id:'eta-update',label:'ETA update',cause:'routine'},{id:'instructions',label:'Delivery instructions',cause:'routine'},{id:'exchange-followup',label:'Exchange / return follow-up',cause:'pending'},{id:'wrong-item',label:'Incorrect item / configuration',cause:'pending'},{id:'general-other',label:'Other',cause:'pending'}]}
         ];
         const DRIVER_CALL_ACTIONS = ['Pending decision','Exchange requested','Rescue requested','No exchange or rescue'];
         const DRIVER_CALL_CAUSES = {driver:'Driver fault',product:'Product / hardware-pack issue — not driver fault',customer:'Customer preference — not driver fault',pending:'Responsibility not confirmed',routine:'Routine call'};
-        const defaultDriverCallIssue = () => ({segment:'',reason:'',damageStage:'',action:'Pending decision',guestSolution:'Not yet',needsManagerAttention:false,piecesScheduled:'',piecesDelivered:'',piecesAffected:'',classificationSource:'entered',classificationNeedsReview:false});
+        const defaultDriverCallIssue = () => ({segment:'',reason:'',damageStage:'',action:'Pending decision',guestSolution:'Not yet',needsManagerAttention:false,piecesScheduled:'',piecesDelivered:'',piecesAffected:'',routeStopsTotal:'',routeStopsCompleted:'',routeStopsLate:'',routeMinutesLate:'',routeIssueStatus:'active',classificationSource:'entered',classificationNeedsReview:false});
         const driverCallSegmentInfo = call => {
-            const segment=DRIVER_CALL_SEGMENTS.find(item=>item.id===call?.segment),reason=segment?.reasons.find(item=>item.id===call?.reason);
+            const segment=DRIVER_CALL_SEGMENTS.find(item=>item.id===call?.segment);
+            // Each route issue has one fixed reason; its form has no reason selector.
+            const reason=isRouteStatusCall(call)?segment?.reasons[0]:segment?.reasons.find(item=>item.id===call?.reason);
             return segment && reason ? {segment,reason,cause:DRIVER_CALL_CAUSES[reason.cause]} : null;
         };
         const patchDriverCallIssue = (call,patch) => {
             const next={...call,...patch};
             if(patch.segment!==undefined && patch.segment!==call.segment) {
-                next.reason=patch.segment==='mislabel'?'label-mismatch':'';next.damageStage='';next.needsManagerAttention=false;
+                next.reason=patch.segment==='mislabel'?'label-mismatch':patch.segment==='late-route'?'running-late':patch.segment==='truck-breakdown'?'truck-disabled':'';next.damageStage='';next.needsManagerAttention=false;
                 next.action=patch.segment==='rescue'?'Rescue requested':patch.segment==='refused'?'Exchange requested':patch.segment==='general'?'No exchange or rescue':'Pending decision';
+                if(isRouteStatusCall(next)){next.action='No exchange or rescue';next.routeIssueStatus='active';}
             }
             if(patch.reason!==undefined && next.reason!=='driver-damage')next.damageStage='';
             if(patch.reason==='exchange-followup')next.action='Exchange requested';
+            if(isRouteStatusCall(next))next.reason=next.segment==='late-route'?'running-late':'truck-disabled';
             next.classificationNeedsReview=false;
             return next;
         };
@@ -1981,25 +2076,43 @@
             || ['Exchange requested','Rescue requested'].includes(call?.action);
         const validateDriverCallIssue = call => {
             if(!driverCallSegmentInfo(call))return 'Choose a segment and its reason.';
-            if(call.reason==='driver-damage' && !['During transportation','Moving into the customer’s home','Not confirmed yet'].includes(call.damageStage))return 'Choose where the damage happened, or select Not confirmed yet.';
+            if(isRouteStatusCall(call)) {
+                if(!String(call.route || '').trim() || !String(call.driver || '').trim() || !String(call.note || '').trim())return 'Enter the route, driver, and call notes for this route issue.';
+                if(!getRouteIssueProgress(call))return 'Enter total stops (1–999), completed stops, late stops, and minutes late (0–1440) as whole numbers. Completed plus late stops cannot exceed total stops.';
+                if(!['active','resolved'].includes(call.routeIssueStatus || 'active'))return 'Choose Active or Resolved for the route issue.';
+                return '';
+            }
+            if(call.reason==='driver-damage' && !['During transportation','Moving into the customer’s home','Not confirmed yet'].includes(call.damageStage))return 'Choose where the damage happened.';
             const counts=['piecesScheduled','piecesDelivered','piecesAffected'].map(key=>String(call[key]??'').trim());
             if(driverCallPiecesRequired(call) && counts.some(value=>value===''))return 'Enter pieces scheduled, pieces delivered, and pieces affected for this issue. Enter 0 when none were delivered or affected.';
             if(counts.some(value=>value!=='' && (!/^\d+$/.test(value)||Number(value)>999)))return 'Piece counts must be whole numbers from 0 to 999.';
             if(counts[0]!=='' && counts.slice(1).some(value=>value!=='' && Number(value)>Number(counts[0])))return 'Delivered or affected pieces cannot exceed pieces scheduled.';
             return '';
         };
-        const validateChangedDriverCalls = (notes,previousNotes) => {
+        const validateChangedDriverCalls = (notes,previousNotes,onInvalid) => {
             const saved=previousNotes || [];
-            for(const note of notes || []) {
-                if(!note.driverCall || (!driverCallSegmentInfo(note.driverCall) && note.driverCall.classificationSource!=='entered'))continue;
-                const prior=note.id==null?saved.find(item=>sameSavedValue(item.driverCall,note.driverCall)):saved.find(item=>String(item.id)===String(note.id));
-                if(prior && sameSavedValue(prior.driverCall,note.driverCall))continue;
-                const error=validateDriverCallIssue(note.driverCall);if(error)return 'Driver call: '+error;
+            // Form defaults and Firestore property order are not new issue details.
+            const comparable=call=>JSON.stringify({...defaultDriverCallIssue(),...call},(_,value)=>value && typeof value==='object' && !Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,value[key]])):value);
+            for(const [index,note] of (notes || []).entries()) {
+                if(!note.driverCall)continue;
+                const prior=note.id==null?saved.find(item=>comparable(item.driverCall)===comparable(note.driverCall)):saved.find(item=>String(item.id)===String(note.id));
+                if(prior && comparable(prior.driverCall)===comparable(note.driverCall))continue;
+                // Legacy calls can be edited without inventing a segment. Selecting
+                // a segment, or changing a classified call, still requires validation.
+                if(prior?.driverCall && !prior.driverCall.segment && !prior.driverCall.reason && !note.driverCall.segment && !note.driverCall.reason)continue;
+                if(!note.driverCall.segment && !note.driverCall.reason && note.driverCall.classificationSource!=='entered')continue;
+                const error=validateDriverCallIssue(note.driverCall);
+                if(error){
+                    onInvalid?.(note,error);
+                    const label=[note.driverCall.route,note.driverCall.driver].map(value=>String(value || '').trim()).filter(Boolean).join(' · ').slice(0,160) || 'Entry '+(index+1);
+                    return (isRouteStatusCall(note.driverCall)?'Route issue':'Driver call')+' ('+label+'): '+error;
+                }
             }
             return '';
         };
         const driverCallIssueLines = call => {
             const info=driverCallSegmentInfo(call);if(!info)return [];
+            if(isRouteStatusCall(call)) {const progress=getRouteIssueProgress(call);return [['Segment',info.segment.label],['Reason',info.reason.label],['Responsibility',info.cause],['Minutes late to next stop',String(call.routeMinutesLate || '0')],['Total stops',String(call.routeStopsTotal ?? '')],['Stops completed',String(call.routeStopsCompleted ?? '')],['Stops running late',String(call.routeStopsLate ?? '')],['Route status',call.routeIssueStatus==='resolved'?'Resolved':progress && progress.completed===progress.total?'Route completed':'Active']];}
             return [
                 ['Segment',info.segment.label],['Reason',info.reason.label],['Responsibility',info.cause],
                 ...(call.damageStage?[['Where',call.damageStage]]:[]),['Next action',DRIVER_CALL_ACTIONS.includes(call.action)?call.action:'Pending decision'],
@@ -2072,48 +2185,66 @@
         const getDriverCallManagerIssue = note => {
             const call=note?.driverCall,info=driverCallSegmentInfo(call);
             if(!info || call.classificationSource==='history')return null;
+            if(isRouteStatusCall(call)) {
+                const progress=getRouteIssueProgress(call);
+                if(!progress || call.routeIssueStatus==='resolved' || progress.completed===progress.total)return null;
+                return {tone:call.segment==='truck-breakdown'?'red':'amber',message:call.segment==='truck-breakdown'?'A truck broke down during its route.':'A route is running behind schedule.',details:driverCallIssueLines(call)};
+            }
             if(info.segment.id==='general' && !call.needsManagerAttention && !driverCallPiecesRequired(call))return null;
             const urgent=info.reason.cause==='driver' || info.segment.id==='rescue' || call.action==='Rescue requested';
             const generalMessage=call.needsManagerAttention?'Your team requested manager attention.':call.action==='Rescue requested'?'A rescue was requested.':call.action==='Exchange requested'?'An exchange was requested.':call.reason==='wrong-item'?'An incorrect item or configuration was reported.':'An exchange or return needs follow-up.';
             return {tone:urgent?'red':'amber',message:info.segment.id==='general'?generalMessage:info.segment.id==='no-fit'?'The item does not fit at the customer’s home.':info.segment.id==='mislabel'?'A mislabeled item or order was reported.':info.reason.cause==='driver'?'A driver-fault issue was reported.':info.segment.id==='rescue'?'A rescue issue needs your attention.':call.action==='Exchange requested'?'An exchange was requested.':'A delivery issue needs your attention.',details:driverCallIssueLines(call)};
         };
-        const DriverCallIssueFields = ({value,onChange}) => {
+        const DriverCallIssueFields = ({value,onChange,routeOnly=false}) => {
             const call={...defaultDriverCallIssue(),...(value?.classificationSource==='history'?{guestSolution:'Unknown'}:{}),...value},segment=DRIVER_CALL_SEGMENTS.find(item=>item.id===call.segment),info=driverCallSegmentInfo(call);
             const fieldClass='w-full min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500 [color-scheme:dark]';
             const labelClass='mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400';
             const change=patch=>onChange(patchDriverCallIssue(call,patch));
-            const piecesRequired=driverCallPiecesRequired(call);
-            return <div className="mt-4 space-y-3" aria-label="Driver call issue details">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <label className="block min-w-0"><span className={labelClass}>Segment</span><select aria-label="Driver call segment" value={call.segment} onChange={event=>change({segment:event.target.value})} className={fieldClass}><option value="">Choose a segment</option>{DRIVER_CALL_SEGMENTS.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-                    <label className="block min-w-0"><span className={labelClass}>Reason</span><select aria-label="Driver call reason" disabled={!segment} value={call.reason} onChange={event=>change({reason:event.target.value})} className={fieldClass+' disabled:opacity-40'}><option value="">Choose a reason</option>{segment?.reasons.filter(item=>!item.legacy || item.id===call.reason).map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-                    <label className="block min-w-0"><span className={labelClass}>Next action</span><select aria-label="Driver call next action" value={call.action} onChange={event=>change({action:event.target.value})} className={fieldClass}>{DRIVER_CALL_ACTIONS.map(action=><option key={action} value={action}>{action}</option>)}</select></label>
-                    {call.reason==='driver-damage' && <label className="block min-w-0"><span className={labelClass}>Where did damage happen?</span><select aria-label="Where damage happened" value={call.damageStage} onChange={event=>change({damageStage:event.target.value})} className={fieldClass}><option value="">Choose location</option>{['During transportation','Moving into the customer’s home','Not confirmed yet'].map(stage=><option key={stage} value={stage}>{stage}</option>)}</select></label>}
-                    <label className="block min-w-0"><span className={labelClass}>Guest Solution contacted?</span><select aria-label="Guest Solution contacted" value={call.guestSolution} onChange={event=>change({guestSolution:event.target.value})} className={fieldClass}><option value="Not yet">Not yet</option><option value="Yes">Yes</option><option value="Unknown">Not recorded / unknown</option></select></label>
-                    {['piecesScheduled','piecesDelivered','piecesAffected'].map((key,index)=><label key={key} className="block min-w-0"><span className={labelClass}>{['Pieces scheduled','Pieces delivered','Pieces affected'][index]} <span className="normal-case font-normal">({piecesRequired?'required':'optional'})</span></span><input aria-label={['Pieces scheduled','Pieces delivered','Pieces affected'][index]} required={piecesRequired} aria-required={piecesRequired} inputMode="numeric" type="number" min="0" max="999" step="1" value={call[key]} onChange={event=>change({[key]:event.target.value})} className={fieldClass}/></label>)}
+            const piecesRequired=driverCallPiecesRequired(call),routeIssue=isRouteStatusCall(call);
+            return <div className="mt-4 space-y-3" aria-label={routeOnly?'Route issue details':'Driver call issue details'}>
+                <div className={'grid grid-cols-1 '+(routeOnly?'md:grid-cols-2':'md:grid-cols-3')+' gap-4'}>
+                    <label className="block min-w-0"><span className={labelClass}>{routeOnly?'Issue type':'Segment'}</span><select aria-label={routeOnly?'Route issue type':'Driver call segment'} value={call.segment} onChange={event=>change({segment:event.target.value})} className={fieldClass}><option value="">{routeOnly?'Choose an issue type':'Choose a segment'}</option>{DRIVER_CALL_SEGMENTS.filter(item=>routeOnly?isRouteStatusCall({segment:item.id}):!isRouteStatusCall({segment:item.id})).map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+                    {!routeOnly && <label className="block min-w-0"><span className={labelClass}>Reason</span><select aria-label="Driver call reason" disabled={!segment} value={call.reason} onChange={event=>change({reason:event.target.value})} className={fieldClass+' disabled:opacity-40'}><option value="">Choose a reason</option>{segment?.reasons.some(item=>item.id===call.reason && item.hidden) && <option value={call.reason} disabled>Older entry — choose a current reason to update</option>}{segment?.reasons.filter(item=>!item.hidden && (!item.legacy || item.id===call.reason)).map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>}
+                    {routeIssue?<label className="block min-w-0"><span className={labelClass}>Route issue status</span><select aria-label="Route issue status" value={call.routeIssueStatus || 'active'} onChange={event=>change({routeIssueStatus:event.target.value})} className={fieldClass}><option value="active">Active</option><option value="resolved">Resolved</option></select></label>:<label className="block min-w-0"><span className={labelClass}>Next action</span><select aria-label="Driver call next action" value={call.action} onChange={event=>change({action:event.target.value})} className={fieldClass}>{DRIVER_CALL_ACTIONS.map(action=><option key={action} value={action}>{action}</option>)}</select></label>}
+                    {call.reason==='driver-damage' && <label className="block min-w-0"><span className={labelClass}>Where did damage happen?</span><select aria-label="Where damage happened" value={call.damageStage} onChange={event=>change({damageStage:event.target.value})} className={fieldClass}><option value="">Choose location</option>{call.damageStage==='Not confirmed yet' && <option value="Not confirmed yet" disabled>Older entry — choose a location to update</option>}{['During transportation','Moving into the customer’s home'].map(stage=><option key={stage} value={stage}>{stage}</option>)}</select></label>}
+                    {!routeIssue && <label className="block min-w-0"><span className={labelClass}>Guest Solution contacted?</span><select aria-label="Guest Solution contacted" value={call.guestSolution} onChange={event=>change({guestSolution:event.target.value})} className={fieldClass}><option value="Not yet">Not yet</option><option value="Yes">Yes</option><option value="Unknown">Not recorded / unknown</option></select></label>}
+                    {routeIssue?['routeStopsTotal','routeStopsCompleted','routeStopsLate','routeMinutesLate'].map((key,index)=><label key={key} className="block min-w-0"><span className={labelClass}>{['Total stops','Stops completed','Stops running late','Minutes late to next stop'][index]} <span className="normal-case font-normal">(required)</span></span><input aria-label={['Total stops','Stops completed','Stops running late','Minutes late to next stop'][index]} required aria-required="true" inputMode="numeric" type="number" min={index===0?'1':'0'} max={index===3?'1440':'999'} step="1" value={call[key]} onChange={event=>change({[key]:event.target.value})} className={fieldClass}/></label>):['piecesScheduled','piecesDelivered','piecesAffected'].map((key,index)=><label key={key} className="block min-w-0"><span className={labelClass}>{['Pieces scheduled','Pieces delivered','Pieces affected'][index]} <span className="normal-case font-normal">({piecesRequired?'required':'optional'})</span></span><input aria-label={['Pieces scheduled','Pieces delivered','Pieces affected'][index]} required={piecesRequired} aria-required={piecesRequired} inputMode="numeric" type="number" min="0" max="999" step="1" value={call[key]} onChange={event=>change({[key]:event.target.value})} className={fieldClass}/></label>)}
                 </div>
-                {info && <p className={'text-xs '+(info.reason.cause==='driver'?'text-rose-300':info.reason.cause==='product'?'text-emerald-300':'text-slate-400')}>{info.cause}{call.classificationNeedsReview?' · Categorized from older wording; please review.':''}</p>}
+                {info && !routeOnly && <p className={'text-xs '+(info.reason.cause==='driver'?'text-rose-300':info.reason.cause==='product'?'text-emerald-300':'text-slate-400')}>{info.cause}{call.classificationNeedsReview?' · Categorized from older wording; please review.':''}</p>}
                 {call.segment==='general' && <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={call.needsManagerAttention} onChange={event=>change({needsManagerAttention:event.target.checked})} className="h-4 w-4 accent-indigo-500"/>Needs manager attention</label>}
+            </div>;
+        };
+        const RouteIssueEntryFields = ({value,onChange,people=[]}) => {
+            const call={...defaultDriverCallIssue(),...value};
+            const fieldClass='w-full min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500';
+            const labelClass='mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400';
+            const selectedDriver=String(call.driver || '').trim();
+            return <div aria-label="Route details form">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="block min-w-0"><span className={labelClass}>Route number</span><input aria-label="Route number" value={call.route || ''} onChange={event=>onChange({...call,route:event.target.value.toUpperCase()})} placeholder="PFL01-02" className={fieldClass+' uppercase'} required/></label>
+                    <label className="block min-w-0"><span className={labelClass}>Driver</span><select aria-label="Route driver" value={call.driver || ''} onChange={event=>onChange({...call,driver:event.target.value})} className={fieldClass} required><option value="">Select a driver</option>{selectedDriver && !people.includes(selectedDriver) && <option value={selectedDriver}>{selectedDriver}</option>}{people.map(name=><option key={name} value={name}>{name}</option>)}</select></label>
+                </div>
+                <DriverCallIssueFields value={call} onChange={onChange} routeOnly/>
+                <label className="block mt-4"><span className={labelClass}>Route details</span><textarea aria-label="Route details" value={call.note || ''} onChange={event=>onChange({...call,note:event.target.value})} placeholder="Explain the delay or breakdown, current progress, and next steps…" rows="4" className={fieldClass+' resize-y'} required/></label>
             </div>;
         };
         const DriverCallIssueSummary = ({note}) => {
             const info=driverCallSegmentInfo(note?.driverCall);if(!info)return null;
             return <div className="mt-3 text-xs leading-relaxed text-slate-300 space-y-1">
                 <p><strong className="text-indigo-300">{getShiftNoteCategoryLabel(note)}</strong> · {info.reason.label}</p>
-                <p>{info.cause}{note.driverCall.damageStage?' · '+note.driverCall.damageStage:''}</p>
-                <p>{note.driverCall.action || 'Pending decision'}{note.driverCall.guestSolution==='Yes'?' · Guest Solution contacted':''}{note.driverCall.needsManagerAttention?' · Manager attention requested':''}</p>
+                {!isRouteStatusCall(note.driverCall) && <p>{info.cause}{note.driverCall.damageStage?' · '+note.driverCall.damageStage:''}</p>}
+                {isRouteStatusCall(note.driverCall)?<p>{driverCallIssueLines(note.driverCall).filter(([label])=>!['Segment','Reason','Responsibility'].includes(label)).map(([label,value])=>label+': '+value).join(' · ')}</p>:<p>{note.driverCall.action || 'Pending decision'}{note.driverCall.guestSolution==='Yes'?' · Guest Solution contacted':''}{note.driverCall.needsManagerAttention?' · Manager attention requested':''}</p>}
                 {driverCallIssueLines(note.driverCall).filter(([label])=>label.startsWith('Pieces ')).length>0 && <p>{driverCallIssueLines(note.driverCall).filter(([label])=>label.startsWith('Pieces ')).map(([label,value])=>label+': '+value).join(' · ')}</p>}
                 {note.driverCall.classificationNeedsReview && <p className="text-amber-300">Categorized from older wording · review the segment and reason.</p>}
             </div>;
         };
 
         const formatDriverCallText = (call) => {
-            const {route,stopNumber,driver,customerName,soRma,note}=call;
+            const {route,stopNumber,driver,soRma,note}=call;
             const header = [
                 String(route || '').trim().toUpperCase(),
                 String(stopNumber || '').trim() ? `Stop ${String(stopNumber || '').trim()}` : '',
                 String(driver || '').trim(),
-                String(customerName || '').trim(),
                 String(soRma || '').trim()
             ].filter(Boolean).join(' ');
             return `${header}${header && String(note || '').trim() ? ': ' : ''}${String(note || '').trim()}` + (driverCallSegmentInfo(call) ? '\n'+driverCallIssueLines(call).map(([label,value])=>label+': '+value).join('\n') : '');
@@ -2714,7 +2845,7 @@
             routeReadyTime:'loading readiness time', urgentNotes:'urgent notes', meetingTopics:'stand-up topics',
             preloadArrival:'preload arrival', confirmedAt:'arrival confirmation',
             nextCheckAt:'next arrival check', etaUnknown:'ETA unknown', permissions:'editing permissions',
-            segment:'issue segment', reason:'issue reason', damageStage:'where damage happened', action:'next action', guestSolution:'Guest Solution contact', needsManagerAttention:'manager attention request', piecesScheduled:'pieces scheduled', piecesDelivered:'pieces delivered', piecesAffected:'pieces affected',
+            segment:'issue segment', reason:'issue reason', damageStage:'where damage happened', action:'next action', guestSolution:'Guest Solution contact', needsManagerAttention:'manager attention request', piecesScheduled:'pieces scheduled', piecesDelivered:'pieces delivered', piecesAffected:'pieces affected',routeStopsTotal:'total stops',routeStopsCompleted:'stops completed',routeStopsLate:'late stops',routeMinutesLate:'minutes late to the next stop',routeIssueStatus:'route issue status',
             driverCall:'driver call', soRma:'SO / RMA', customerName:'customer name', stopNumber:'stop number', note:'note',
             lastNextDayTeam:'last next-day team', lastThresholdTeam:'last threshold team', lastOffDockTeam:'last team off dock',
             doorInspection:'door inspection', uniformBadges:'uniform and badges', standUpMeeting:'stand-up meeting'
@@ -2723,7 +2854,7 @@
             'assignedUid','assignedUids','recipientUid','recipientUids','timestamp','createdAt','updatedAt',
             'lastUpdatedAt','lastUpdatedBy','confirmedByUid','confirmedBy','_auditId','assignmentId',
             'loadingDate','preloadArrivalDate','preloadAssignmentId','preloadHistoryRow','base64','mentionUids',
-            'mentionSpans','system','preloadHistory','author','editedAt','editedByUid','editedBy','category','classificationSource','classificationVersion','classificationNeedsReview']);
+            'mentionSpans','system','preloadHistory','author','editedAt','editedByUid','editedBy','category','classificationSource','classificationVersion','classificationNeedsReview','routeStatusUpdatedAt']);
         const activityParseValue = value => {
             if (value === undefined || value === null || value === '(not set)') return undefined;
             if (typeof value !== 'string') return value;
@@ -3550,31 +3681,44 @@
             ['radar', 'Radar', ['A5', 'A5', 'E5', 'A5'], 0.2, 'sine', -14, 0.01, 0.25],
             ['low-bell', 'Low Bell', ['C4', 'G4'], 0.3, 'sine', -13, 0.02, 1.2],
             ['doorbell', 'Doorbell', ['E5', 'C5'], 0.4, 'triangle', -12, 0.01, 1, '8n'],
-            ['retro', 'Retro Alert', ['C5', 'G5', 'C6'], 0.12, 'square', -22, 0.005, 0.18]
+            ['retro', 'Retro Alert', ['C5', 'G5', 'C6'], 0.12, 'square', -22, 0.005, 0.18],
+            ['team-knock', 'Team Chat · Soft Knock', ['C5','G5'], 0.2, 'triangle', -16, 0.005, 0.25],
+            ['private-spark', 'Private Chat · Bright Spark', ['A5','E6','A6'], 0.12, 'sine', -19, 0.008, 0.45],
+            ['task-ready', 'Tasks · Ready Chord', ['G4','B4','D5'], 0.19, 'triangle', -15, 0.015, 0.55],
+            ['preload-arrival', 'Preload · Arrival Melody', ['D5','G5','B5','D6'], 0.2, 'sine', -16, 0.025, 0.6],
+            ['compliance-cue', 'Compliance · Check-in Cue', ['C5','C5','G5'], 0.3, 'triangle', -16, 0.015, 0.4],
+            ['manager-signal', 'Manager · Attention Signal', ['D4','A4',['D5','F5']], 0.25, 'sine', -14, 0.025, 0.7],
+            ['soft-water', 'Soft Waterfall', ['G5','D6','B5','G5'], 0.17, 'sine', -18, 0.025, 0.5],
+            ['clear-confirm', 'Clear Confirmation', [['C5','E5'],'G5'], 0.25, 'triangle', -17, 0.02, 0.65]
         ].map(([id, name, notes, spacing = 0.12, oscillator = 'sine', volume = -14, attack = 0.02, release = 0.8, duration = '16n']) =>
             ({ id, name, notes, spacing, oscillator, volume, attack, release, duration }));
         const DASHBOARD_SOUND_EVENTS = [
-            ['compliance12', '12:00 PM route update', 'The noon compliance reminder.', 'standard'],
-            ['preloadMessage', '12:30 PM preload message', 'The reminder to send the preload message.', 'standard'],
-            ['compliance17', '5:00 PM route update', 'The afternoon compliance reminder.', 'standard'],
-            ['preloadArrival', 'Preload team arrival', 'Missing ETA at 4:30 PM, arrival checks at the saved ETA, and late-arrival warnings after 6:00 PM Central.', 'standard'],
-            ['compliance19', '7:00 PM end-of-day update', 'The evening compliance reminder.', 'standard'],
+            ['compliance12', '12:00 PM route update', 'The noon compliance reminder.', 'compliance-cue'],
+            ['preloadMessage', '12:30 PM preload message', 'The reminder to send the preload message.', 'preload-arrival'],
+            ['compliance17', '5:00 PM route update', 'The afternoon compliance reminder.', 'compliance-cue'],
+            ['preloadArrival', 'Preload team arrival', 'Missing ETA at 4:30 PM, arrival checks at the saved ETA, and late-arrival warnings after 6:00 PM Central.', 'preload-arrival'],
+            ['compliance19', '7:00 PM end-of-day update', 'The evening compliance reminder.', 'compliance-cue'],
             ['urgentNote', 'Urgent / Manager Note', 'A newly saved urgent Shift Note or Manager Note.', 'urgent'],
             ['driverAssignment', 'Driver assignment warning', 'A new warning displayed in Routes.', 'silent'],
             ['preloadAssignment', 'Preload assignment warning', 'A new warning displayed in the preload schedule.', 'silent'],
             ['officeConflict', 'Office schedule warning', 'New coverage gaps or conflicts displayed in Office.', 'silent'],
-            ['chat', 'Team Chat message', 'A new message from another user.', 'chat'],
+            ['chat', 'Team Chat message', 'A new message in the shared team conversation.', 'team-knock'],
+            ['privateChat', 'Private Chat message', 'A new one-to-one message sent to you.', 'private-spark'],
             ['shiftLike', 'Shift Notes like', 'A new like on your note.', 'notification'],
             ['shiftReply', 'Shift Notes reply', 'A new reply to your note or a conversation you joined.', 'notification'],
-            ['task', 'Team Tasks alert', 'A task assignment, update request, or progress response for you.', 'notification']
+            ['task', 'Team Tasks alert', 'A task assignment, update request, or progress response for you.', 'task-ready']
         ].map(([id, name, description, defaultSound]) => ({ id, name, description, defaultSound }));
-        const defaultDashboardSoundSettings = () => ({ muted: false, volume: 70,
+        const defaultDashboardSoundSettings = () => ({ schemeVersion:2, muted: false, volume: 70,
             assignments: Object.fromEntries(DASHBOARD_SOUND_EVENTS.map(event => [event.id, event.defaultSound])) });
         const normalizeDashboardSoundSettings = saved => ({
+            schemeVersion:2,
             muted: saved?.muted === true,
             volume: typeof saved?.volume === 'number' && Number.isFinite(saved.volume) ? Math.max(0, Math.min(100, Math.round(saved.volume))) : 70,
-            assignments: Object.fromEntries(DASHBOARD_SOUND_EVENTS.map(event => [event.id,
-                DASHBOARD_SOUND_PRESETS.some(preset => preset.id === saved?.assignments?.[event.id]) ? saved.assignments[event.id] : event.defaultSound]))
+            assignments: Object.fromEntries(DASHBOARD_SOUND_EVENTS.map(event => {
+                const previous=saved?.assignments?.[event.id] ?? (event.id==='privateChat' && saved?.schemeVersion!==2?saved?.assignments?.chat:undefined);
+                const legacyDefault={compliance12:'standard',compliance17:'standard',compliance19:'standard',preloadMessage:'standard',preloadArrival:'standard',chat:'chat',privateChat:'chat',task:'notification'}[event.id];
+                return [event.id,DASHBOARD_SOUND_PRESETS.some(preset=>preset.id===previous)?(saved?.schemeVersion!==2 && previous===legacyDefault?event.defaultSound:previous):event.defaultSound];
+            }))
         });
         let dashboardSoundSettings = defaultDashboardSoundSettings();
         let dashboardSoundNextAt = 0;
@@ -4154,8 +4298,8 @@
         const normalizeShiftNoteSearch = value => String(value ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
         const compactShiftNoteSearch = value => normalizeShiftNoteSearch(value).replace(/[^\p{L}\p{N}]/gu, '');
         const getShiftNoteSearchText = note => [
-            note.text, note.author, note.category,
-            ...Object.values(note.driverCall || {}),
+            note.driverCall?.note ?? note.text, note.author, note.category,
+            ...Object.entries(note.driverCall || {}).filter(([key])=>key!=='customerName').map(([,value])=>value),
             ...driverCallIssueLines(note.driverCall).flat(),
             ...(note.replies || []).flatMap(reply => [reply.text, reply.author])
         ].filter(value => value != null).join(' ');
@@ -4186,6 +4330,8 @@
             { id: 'rescue', label: 'Rescue / hardware', pattern: /\b(?:rescue|hardware|assembly pieces)\b/gi },
             { id: 'no-fit', label: 'No fit', pattern: /\b(?:no[ -]fit|(?:doesn['’]t|does not|didn['’]t|did not|cannot|can['’]t|will not|won['’]t|wouldn['’]t|would not)\s+fit|too\s+(?:large|big|wide|tall)\s+to\s+fit)\b/gi },
             { id: 'mislabel', label: 'Mislabel', pattern: /\b(?:mis[ -]?label(?:l?ed|l?ing)?|(?:wrong|incorrect|mismatched)\s+labels?)\b/gi },
+            { id: 'late-route', label: 'Late route', pattern: /\b(?:late route|route (?:is )?(?:running )?(?:late|behind)|running behind schedule)\b/gi },
+            { id: 'truck-breakdown', label: 'Truck breakdown', pattern: /\b(?:truck breakdown|truck (?:has )?broke(?:n)? down|truck (?:is )?not (?:working|operational))\b/gi },
             { id: 'late', label: 'Late delivery', pattern: /\b(?:late|delay(?:ed|s)?|missed (?:the )?(?:delivery |time )?window)\b/gi }
         ];
         const issueReviewRevision = note => {
@@ -4239,7 +4385,7 @@
                 entry.staleReview = Boolean(candidate && !validReview);
                 entry.types = validReview ? validReview.types.filter(type => ISSUE_REVIEW_TYPES.some(item => item.id === type)) : entry.suggested;
                 entry.excluded = Boolean(validReview?.excluded);
-                const searchText = [dateKey, note.author, note.category, ...Object.values(note.driverCall || {}), ...driverCallIssueLines(note.driverCall).flat(), ...segments.flatMap(segment => [segment.author,segment.text])].filter(Boolean).join(' ');
+                const searchText = [dateKey, note.author, note.category, ...Object.entries(note.driverCall || {}).filter(([key])=>key!=='customerName').map(([,value])=>value), ...driverCallIssueLines(note.driverCall).flat(), ...segments.flatMap(segment => [segment.author,segment.text])].filter(Boolean).join(' ');
                 if(filters.segment && filters.segment!=='all' && issue?.segment.id!==filters.segment)return;
                 if(filters.reason && filters.reason!=='all' && issue?.reason.id!==filters.reason)return;
                 if (!matchesQuery(searchText) || (!clauses.length && !entry.suggested.length && !validReview && !entry.staleReview)) return;
@@ -4253,18 +4399,18 @@
             return { entries, matches, counts, caseCount: new Set(matches.filter(entry => !entry.excluded).map(entry => entry.caseKey)).size };
         };
         const issueReviewExportRows = entries => [
-            ['Date','Driver','Customer','SO / RMA','Segment','Reason','Responsibility','Next action','Details'],
+            ['Date','Driver','SO / RMA','Segment','Reason','Responsibility','Next action','Details'],
             ...entries.map(entry=>{
                 const call=entry.note.driverCall || {},classified=entry.classifiedCall || call,info=entry.driverIssue || driverCallSegmentInfo(classified);
                 const details=[
                     [call.route && 'Route: '+call.route,call.stopNumber && 'Stop: '+call.stopNumber].filter(Boolean).join(' · '),
                     ...(classified.damageStage?['Where: '+classified.damageStage]:[]),
                     ...(classified.guestSolution==='Yes'?['Guest Solution contacted']:[]),
-                    ...driverCallIssueLines(classified).filter(([label])=>label.startsWith('Pieces ')).map(([label,value])=>label+': '+value),
+                    ...driverCallIssueLines(classified).filter(([label])=>label.startsWith('Pieces ') || ['Minutes late to next stop','Total stops','Stops completed','Stops running late','Route status'].includes(label)).map(([label,value])=>label+': '+value),
                     call.note || entry.note.text || '',
                     ...(entry.note.replies || []).filter(reply=>!reply.system && String(reply.text || '').trim()).map(reply=>'Reply — '+(reply.author || 'Team member')+': '+reply.text)
                 ].filter(Boolean).join('\n');
-                return [entry.dateKey,call.driver || '',call.customerName || '',call.soRma || '',
+                return [entry.dateKey,call.driver || '',call.soRma || '',
                     info?.segment.label || entry.types.map(type=>ISSUE_REVIEW_TYPES.find(item=>item.id===type)?.label).filter(Boolean).join('; '),
                     (info?.reason.label || '')+(classified.classificationNeedsReview?' (inferred — review)':''),info?.cause || '',classified.action || '',details];
             })
@@ -4316,12 +4462,12 @@
                 <div className="divide-y divide-slate-700">{loaded && report.matches.length===0 ? <p className="py-8 text-center text-sm text-slate-400">No saved conversations match. Change the dates or wording.</p> : report.matches.map(entry=>{
                     const draft=drafts[entry.key] ?? (entry.review ? entry.excluded?'none':entry.types.length===1?entry.types[0]:'suggested' : 'suggested');
                     return <article key={entry.key} className="py-5 space-y-3">
-                        <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs text-slate-400">{new Date(entry.dateKey+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · {entry.source==='calls'?'Driver call':'Shift note'} · {entry.note.author || 'User'}</p><p className="mt-1 break-words text-sm text-slate-300">{[entry.note.driverCall?.driver,entry.note.driverCall?.customerName,entry.note.driverCall?.soRma].filter(Boolean).join(' · ')}</p></div><button type="button" aria-expanded={openKey===entry.key} onClick={()=>setOpenKey(openKey===entry.key?'':entry.key)} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-700">{openKey===entry.key?'Close conversation':'Open conversation'}</button></div>
+                        <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs text-slate-400">{new Date(entry.dateKey+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · {entry.source==='calls'?'Driver call':'Shift note'} · {entry.note.author || 'User'}</p><p className="mt-1 break-words text-sm text-slate-300">{[entry.note.driverCall?.driver,entry.note.driverCall?.soRma].filter(Boolean).join(' · ')}</p></div><button type="button" aria-expanded={openKey===entry.key} onClick={()=>setOpenKey(openKey===entry.key?'':entry.key)} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-700">{openKey===entry.key?'Close conversation':'Open conversation'}</button></div>
                         <div className="flex flex-wrap items-center gap-2">{!entry.excluded && entry.types.map(type=><span key={type} className="rounded bg-indigo-500/15 px-2 py-1 text-xs text-indigo-200">{ISSUE_REVIEW_TYPES.find(item=>item.id===type).label}</span>)}<span className={`text-xs ${entry.excluded?'text-slate-400':entry.review?'text-emerald-300':'text-amber-300'}`}>{entry.excluded?'Not an issue':entry.review?'Reviewed':entry.staleReview?'Conversation changed — review again':'Needs review'}</span></div>
                         {entry.driverIssue && <DriverCallIssueSummary note={{...entry.note,driverCall:{...entry.note.driverCall,...entry.classifiedCall}}}/>}
                         <div><p className="text-xs text-slate-500">Matched in {entry.matchSegment.kind.toLowerCase()} by {entry.matchSegment.author}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-200 line-clamp-3"><IssueReviewText text={entry.matchSegment.text} query={filters.query}/></p></div>
                         {openKey===entry.key && <div className="rounded-xl border border-slate-700 bg-slate-950/50 p-4 space-y-4">
-                            {entry.note.driverCall && <p className="break-words text-xs text-slate-400">{[['Route',entry.note.driverCall.route],['Stop',entry.note.driverCall.stopNumber],['Driver',entry.note.driverCall.driver],['Customer',entry.note.driverCall.customerName],['SO/RMA',entry.note.driverCall.soRma]].filter(([,value])=>value).map(([label,value])=>`${label}: ${value}`).join(' · ')}</p>}
+                            {entry.note.driverCall && <p className="break-words text-xs text-slate-400">{[['Route',entry.note.driverCall.route],['Stop',entry.note.driverCall.stopNumber],['Driver',entry.note.driverCall.driver],['SO/RMA',entry.note.driverCall.soRma]].filter(([,value])=>value).map(([label,value])=>`${label}: ${value}`).join(' · ')}</p>}
                             <div className="divide-y divide-slate-800">{[{text:String(entry.note.driverCall?.note || entry.note.text || ''),author:entry.note.author || 'User',timestamp:entry.note.timestamp || '',kind:'Note'},...(entry.note.replies || []).map(reply=>({text:String(reply.text || ''),author:reply.author || 'User',timestamp:reply.timestamp || '',kind:reply.system?'Acknowledgment':'Reply'}))].map((segment,index)=><div key={index} className="py-3"><p className="text-xs text-slate-400">{segment.author} · {segment.kind}{segment.timestamp && Number.isFinite(Date.parse(segment.timestamp)) ? ' · '+new Date(segment.timestamp).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-200"><IssueReviewText text={segment.text} query={filters.query}/></p></div>)}</div>
                             <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-end"><label className="min-w-0 flex-1 text-xs text-slate-400">Your classification<select className={'mt-1.5 '+fieldClass} value={draft} onChange={event=>setDrafts(previous=>({...previous,[entry.key]:event.target.value}))}><option value="suggested">{entry.suggested.length?'Confirm suggested types':'Choose an issue type'}</option>{ISSUE_REVIEW_TYPES.map(type=><option key={type.id} value={type.id}>{type.label}</option>)}<option value="none">Not an issue</option></select></label><button type="button" disabled={!reviewsLoaded || Boolean(savingKey) || entry.note.id==null || (draft==='suggested' && !entry.suggested.length)} onClick={async()=>{const saved=await saveReview(entry,{types:draft==='none'?[]:draft==='suggested'?entry.suggested:[draft],excluded:draft==='none'});if(saved){setDrafts(previous=>{const next={...previous};delete next[entry.key];return next;});setMessage('Your classification is saved.');}}} className="rounded-xl bg-indigo-600 px-3 py-2.5 text-sm text-white hover:bg-indigo-500 disabled:opacity-40">{savingKey===entry.key?'Saving…':'Save classification'}</button></div>
                             <button type="button" onClick={()=>openNote(entry)} className="text-xs text-indigo-300 underline underline-offset-4 hover:text-indigo-100">Open original note</button>
@@ -4606,7 +4752,7 @@
             const enabledRecipient=users.find(person=>person.uid===recipientUid);
             const recipient=enabledRecipient||(conversation?{uid:recipientUid,name:conversation.names?.[recipientUid]||'Former teammate'}:null);
             const visibleMessages=messages.filter(message=>message.sequence>privateChatCutoff(ui,cid,conversation,uid));
-            const draftMemory=useRef(new Map()),clearedDraftKeys=useRef(new Set()),endRef=useRef(null),knownRef=useRef(null),readPending=useRef(''),typingRef=useRef(0),selectionRestored=useRef(false),aliveRef=useRef(true);
+            const draftMemory=useRef(new Map()),clearedDraftKeys=useRef(new Set()),messageViewportRef=useRef(null),messageContentRef=useRef(null),messageScrollerRef=useRef(null),knownRef=useRef(null),readPending=useRef(''),typingRef=useRef(0),selectionRestored=useRef(false),aliveRef=useRef(true);
             useEffect(()=>{aliveRef.current=true;return()=>{aliveRef.current=false;};},[]);
             const latestRef=useRef({});latestRef.current={ui,uid,active,chatOpen,recipientUid,currentName,soundReady,onIncoming,conversations};
             const people=useMemo(()=>{
@@ -4638,14 +4784,15 @@
                 if(!known)return;
                 const incoming=conversations.filter(row=>(row.incomingSequence?.[uid]||0)>(known.get(row.id)||0)&&privateChatUnread(row,uid,ui));
                 if(!incoming.length)return;
-                if(soundReady)playNotificationChime(['E5','B5'],'chat');
+                if(soundReady)playNotificationChime([], 'privateChat', 'privateChat');
                 const row=incoming.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)))[0],peerUid=row.participantUids.find(id=>id!==uid);
-                if(chatOpen&&active&&peerUid===recipientUid&&document.visibilityState==='visible')return;
+                if(chatOpen&&active&&peerUid===recipientUid&&document.visibilityState==='visible'&&document.hasFocus())return;
                 getDoc(doc(db,...privateChatPath(row.id).split('/'),'messages',row.lastMessageId)).then(snapshot=>{
                     if(!aliveRef.current||auth.currentUser?.uid!==uid||!snapshot.exists())return;
                     const current=latestRef.current,latest=current.conversations.find(item=>item.id===row.id)||row;
-                    if(!privateChatUnread(latest,uid,current.ui)||(current.chatOpen&&current.active&&current.recipientUid===peerUid&&document.visibilityState==='visible'))return;
+                    if(!privateChatUnread(latest,uid,current.ui)||(current.chatOpen&&current.active&&current.recipientUid===peerUid&&document.visibilityState==='visible'&&document.hasFocus()))return;
                     const message=snapshot.data(),text=getTeamChatSticker(message.text)?'Sent a sticker':String(message.text||('Shared '+(message.attachment?.name||'an attachment'))).slice(0,120);
+                    showDesktopAlert({key:'private:'+row.id+':'+(row.incomingSequence?.[uid] || row.lastMessageId),title:'Private Chat',body:(users.find(person=>person.uid===peerUid)?.name||row.names?.[peerUid]||'A teammate')+' sent you a private message.',target:{kind:'private',peerUid}});
                     current.onIncoming({uid:peerUid,name:users.find(person=>person.uid===peerUid)?.name||row.names?.[peerUid]||'Teammate',preview:text,messageId:message.id});
                 }).catch(()=>{});
             },[conversations,viewsReady,directoryReady,ui,uid,onUnread]);
@@ -4677,7 +4824,7 @@
                 if(!active||!cid||!directoryReady||!viewsReady||!recipient)return;
                 return onSnapshot(query(collection(db,...privateChatPath(cid).split('/'),'messages'),orderBy('sequence','desc'),limit(messageLimit)),{includeMetadataChanges:true},snapshot=>{
                     const rows=[];snapshot.forEach(item=>rows.push({...item.data(),id:item.id}));rows.sort((a,b)=>a.sequence-b.sequence);setMessages(rows);
-                    setLoaded(!snapshot.metadata?.fromCache&&!snapshot.metadata?.hasPendingWrites);
+                    if(!snapshot.metadata?.fromCache&&!snapshot.metadata?.hasPendingWrites)setLoaded(true);
                 },()=>{setLoaded(false);setMessages([]);setError('This conversation could not load. Check your connection or chat access.');});
             },[active,cid,directoryReady,viewsReady,Boolean(recipient),messageLimit]);
             useEffect(()=>{
@@ -4691,12 +4838,20 @@
                 firebaseSetDoc(doc(db,...privateChatPath(cid).split('/'),'typing',uid),{uid,name:currentName,typingUntil:value?now+8000:0}).catch(()=>{});
             },[cid,canSend,Boolean(conversation),uid,currentName]);
             useEffect(()=>{
-                if(!active||!loaded||!conversation||document.visibilityState!=='visible'||!messages.length)return;
+                if(!active||!loaded||!conversation||document.visibilityState!=='visible'||!document.hasFocus()||!messages.length)return;
                 const latest=messages.at(-1).sequence;if(latest<(conversation.incomingSequence?.[uid]||0)||(conversation.readSequence?.[uid]||0)>=latest)return;
                 const marker=cid+':'+latest;if(readPending.current===marker)return;readPending.current=marker;
                 firebaseRunTransaction(db,async transaction=>{if(auth.currentUser?.uid!==uid)throw new Error('Account changed');const ref=doc(db,...privateChatPath(cid).split('/')),snapshot=await transaction.get(ref);if(!snapshot.exists())return;const before=snapshot.data();if(before.sequence!==latest)return;transaction.set(ref,{readSequence:{...before.readSequence,[uid]:latest}},{merge:true});}).catch(()=>{readPending.current='';});
             },[active,loaded,conversation,cid,uid,messages,clock]);
-            useEffect(()=>{if(active)endRef.current?.scrollIntoView({block:'nearest'});},[active,cid,visibleMessages.at(-1)?.id]);
+            useEffect(()=>{
+                if(!active||!loaded||!cid||!messageViewportRef.current)return;
+                const scroller=createTeamChatAutoScroller(messageViewportRef.current,messageContentRef.current,visibleMessages.at(-1)?.id,null);
+                messageScrollerRef.current=scroller;
+                return()=>{scroller.dispose();if(messageScrollerRef.current===scroller)messageScrollerRef.current=null;};
+            },[active,cid,loaded]);
+            useEffect(()=>{
+                if(active&&loaded)messageScrollerRef.current?.showLatest(visibleMessages.at(-1)?.id);
+            },[active,cid,loaded,visibleMessages.at(-1)?.id]);
             const send=async(text,file)=>{
                 if(!enabledRecipient||!canSend||busy||!directoryReady||!viewsReady)return false;setBusy(true);setError('');
                 try{await sendPrivateChatRecord(db,{uid,name:currentName},enabledRecipient,text,file);return true;}
@@ -4730,7 +4885,7 @@
                 {!active&&error&&<div role="alert" className="border-b border-rose-900/40 px-4 py-2 text-[11px] text-rose-300">{error}</div>}
                 <div style={{display:active?undefined:'none',minHeight:0,flex:1,flexDirection:'column'}} className={active?'flex min-h-0 flex-1 flex-col':''}>
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/50 px-4 py-3"><span className="text-xs font-semibold text-slate-200">{recipient?.name||'Private conversation'}</span><span className="text-[11px] text-slate-400">Only you and {recipient?.name||'your teammate'}</span></div>
-                <div data-popover-scroll="true" className="team-chat-messages bg-slate-950/90"><div className="team-chat-conversation">
+                <div ref={messageViewportRef} data-private-chat-scroll="true" data-popover-scroll="true" style={{scrollBehavior:'auto'}} className="team-chat-messages bg-slate-950/90"><div ref={messageContentRef} className="team-chat-conversation">
                     {!recipient ? <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">Choose a teammate to start a private conversation.</div>
                     : !loaded ? <div role="status" className="py-10 text-center text-xs text-slate-400">{error?'Conversation unavailable.':'Loading conversation…'}</div>
                     : visibleMessages.length===0 ? <div className="flex h-44 items-center justify-center text-center text-xs font-bold text-slate-500">No private messages with {recipient.name} yet.</div> : <>
@@ -4740,7 +4895,6 @@
                             {editing===message.id?<div><textarea aria-label="Edit private message" value={editText} disabled={busy} onChange={event=>setEditText(event.target.value)} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3"/><div className="mt-2 flex gap-3"><button type="button" onClick={saveEdit} disabled={busy} className="text-xs text-emerald-300">Save</button><button type="button" disabled={busy} onClick={()=>setEditing(null)} className="text-xs text-slate-300">Cancel</button></div></div>:<><ChatMessageText text={message.text}/>{message.attachment&&<ChatAttachmentCard conversationId={cid} attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={active} onPreview={onPreview}/>} {message.editedAt&&<span className="text-[9px] text-slate-400">Edited</span>}</>}
                             {mine&&(conversation?.readSequence?.[recipientUid]||0)>=message.sequence&&<div className="mt-1.5 text-[11px] font-normal text-slate-400">Seen by {recipient.name}</div>}
                         </div></div>;})}</>}
-                    <div ref={endRef}/>
                 </div></div>
                 {error&&<div role="alert" className="border-t border-rose-900/40 bg-rose-950/30 px-4 py-2 text-[11px] font-semibold text-rose-300">{error}</div>}
                 {peerTyping?.typingUntil>clock&&<div role="status" className="px-4 py-2 text-[11px] text-slate-400">{recipient?.name} is typing…</div>}
@@ -5409,28 +5563,99 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
         };
 
 
+        // Device opt-in is separate from shared chime choices. No background push or data uploads.
+        let desktopNotificationContext={uid:null,owner:false,open:null};
+        const desktopNotificationBanners=new Set();
+        const desktopNotificationMemory=new Map();
+        const desktopNotificationPreferenceKey=uid=>'fmo-laptop-notifications:'+uid;
+        const desktopNotificationsEnabled=uid=>{try{return Boolean(uid && localStorage.getItem(desktopNotificationPreferenceKey(uid))==='on');}catch(_){return false;}};
+        const desktopNotificationsSupported=()=>typeof window.Notification==='function' && window.isSecureContext===true;
+        const closeDesktopBanners=()=>{for(const banner of desktopNotificationBanners){try{banner.close();}catch(_){} }desktopNotificationBanners.clear();};
+        const bindDesktopNotifications=(account,open=null)=>{
+            if(desktopNotificationContext.uid!==account?.uid)closeDesktopBanners();
+            desktopNotificationContext={uid:account?.uid || null,owner:isOwnerAccount(account),open};
+        };
+        const showDesktopAlert=async ({key,title,body,target,ownerOnly=false,test=false})=>{
+            const uid=desktopNotificationContext.uid;
+            if(!uid || !desktopNotificationsSupported() || window.Notification.permission!=='granted' || !desktopNotificationsEnabled(uid) || (ownerOnly && !desktopNotificationContext.owner))return false;
+            if(!test && document.visibilityState==='visible' && document.hasFocus())return false;
+            const deliver=()=>{
+                if(desktopNotificationContext.uid!==uid || !desktopNotificationsEnabled(uid) || window.Notification.permission!=='granted')return false;
+                const seenKey='fmo-laptop-seen:'+uid,now=Date.now(),stampKey=uid+':'+key;
+                let seen={};try{seen=JSON.parse(localStorage.getItem(seenKey) || '{}') || {};}catch(_){}
+                if(!test && (seen[key] || desktopNotificationMemory.has(stampKey)))return false;
+                try{
+                    // Page chimes provide the category sound; avoid a second operating-system chime.
+                    const banner=new window.Notification(title,{body,tag:stampKey,silent:true});
+                    desktopNotificationBanners.add(banner);
+                    banner.onclick=()=>{try{if(desktopNotificationContext.uid===uid){window.focus();desktopNotificationContext.open?.(target);}}finally{banner.close();desktopNotificationBanners.delete(banner);}};
+                    banner.onclose=()=>desktopNotificationBanners.delete(banner);
+                    if(!test){
+                        desktopNotificationMemory.set(stampKey,now);
+                        seen[key]=now;
+                        const recent=Object.entries(seen).filter(([,at])=>Number.isFinite(at) && now-at<7*86400000).sort((a,b)=>b[1]-a[1]).slice(0,250);
+                        try{localStorage.setItem(seenKey,JSON.stringify(Object.fromEntries(recent)));}catch(_){}
+                        if(desktopNotificationMemory.size>500)desktopNotificationMemory.delete(desktopNotificationMemory.keys().next().value);
+                    }
+                    if(desktopNotificationBanners.size>20){const oldest=desktopNotificationBanners.values().next().value;oldest.close();desktopNotificationBanners.delete(oldest);}
+                    return true;
+                }catch(_){return false;}
+            };
+            try{return navigator.locks?.request ? await navigator.locks.request('fmo-laptop-notice:'+uid,deliver) : deliver();}catch(_){return false;}
+        };
+        const DesktopNotificationControl=({uid})=>{
+            const [permission,setPermission]=useState(()=>window.Notification?.permission || 'unsupported');
+            const [enabled,setEnabled]=useState(()=>desktopNotificationsEnabled(uid));
+            const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
+            useEffect(()=>{
+                const refresh=()=>{setPermission(window.Notification?.permission || 'unsupported');setEnabled(desktopNotificationsEnabled(uid));};
+                refresh();window.addEventListener('focus',refresh);window.addEventListener('storage',refresh);
+                return()=>{window.removeEventListener('focus',refresh);window.removeEventListener('storage',refresh);};
+            },[uid]);
+            if(!uid)return null;
+            const allowed=enabled && permission==='granted',supported=desktopNotificationsSupported();
+            const toggle=async()=>{
+                setMessage('');setBusy(true);
+                try{
+                    if(allowed){localStorage.setItem(desktopNotificationPreferenceKey(uid),'off');closeDesktopBanners();setEnabled(false);return;}
+                    const result=window.Notification.permission==='granted'?'granted':await window.Notification.requestPermission();
+                    setPermission(result);
+                    if(result==='granted'){localStorage.setItem(desktopNotificationPreferenceKey(uid),'on');setEnabled(true);setMessage('Enabled for your account in this browser.');}
+                    else setMessage(result==='denied'?'Blocked by the browser. Allow notifications for this site in browser settings, then return.':'Permission was not granted. You can enable notifications later.');
+                }catch(_){setMessage('Notifications could not be enabled. Check this site’s browser permissions and try again.');}
+                finally{setBusy(false);}
+            };
+            return <section aria-label="Laptop notifications" className="border-t border-slate-800 px-4 py-3 text-xs text-slate-300">
+                <div className="flex items-center justify-between gap-3"><strong className="font-semibold text-slate-200">Laptop notifications</strong><span className="text-[11px] text-slate-400">{allowed?'On':permission==='denied'?'Blocked':'Off'}</span></div>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">Get banners while using other programs. Keep this dashboard tab open. Browser and Windows notification settings apply.</p>
+                {!supported?<p className="mt-2 text-amber-200">Open the secure website in a supported laptop browser to enable notifications.</p>:<div className="mt-2 flex flex-wrap gap-2"><button type="button" disabled={busy || permission==='denied'} onClick={toggle} className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-40">{busy?'Please wait…':allowed?'Turn off laptop notifications':'Enable laptop notifications'}</button>{allowed && <button type="button" disabled={busy} onClick={async()=>{const sent=await showDesktopAlert({key:'test:'+Date.now(),title:'Final Mile Operations',body:'Your laptop notification test.',target:{kind:'notifications'},test:true});setMessage(sent?'Test banner requested. If it does not appear, check Windows notification settings.':'The test could not display. Check browser notification permissions.');}} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800">Test notification</button>}</div>}
+                {permission==='denied' && !message && <p className="mt-2 text-amber-200">Allow notifications for this site in browser settings, then return.</p>}
+                {message && <p role="status" className="mt-2 text-[11px] text-slate-300">{message}</p>}
+            </section>;
+        };
+
         const MANAGER_ALERT_RULES = [
-            { id:'missingEta', name:'Preload ETA missing', time:'17:00', timing:'time', sound:'notification', repeatMinutes:0, description:'No saved arrival ETA for the selected loading team.' },
-            { id:'lateEta', name:'Preload team may arrive late', time:'18:00', timing:'cutoff', sound:'urgent', repeatMinutes:15, description:'An entered ETA is later than your manager cutoff.' },
-            { id:'arrivalOverdue', name:'Preload arrival not confirmed', time:'18:00', timing:'cutoff', sound:'urgent', repeatMinutes:15, description:'Your cutoff has passed and arrival is still unconfirmed.' },
+            { id:'missingEta', name:'Preload ETA missing', time:'17:00', timing:'time', sound:'preload-arrival', repeatMinutes:0, description:'No saved arrival ETA for the selected loading team.' },
+            { id:'lateEta', name:'Preload team may arrive late', time:'18:00', timing:'cutoff', sound:'preload-arrival', repeatMinutes:15, description:'An entered ETA is later than your manager cutoff.' },
+            { id:'arrivalOverdue', name:'Preload arrival not confirmed', time:'18:00', timing:'cutoff', sound:'preload-arrival', repeatMinutes:15, description:'Your cutoff has passed and arrival is still unconfirmed.' },
             { id:'incompleteRoutes', name:'Incomplete route assignments', time:'19:00', timing:'time', sound:'notification', repeatMinutes:0, description:'Tomorrow’s routes have a missing contractor, driver, or helper, or have not been added on an operating day.' },
-            { id:'taskAttention', name:'Task needs attention', delayMinutes:60, timing:'task', sound:'urgent', repeatMinutes:15, description:'A task is overdue, or an assigned person has not answered your latest update request.' },
+            { id:'taskAttention', name:'Task needs attention', delayMinutes:60, timing:'task', sound:'task-ready', repeatMinutes:15, description:'A task is overdue, or an assigned person has not answered your latest update request.' },
             { id:'missingMetrics', name:'Morning metrics missing', time:'08:00', timing:'time', sound:'notification', repeatMinutes:0, description:'Required month-to-date scores have not been entered for today. Entered zero scores are valid.' },
             { id:'noteAcknowledgment', name:'Manager note awaiting acknowledgment', delayMinutes:60, timing:'delay', sound:'notification', repeatMinutes:0, description:'A required recipient has not acknowledged your note within the chosen window.' },
-            { id:'preloadUnassigned', name:'Preload team not selected', time:'16:30', timing:'time', sound:'notification', repeatMinutes:0, description:'A contractor is scheduled, but no exact driver/helper team has been linked.' },
+            { id:'preloadUnassigned', name:'Preload team not selected', time:'16:30', timing:'time', sound:'preload-arrival', repeatMinutes:0, description:'A contractor is scheduled, but no exact driver/helper team has been linked.' },
             { id:'restDay', name:'Rest day required', timing:'assignment', sound:'urgent', repeatMinutes:0, description:'Someone is assigned all seven days of one Monday–Sunday week. Monday starts a fresh count.' },
-            { id:'driverIssue', name:'Important driver call', timing:'event', sound:'notification', repeatMinutes:0, description:'A newly saved damage, refusal, exchange, rescue, no-fit, mislabel or incorrect-item issue, or a General call marked Needs manager attention. Only your account is alerted.' },
+            { id:'driverIssue', name:'Important driver call', timing:'event', sound:'manager-signal', repeatMinutes:0, description:'A newly saved damage, refusal, exchange, rescue, no-fit, mislabel, late-route, truck breakdown or incorrect-item issue, or a General call marked Needs manager attention. Only your account is alerted.' },
             { id:'urgentFollowUp', name:'Urgent issue awaiting follow-up', delayMinutes:60, timing:'delay', sound:'urgent', repeatMinutes:15, description:'An urgent driver issue remains unresolved after its follow-up window. Only you control its private follow-up status.' }
         ];
-        const defaultManagerAlertSettings = () => ({ enabled:true, muted:false, rules:Object.fromEntries(MANAGER_ALERT_RULES.map(rule => [rule.id,
+        const defaultManagerAlertSettings = () => ({ soundSchemeVersion:2, enabled:true, muted:false, rules:Object.fromEntries(MANAGER_ALERT_RULES.map(rule => [rule.id,
             { enabled:true, sound:rule.sound, repeatMinutes:rule.repeatMinutes, ...(rule.time ? {time:rule.time} : {}), ...(rule.delayMinutes ? {delayMinutes:rule.delayMinutes} : {}) }])) });
         const normalizeManagerAlertSettings = saved => {
             const defaults = defaultManagerAlertSettings();
             const bounded = (value, fallback, minimum, maximum) => typeof value === 'number' && Number.isFinite(value) ? Math.max(minimum,Math.min(maximum,Math.round(value))) : fallback;
-            return { enabled:saved?.enabled !== false, muted:saved?.muted === true, rules:Object.fromEntries(MANAGER_ALERT_RULES.map(rule => {
+            return { soundSchemeVersion:2, enabled:saved?.enabled !== false, muted:saved?.muted === true, rules:Object.fromEntries(MANAGER_ALERT_RULES.map(rule => {
                 const input=saved?.rules?.[rule.id] || {}, base=defaults.rules[rule.id];
                 return [rule.id,{enabled:input.enabled !== false,
-                    sound:DASHBOARD_SOUND_PRESETS.some(preset=>preset.id===input.sound) ? input.sound : base.sound,
+                    sound:DASHBOARD_SOUND_PRESETS.some(preset=>preset.id===input.sound) ? (saved?.soundSchemeVersion!==2 && input.sound===({missingEta:'notification',lateEta:'urgent',arrivalOverdue:'urgent',preloadUnassigned:'notification',taskAttention:'urgent',driverIssue:'notification'}[rule.id]) ? base.sound : input.sound) : base.sound,
                     repeatMinutes:input.repeatMinutes === 0 ? 0 : bounded(input.repeatMinutes,base.repeatMinutes,5,1440),
                     ...(rule.time ? {time:/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(input.time || '') ? input.time : base.time} : {}),
                     ...(rule.delayMinutes ? {delayMinutes:bounded(input.delayMinutes,base.delayMinutes,5,10080)} : {})}];
@@ -5452,7 +5677,9 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
         const managerAlertDismissalKey = (alert, canonical = false) => {
             const revision=canonical ? alert.contentRevision || alert.revision : alert.revision;
             const target=canonical && alert.contentRevision ? {...alert.target,resolutionRevision:alert.contentRevision} : alert.target;
-            return alert.id+':'+managerAlertRevision({text:managerAlertSerialize([alert.tone,alert.message,alert.details,target,revision],canonical)});
+            const segment=alert.details?.find(([label])=>label==='Segment')?.[1];
+            const details=alert.details?.map(([label,value])=>[label,label!=='Reason'?value:value==='Exchange / return follow-up'?'Exchange / return follow-up — cause not confirmed':segment==='Rescue' && value==='Damaged item'?'Damaged item — cause not confirmed':segment==='Customer refused' && value==='Other'?'Other / not confirmed':value]);
+            return alert.id+':'+managerAlertRevision({text:managerAlertSerialize([alert.tone,alert.message,details,target,revision],canonical)});
         };
         // Keep legacy entries for older clients; the versioned entry identifies contents, not database field order.
         const managerAlertStateMatches = (state, key, legacy, canonical) => Object.hasOwn(state || {},'v2:'+key) ? state['v2:'+key]===canonical : state?.[key]===legacy;
@@ -5468,7 +5695,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const add = (rule, key, tone, message, details, target, revision='', contentRevision='') => {
                 if(!config.rules[rule].enabled) return;
                 const definition=MANAGER_ALERT_RULES.find(item=>item.id===rule);
-                const alert={id:rule+':'+key,rule,title:definition.name,tone,message,details,target,revision,signature:rule+':'+key+(rule==='driverIssue'?':'+(contentRevision || revision):'')};
+                const createdAt=target.section==='note'?days.get(target.dateKey)?.shiftNotes?.find(note=>note.id===target.noteId)?.timestamp:target.section==='task'?tasks.find(task=>task.id===target.taskId)?.createdAt:null;
+                const alert={id:rule+':'+key,rule,title:definition.name,tone,message,details,target,revision,...(Number.isFinite(Date.parse(createdAt))?{createdAt}:{}),signature:rule+':'+key+(rule==='driverIssue'?':'+(contentRevision || revision):'')};
                 if(contentRevision) alert.contentRevision=contentRevision;
                 alert.dismissalKey=managerAlertDismissalKey(alert);
                 alert.contentDismissalKey=managerAlertDismissalKey(alert,true);
@@ -5512,7 +5740,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 if(overdue || awaiting) add('taskAttention',task.id,'red',task.title+(awaiting?' — requested update is overdue.':' — task deadline has passed.'),
                     [['Assigned to',getTaskAssignedUids(task).map(uid=>task.assignedNames?.[uid] || task.assignedName || 'Team member').join(', ')],['Status',TEAM_TASK_STATUSES[task.status] || task.status],['Task deadline',Number.isFinite(Date.parse(task.dueAt))?formatTaskTime(task.dueAt):'Not set'],...(awaiting ? [['Waiting for',pending.map(uid=>task.assignedNames?.[uid] || task.assignedName || 'Team member').join(', ')]] : [])],{section:'task',taskId:task.id},(awaiting?request.id:'due')+':'+task.dueAt);
             }
-            for(const record of records) for(const note of record.shiftNotes || []) {
+            for(const record of records) {const activeRouteNotes=new Set(getOverviewRouteIssues(record.shiftNotes).map(({note})=>note.id));for(const note of record.shiftNotes || []) {
+                if(isRouteStatusCall(note.driverCall) && !activeRouteNotes.has(note.id))continue;
                 const created=Date.parse(note.timestamp), key=record.date+':'+note.id;
                 if(!note.id || record.date>day || !Number.isFinite(created) || created>nowMs) continue;
                 if(recipientsLoaded && isManagerNote(note) && nowMs>=created+config.rules.noteAcknowledgment.delayMinutes*60000) {
@@ -5523,13 +5752,14 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 if(driverIssue) {
                     const revision=managerAlertRevision(note), contentRevision=managerAlertRevision(note,true);
                     if(!managerAlertStateMatches(resolutions,key,revision,contentRevision))add('driverIssue',key,driverIssue.tone,driverIssue.message,
-                        [['Driver',note.driverCall?.driver || 'Not specified'],['Route',note.driverCall?.route || 'Not specified'],['Stop',note.driverCall?.stopNumber || 'Not specified'],['Customer',note.driverCall?.customerName || 'Not specified'],['SO / RMA',note.driverCall?.soRma || 'Not specified'],...driverIssue.details,['Call notes',String(note.driverCall?.note || note.text || '').slice(0,1000)]],
+                        [['Driver',note.driverCall?.driver || 'Not specified'],['Route',note.driverCall?.route || 'Not specified'],...(!isRouteStatusCall(note.driverCall)?[['Stop',note.driverCall?.stopNumber || 'Not specified'],['SO / RMA',note.driverCall?.soRma || 'Not specified']]:[]),...driverIssue.details,['Call notes',String(note.driverCall?.note || note.text || '').slice(0,1000)]],
                         {section:'note',dateKey:record.date,noteId:note.id,resolutionKey:key,resolutionRevision:revision},revision,contentRevision);
                 }
                 if(!driverIssue && (note.category==='URGENT' || (note.acknowledgedAt && note.acknowledgedBy)) && (note.noteType==='driver-call' || note.driverCall?.note || note.driverCall?.route) && nowMs>=created+config.rules.urgentFollowUp.delayMinutes*60000) {
                     const revision=managerAlertRevision(note), contentRevision=managerAlertRevision(note,true);
                     if(!managerAlertStateMatches(resolutions,key,revision,contentRevision)) add('urgentFollowUp',key,'red','An urgent driver issue still needs your follow-up.',[['Driver',note.driverCall?.driver || 'Not specified'],['Issue',String(note.driverCall?.note || note.text || '').slice(0,500)]],{section:'note',dateKey:record.date,noteId:note.id,resolutionKey:key,resolutionRevision:revision},revision,contentRevision);
                 }
+            }
             }
             const weekStarts=new Set([day,tomorrow].map(date=>{const stamp=Date.parse(date+'T12:00:00Z');return managerAlertDayOffset(date,-((new Date(stamp).getUTCDay()+6)%7));}));
             for(const monday of weekStarts) {
@@ -5576,7 +5806,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 <div className="px-4 py-3 border-b border-slate-800"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-white">Manager Alerts</h3><button type="button" onClick={dismissAll} disabled={busy || !loaded || !alerts.length} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40">Dismiss All</button></div><p className="text-xs text-slate-400 mt-1">Only you · Dismiss hides a warning without resolving the issue</p></div>
                 {error && <p role="alert" className="m-3 text-xs text-rose-300">{error}</p>}
                 {!enabled ? <p className="px-4 py-6 text-sm text-slate-400">Manager Alerts are turned off. Enable them in Admin Settings.</p> : !loaded ? <p className="px-4 py-6 text-sm text-slate-400">Loading saved records…</p> : alerts.length===0 ? <p className="px-4 py-6 text-sm text-slate-400">No manager warnings right now.</p> : alerts.slice(0,visibleCount).map(alert=><article key={alert.id} className="border-b border-slate-800 p-4">
-                    <div className="flex gap-3 min-w-0"><span className={`shrink-0 mt-0.5 ${alert.tone==='red'?'text-rose-300':'text-amber-300'}`}><AlertTriangle className="h-4 w-4" /></span><div className="min-w-0 flex-1"><h4 className="font-semibold text-sm text-slate-100">{alert.title}</h4><p className="mt-1 text-xs text-slate-300 break-words">{alert.message}</p>
+                    <div className="flex gap-3 min-w-0"><span className={`shrink-0 mt-0.5 ${alert.tone==='red'?'text-rose-300':'text-amber-300'}`}><AlertTriangle className="h-4 w-4" /></span><div className="min-w-0 flex-1"><h4 className="font-semibold text-sm text-slate-100">{alert.title}</h4>{alert.createdAt && <p className="mt-1 text-[11px] text-slate-400"><time dateTime={alert.createdAt}>Created {new Date(alert.createdAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'})} Central</time></p>}<p className="mt-1 text-xs text-slate-300 break-words">{alert.message}</p>
                     <div className="flex flex-wrap gap-2 mt-3"><button type="button" onClick={()=>open(alert)} disabled={busy} className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200 disabled:opacity-40">{alert.target.section==='task'?'Open task':alert.target.section==='metrics'?'Open metrics':alert.target.section==='note'?'Open note':'Open Routes'}</button><button type="button" aria-expanded={expanded===alert.id} onClick={()=>setExpanded(value=>value===alert.id?null:alert.id)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-400">Details</button><button type="button" aria-label={'Dismiss '+alert.title} onClick={()=>dismiss(alert)} disabled={busy || !loaded} className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40">Dismiss</button>{['urgentFollowUp','driverIssue'].includes(alert.rule) && <button type="button" disabled={busy} onClick={()=>resolve(alert)} className="rounded-lg border border-emerald-500/40 px-3 py-2 text-xs text-emerald-300 disabled:opacity-40">Mark resolved</button>}</div>
                     {expanded===alert.id && <dl className="mt-3 space-y-2 text-xs">{alert.details.map(([label,value],index)=><div key={index}><dt className="text-slate-500">{label}</dt><dd className="break-words text-slate-200 mt-0.5">{value}</dd></div>)}</dl>}
                     </div></div>
@@ -5682,6 +5912,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [restorePreview, setRestorePreview] = useState(null);
             const [restoreConfirmation, setRestoreConfirmation] = useState('');
             const [saveError, setSaveError] = useState('');
+            const [saveErrorNoteId, setSaveErrorNoteId] = useState(null);
             const [saveActivity, setSaveActivity] = useState({ pending: 0, error: null });
             const [isBrowserOnline, setIsBrowserOnline] = useState(() => navigator.onLine !== false);
             const [dashboardConnection, setDashboardConnection] = useState('connecting');
@@ -5823,7 +6054,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [onlineNameDraft, setOnlineNameDraft] = useState('');
             const [recordToDelete, setRecordToDelete] = useState(null);
             const [isCreatingDriverCall, setIsCreatingDriverCall] = useState(false);
-            const [driverCallDraft, setDriverCallDraft] = useState({ route: '', stopNumber: '', driver: '', customerName: '', soRma: '', note: '', ...defaultDriverCallIssue() });
+            const [driverCallEntryType,setDriverCallEntryType] = useState('driver-call');
+            const [driverCallDraft, setDriverCallDraft] = useState({ route: '', stopNumber: '', driver: '', soRma: '', note: '', ...defaultDriverCallIssue() });
             const [driverCallError, setDriverCallError] = useState('');
 
             const [metricsSubTab, setMetricsSubTab] = useState('wtd');
@@ -5984,7 +6216,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const masterContractorOptions = useMemo(() => sortMasterPeople(masterLists.contractors || []), [masterLists.contractors]);
             const masterVisibleItems = useMemo(() => masterActiveTab === 'contractors' ? (masterLists.contractors || []) : sortMasterPeople(masterLists[masterActiveTab] || [], masterSortBy, masterLists.contractors || []), [masterLists, masterActiveTab, masterSortBy]);
 
-            const NOTE_CATEGORIES = ["URGENT", ...(isAdminUser ? ["Manager Note"] : []), "Follow-up","Incident","Driver Calls","Driver Issue","Damage/Loss","Facility","Safety","General"];
+            const NOTE_CATEGORIES = ["URGENT", ...(isAdminUser ? ["Manager Note"] : []), "Follow-up","Incident","Driver Calls","Route Issues","Driver Issue","Damage/Loss","Facility","Safety","General"];
             useEffect(() => {
                 dailySnapshotRef.current = { date: null, data: null };
                 dashboardSaveTracker.reset();
@@ -6026,9 +6258,17 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
 
             const beginDriverCall = () => {
                 clearShiftNoteSearch('current');
-                setDriverCallDraft({ route: '', stopNumber: '', driver: '', customerName: '', soRma: '', note: '', ...defaultDriverCallIssue() });
+                setDriverCallEntryType('driver-call');
+                setDriverCallDraft({ route: '', stopNumber: '', driver: '', soRma: '', note: '', ...defaultDriverCallIssue() });
                 setDriverCallError('');
                 setIsCreatingDriverCall(true);
+            };
+
+            const beginRouteIssue = () => {
+                if(!canEditSection('notes'))return;
+                clearShiftNoteSearch('current');setDriverCallEntryType('route-issue');
+                setDriverCallDraft({...defaultDriverCallIssue(),segment:'late-route',reason:'running-late',action:'No exchange or rescue',route:'',driver:'',note:''});
+                setDriverCallError('');setIsCreatingDriverCall(true);
             };
 
             const addDriverCallNote = () => {
@@ -6038,24 +6278,24 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 const route = String(driverCallDraft.route || '').trim().toUpperCase();
                 const stopNumber = String(driverCallDraft.stopNumber || '').trim();
                 const driver = String(driverCallDraft.driver || '').trim();
-                const customerName = String(driverCallDraft.customerName || '').trim();
                 const soRma = String(driverCallDraft.soRma || '').trim();
                 const noteText = String(driverCallDraft.note || '').trim();
-                if (!route || !stopNumber || !driver || !customerName || !soRma || !noteText) {
-                    setDriverCallError('Enter the route, stop number, driver, customer name, SO / RMA number, and call notes before adding the entry.');
+                if (!route || !driver || !noteText || (!isRouteStatusCall(driverCallDraft) && (!stopNumber || !soRma))) {
+                    setDriverCallError('Enter the route, stop number, driver, SO / RMA number, and call notes before adding the entry.');
                     return;
                 }
                 const current = getCurrentShiftUser();
                 const acknowledgedBy = cleanFirstName(current.name);
                 const timestamp = new Date().toISOString();
                 const newId = crypto.randomUUID();
-                const driverCall = { ...defaultDriverCallIssue(), ...driverCallDraft, route, stopNumber, driver, customerName, soRma, note: noteText, classificationSource:'entered', classificationNeedsReview:false };
+                const {customerName:removedCustomerName,...safeDriverCallDraft}=driverCallDraft;
+                const driverCall = { ...defaultDriverCallIssue(), ...safeDriverCallDraft, route, stopNumber, driver, soRma, note: noteText, classificationSource:'entered', classificationNeedsReview:false,...(isRouteStatusCall(driverCallDraft)?{routeStatusUpdatedAt:timestamp}:{}) };
                 const nd = JSON.parse(JSON.stringify(data));
                 if (!nd.shiftNotes) nd.shiftNotes = [];
                 nd.shiftNotes.unshift({
                     id: newId,
                     text: formatDriverCallText(driverCall),
-                    category: 'Driver Calls',
+                    category: isRouteStatusCall(driverCall)?'Route Issues':'Driver Calls',
                     author: acknowledgedBy,
                     authorUid: current.uid,
                     timestamp,
@@ -6064,14 +6304,15 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     replies: []
                 });
                 setData(nd);
-                setDriverCallDraft({ route: '', stopNumber: '', driver: '', customerName: '', soRma: '', note: '', ...defaultDriverCallIssue() });
+                setDriverCallDraft({ route: '', stopNumber: '', driver: '', soRma: '', note: '', ...defaultDriverCallIssue() });
                 setDriverCallError('');
                 setIsCreatingDriverCall(false);
             };
 
             const updateDriverCallIssue = (noteId,call) => {
                 if(!canEditSection('notes'))return;
-                setData(previous=>({...previous,shiftNotes:(previous.shiftNotes || []).map(note=>note.id!==noteId?note:{...note,driverCall:{...call},...(note.noteType==='driver-call' && call.classificationSource!=='history'?{text:formatDriverCallText(call)}:{})})}));
+                const updatedCall={...call,...(isRouteStatusCall(call)?{routeStatusUpdatedAt:new Date().toISOString()}:{})};
+                setData(previous=>({...previous,shiftNotes:(previous.shiftNotes || []).map(note=>note.id!==noteId?note:{...note,driverCall:updatedCall,...(note.noteType==='driver-call' && call.classificationSource!=='history'?{text:formatDriverCallText(updatedCall)}:{})})}));
             };
 
             const historicalCallMigrationRef=useRef({uid:null,busy:false,done:false});
@@ -6117,6 +6358,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 if (noteIndex < 0) return;
                 if (!nd.shiftNotes[noteIndex].driverCall) nd.shiftNotes[noteIndex].driverCall = { route: '', stopNumber: '', driver: '', note: '' };
                 nd.shiftNotes[noteIndex].driverCall[field] = field === 'route' ? String(value).toUpperCase() : String(value);
+                if(isRouteStatusCall(nd.shiftNotes[noteIndex].driverCall))nd.shiftNotes[noteIndex].driverCall.routeStatusUpdatedAt=new Date().toISOString();
                 nd.shiftNotes[noteIndex].text = formatDriverCallText(nd.shiftNotes[noteIndex].driverCall);
                 setData(nd);
             };
@@ -6401,6 +6643,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 const unsubscribe = onAuthStateChanged(auth, async firebaseUser => {
                     const currentGeneration = ++generation;
                     window.geodisNativeNotifications?.bind(null).catch(()=>{});
+                    bindDesktopNotifications(null);
                     settingsServiceAvailable = false;
                     stopDashboardSounds(); applyDashboardSoundSettings(null);
                     setSoundSettingsLoaded(false); setSavedDashboardSounds(defaultDashboardSoundSettings());
@@ -6879,6 +7122,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 if (dashboardSaveInFlightRef.current) return;
                 if (!db) { setSaveError('The database is unavailable. Your edits have not been saved.'); setDashboardConnection('lost'); return; }
                 setSaveError('');
+                setSaveErrorNoteId(null);
                 dashboardSaveInFlightRef.current = true;
                 const finishSave = dashboardSaveTracker.begin(`dashboard:${activeDate}`);
                 let saveFailure = null;
@@ -6887,8 +7131,9 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                     if(auth && auth.currentUser) currentUid = auth.currentUser.uid;
                     const dataToSave = normalizeMetricsNameData(withAutoRouteMetrics(data));
                     const baseline = dailySnapshotRef.current.date === activeDate ? dailySnapshotRef.current.data : dataToSave;
-                    const callValidationError=validateChangedDriverCalls(dataToSave.shiftNotes,baseline?.shiftNotes);
-                    if(callValidationError)throw new Error(callValidationError);
+                    let invalidCallNote=null;
+                    const callValidationError=validateChangedDriverCalls(dataToSave.shiftNotes,baseline?.shiftNotes,note=>invalidCallNote=note);
+                    if(callValidationError)throw Object.assign(new Error(callValidationError),{shiftNoteId:invalidCallNote?.id});
                     setData(dataToSave);
                 
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'dailyRecaps', activeDate);
@@ -7012,6 +7257,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 } catch (e) {
                     saveFailure = e;
                     setIsEditing(true);
+                    setSaveErrorNoteId(e?.shiftNoteId ?? null);
                     setSaveError('Some changes could not be saved. Your edit stays open. ' + (e?.code === 'permission-denied' ? 'Your account does not have permission for that change.' : (e.message || 'Please try again.')));
                     console.error("Save failed:", e);
                 } finally {
@@ -7790,7 +8036,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 const known = taskSoundKnownRef.current;
                 const incoming = taskNotifications.some(event => !known.has(event.id));
                 taskSoundKnownRef.current = new Set(teamTasks.flatMap(task => (task.events || []).map(event => event.id)));
-                if (incoming && soundSettingsLoaded) playNotificationChime(['G5', 'C6'], 'tasks', 'task');
+                if (incoming && soundSettingsLoaded) playNotificationChime([], 'tasks', 'task');
+                if(incoming) taskNotifications.filter(event=>!known.has(event.id)).forEach(event=>showDesktopAlert({key:'task:'+event.id,title:'Team Tasks',body:'A task assignment or update needs your attention.',target:{kind:'task',taskId:event.taskId}}));
             }, [teamTasks, taskNotifications, teamTasksLoaded, soundSettingsLoaded]);
             useEffect(() => {
                 if (!isTeamTasksOpen) return;
@@ -9309,6 +9556,9 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 if(!eligible.length || !audioReady) return;
                 if(playDashboardSound('managerAlert',{presetId:savedManagerAlerts.rules[eligible[0].rule].sound})) eligible.forEach(alert=>managerSoundRef.current.set(alert.signature,now));
             },[managerAlerts,managerAlertsLoaded,isAdminUser,managerAlertNow,savedManagerAlerts,savedDashboardSounds,audioReady,teamTasksLoaded,managerRecipientsLoaded]);
+            const desktopNotificationOpenRef=useRef(null);
+            const desktopManagerKnownRef=useRef(null);
+            const desktopReminderKnownRef=useRef(null);
             const openManagerAlert = alert => {
                 if(!isAdminUser) return;
                 const {section,dateKey}=alert.target;
@@ -9320,6 +9570,48 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 else if(section==='metrics'){setActiveTab('metrics');setMetricsSubTab('mtd');}
                 else {setActiveTab('routes');setRoutesSubTab('table');}
             };
+            desktopNotificationOpenRef.current=target=>{
+                if(!target)return;
+                if(target.kind==='private'){selectPrivateChat(target.peerUid);setIsTeamChatOpen(true);setIsShiftNotificationOpen(false);setPrivateChatPopup(null);}
+                else if(target.kind==='team'){selectSharedChat();setIsTeamChatOpen(true);setIsShiftNotificationOpen(false);}
+                else if(target.kind==='task')openTaskAssignment(target.taskId);
+                else if(target.kind==='manager')openManagerAlert(target.alert);
+                else if(target.kind==='overview'){if(activeDate===getChicagoDateKey()){setActiveTab('overview');setIsShiftNotificationOpen(false);setIsTeamChatOpen(false);}}
+                else if(target.kind==='note'){
+                    if(target.item?.dateKey && target.item.dateKey!==activeDate && (isEditMode || isCreatingDriverCall || savingShiftReplyId!=null || Object.values(shiftReplyDrafts).some(text=>String(text).trim()))){window.alert('Save your current edits before opening a notification for another day.');return;}
+                    openShiftNoteFromNotification(target.item);
+                }
+                else {setIsShiftNotificationOpen(true);setIsTeamChatOpen(false);}
+            };
+            useEffect(()=>{
+                bindDesktopNotifications(user,target=>desktopNotificationOpenRef.current?.(target));
+                desktopManagerKnownRef.current=null;desktopReminderKnownRef.current=null;
+                return()=>bindDesktopNotifications(null);
+            },[user?.uid]);
+            useEffect(()=>{
+                if(!managerAlertsLoaded || !isAdminUser)return;
+                const state=desktopManagerKnownRef.current;
+                if(!state){desktopManagerKnownRef.current={known:new Set(managerAlerts.map(alert=>alert.signature)),tasks:teamTasksLoaded,recipients:managerRecipientsLoaded};return;}
+                if(teamTasksLoaded && !state.tasks)managerAlerts.filter(alert=>alert.rule==='taskAttention').forEach(alert=>state.known.add(alert.signature));
+                if(managerRecipientsLoaded && !state.recipients)managerAlerts.filter(alert=>alert.rule==='noteAcknowledgment').forEach(alert=>state.known.add(alert.signature));
+                for(const alert of managerAlerts)if(!state.known.has(alert.signature))showDesktopAlert({key:'manager:'+alert.signature,title:alert.title,body:alert.message,target:{kind:'manager',alert},ownerOnly:true});
+                desktopManagerKnownRef.current={known:new Set(managerAlerts.map(alert=>alert.signature)),tasks:teamTasksLoaded,recipients:managerRecipientsLoaded};
+            },[managerAlerts,managerAlertsLoaded,isAdminUser,teamTasksLoaded,managerRecipientsLoaded]);
+            useEffect(()=>{
+                if(!user || isLoading || !soundSettingsLoaded)return;
+                const today=getChicagoDateKey(),items=[];
+                if(activeDate!==today){desktopReminderKnownRef.current=null;return;}
+                for(const [id,due,label] of [[12,timeAlerts.show12,'LSF PFL 12 PM Route Update Has Been Sent'],[17,timeAlerts.show17,'LSF PFL 5 PM Route Update Has Been Sent'],[19,timeAlerts.show19,'LSF PFL EOD Route Update Has Been Sent']]){
+                    if(due && !dismissedAlerts[id] && !data.loadout?.compliance?.some(item=>item.label===label && item.status===true))items.push({key:'compliance:'+today+':'+id,title:'Compliance reminder',body:label,target:{kind:'overview'}});
+                }
+                const arrived=isPreloadArrivedStatus(allPreloadSchedules[today]?.status),notes=data.shiftNotes || [];
+                if(showPreloadAlert && !preloadDismissed && !arrived && !notes.some(note=>note.system && note.preloadReminder && note.preloadDate===today))items.push({key:'preload-message:'+today,title:'Preload reminder',body:'Send today’s preload message to the designated team.',target:{kind:'overview'}});
+                if(preloadArrivalAlert)items.push({key:'preload-arrival:'+today+':'+preloadArrivalAlert.signature,title:'Preload arrival check',body:'Review the preload team’s arrival status.',target:{kind:'overview'}});
+                const prior=desktopReminderKnownRef.current;
+                if(prior)for(const item of items)if(!prior.has(item.key))showDesktopAlert(item);
+                desktopReminderKnownRef.current=new Set(items.map(item=>item.key));
+            },[user?.uid,isLoading,soundSettingsLoaded,activeDate,timeAlerts,dismissedAlerts,preloadDismissed,showPreloadAlert,preloadArrivalAlert?.signature,data.loadout?.compliance,data.shiftNotes,allPreloadSchedules]);
+
             const resolveManagerIssue = async alert => {
                 if(!isAdminUser || !isOwnerAccount(auth.currentUser) || auth.currentUser.uid!==user?.uid || !db || managerAlertWriteRef.current || !['urgentFollowUp','driverIssue'].includes(alert.rule)) return;
                 managerAlertWriteRef.current=true;setManagerAlertBusy(true);setManagerAlertError('');
@@ -9391,14 +9683,14 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 const newIncoming = teamChatMessages.filter(message => !knownIds.has(teamMessageKey(message))
                     && message.authorUid !== user?.uid && !hasCurrentUserSeenTeamMessage(message) && !chatSoundedMessageIdsRef.current.has(teamMessageKey(message)));
                 teamChatSoundSignature.current = new Set(teamChatMessages.map(teamMessageKey));
-                if (newIncoming.length) { newIncoming.forEach(message => chatSoundedMessageIdsRef.current.add(teamMessageKey(message))); playNotificationChime(['E5', 'B5'], 'chat'); }
+                if (newIncoming.length) { newIncoming.forEach(message => {chatSoundedMessageIdsRef.current.add(teamMessageKey(message));showDesktopAlert({key:'team:'+teamMessageKey(message),title:'Team Chat',body:(message.author || 'A teammate')+' sent a team message.',target:{kind:'team'}});}); playNotificationChime([], 'chat'); }
             }, [teamChatMessages, teamChatLoaded, user?.uid, soundSettingsLoaded]);
 
             useEffect(() => {
                 if (!chatMentionsLoaded || !notificationStateLoaded || !soundSettingsLoaded || chatMentionSoundKnownRef.current === null) return;
                 const incoming = chatMentionNotificationItems.filter(item => !chatMentionSoundKnownRef.current.has(item.id.slice(8)) && !chatSoundedMessageIdsRef.current.has(item.messageId));
                 chatMentionSoundKnownRef.current = new Set(chatMentionRecords.map(record => record.id));
-                if (incoming.length) { incoming.forEach(item => chatSoundedMessageIdsRef.current.add(item.messageId)); playNotificationChime(['E5', 'B5'], 'chat'); }
+                if (incoming.length) { incoming.forEach(item => {chatSoundedMessageIdsRef.current.add(item.messageId);showDesktopAlert({key:'team:'+item.messageId,title:'Team Chat',body:'You were mentioned in a team message.',target:{kind:'team'}});}); playNotificationChime([], 'chat'); }
             }, [chatMentionRecords, chatMentionsLoaded, notificationStateLoaded, soundSettingsLoaded, user?.uid]);
 
             useEffect(() => {
@@ -9407,7 +9699,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 const previous = shiftNoteNotificationSoundSignature.current;
                 if (previous !== null && shiftNoteNotificationSoundDate.current === activeDate) {
                     const incoming = shiftNoteItems.find(item => !previous.has(item.id));
-                    if (incoming) playNotificationChime(['G5', 'C6'], 'shiftNotes', incoming.type === 'like' ? 'shiftLike' : 'shiftReply');
+                    if (incoming) {playNotificationChime([], 'shiftNotes', incoming.type === 'like' ? 'shiftLike' : 'shiftReply');showDesktopAlert({key:'shift:'+incoming.id,title:'Shift Notes',body:incoming.type==='like'?'Someone liked your note.':'There is a new reply to your shift note conversation.',target:{kind:'note',item:incoming}});}
                 }
                 shiftNoteNotificationSoundSignature.current = ids;
                 shiftNoteNotificationSoundDate.current = activeDate;
@@ -9644,6 +9936,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                     ))
                                                 )}
                                             </div>}
+                                            <DesktopNotificationControl uid={user?.uid}/>
                                         </div>
                                     )}
                                 </div>
@@ -9815,7 +10108,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         </section>}
 
                         {saveError && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-700 bg-slate-900 p-4 text-sm text-rose-200">
-                            <span>{saveError}</span><button type="button" onClick={() => setSaveError('')} aria-label="Dismiss save error"><X className="h-4 w-4" /></button>
+                            <span>{saveError}</span><div className="flex shrink-0 items-center gap-3">{saveErrorNoteId!=null && <button type="button" onClick={()=>{const note=(data.shiftNotes || []).find(item=>String(item.id)===String(saveErrorNoteId));if(note){setActiveTab('notes');openShiftNoteSearchResult({note,dateKey:activeDate});}}} className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-semibold hover:bg-slate-800">Open note to fix</button>}<button type="button" onClick={() => {setSaveError('');setSaveErrorNoteId(null);}} aria-label="Dismiss save error"><X className="h-4 w-4" /></button></div>
                         </div>}
                         {isLoading ? <div className="h-[50vh] flex flex-col items-center justify-center text-slate-500"><Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-500" /><p className="font-bold uppercase text-[10px]">Syncing Logistics Database...</p></div> : activeTab === 'overview' ? (
                             
@@ -10039,6 +10332,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                         </div>
                                     </div>
 
+                                    <OverviewRouteIssues notes={data.shiftNotes} onOpen={note=>{setActiveTab('notes');setShiftNotesView('notes');openShiftNoteSearchResult({note,dateKey:activeDate});}}/>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div role="region" aria-label="Completed Routes" className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md flex justify-between items-center relative overflow-hidden group">
                                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none"><CheckCircle2 className="w-24 h-24 text-slate-100" /></div>
@@ -10721,6 +11015,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                         <div className="flex items-center gap-3"><MessageSquare className="w-8 h-8 text-slate-100" /><h2 className="text-xl font-black text-white italic">Shift Notes</h2></div>
                                         {isEditing && shiftNotesView!=='issues' && <div className="flex flex-wrap items-center gap-2">
                                             <button onClick={beginDriverCall} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/30 cursor-pointer"><Truck className="w-4 h-4" /> DRIVER CALL</button>
+                                            <button type="button" onClick={beginRouteIssue} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/30 cursor-pointer"><Route className="w-4 h-4" /> ROUTE ISSUE</button>
                                             <button onClick={() => addShiftNote()} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-900/40 cursor-pointer"><PlusCircle className="w-4 h-4" /> NEW ENTRY</button>
                                             {isAdminUser && <button type="button" onClick={() => addShiftNote('Manager Note')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-500/50 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 text-xs font-black transition-colors cursor-pointer"><ShieldCheck className="w-4 h-4" /> MANAGER NOTE</button>}
                                         </div>}
@@ -10737,7 +11032,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                 <span className="mb-1.5 block text-xs font-semibold text-slate-400">Search Shift Notes</span>
                                                 <span className="relative block">
                                                     <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
-                                                    <input type="search" value={shiftNoteSearch} onChange={event => setShiftNoteSearch(event.target.value)} placeholder="Search notes, driver, customer, or SO/RMA…" className="w-full min-w-0 rounded-xl border border-slate-600 bg-slate-950 py-2.5 pl-10 pr-3 text-sm text-slate-200 outline-none focus:border-indigo-400" />
+                                                    <input type="search" value={shiftNoteSearch} onChange={event => setShiftNoteSearch(event.target.value)} placeholder="Search notes, driver, route, or SO/RMA…" className="w-full min-w-0 rounded-xl border border-slate-600 bg-slate-950 py-2.5 pl-10 pr-3 text-sm text-slate-200 outline-none focus:border-indigo-400" />
                                                 </span>
                                             </label>
                                             <label className="block min-w-0 text-xs font-semibold text-slate-400">Category
@@ -10769,18 +11064,18 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             <div className="bg-slate-900/30 rounded-2xl border border-slate-700 p-6 shadow-lg">
                                                 <div className="flex items-center justify-between gap-4 mb-5">
                                                     <div>
-                                                        <h3 className="text-sm font-black uppercase tracking-widest text-white">New Driver Call</h3>
-                                                        <p className="mt-1 text-xs text-slate-400">Use these fields so every driver call follows the same format.</p>
+                                                        <h3 className="text-sm font-black uppercase tracking-widest text-white">{driverCallEntryType==='route-issue'?'New Route Issue':'New Driver Call'}</h3>
+                                                        <p className="mt-1 text-xs text-slate-400">{driverCallEntryType==='route-issue'?'Record a late route or truck breakdown with its current stop progress.':'Use these fields so every driver call follows the same format.'}</p>
                                                     </div>
                                                     <button onClick={() => { setIsCreatingDriverCall(false); setDriverCallError(''); }} className="text-slate-500 hover:text-white p-1 cursor-pointer" title="Cancel"><X className="w-5 h-5" /></button>
                                                 </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                {driverCallEntryType==='route-issue'?<RouteIssueEntryFields value={driverCallDraft} onChange={call=>{setDriverCallDraft(call);setDriverCallError('');}} people={getDriverCallPeople()}/>:<><div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                     <label className="block">
                                                         <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Route / PFL</span>
                                                         <input autoFocus value={driverCallDraft.route} onChange={e => setDriverCallDraft(prev => ({ ...prev, route: e.target.value.toUpperCase() }))} placeholder="PFL 01-03" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 uppercase outline-none focus:border-indigo-500" />
                                                     </label>
                                                     <label className="block">
-                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Stop Number</span>
+                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Stop Number {isRouteStatusCall(driverCallDraft) && <span className="normal-case font-normal">(optional for a route issue)</span>}</span>
                                                         <input inputMode="numeric" value={driverCallDraft.stopNumber} onChange={e => setDriverCallDraft(prev => ({ ...prev, stopNumber: e.target.value }))} placeholder="7" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500" />
                                                     </label>
                                                     <label className="block">
@@ -10791,11 +11086,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                         </select>
                                                     </label>
                                                     <label className="block">
-                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Name</span>
-                                                        <input value={driverCallDraft.customerName} onChange={e => setDriverCallDraft(prev => ({ ...prev, customerName: e.target.value }))} placeholder="Wendy Miller" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500" />
-                                                    </label>
-                                                    <label className="block">
-                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">SO / RMA Number</span>
+                                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">SO / RMA Number {isRouteStatusCall(driverCallDraft) && <span className="normal-case font-normal">(optional for a route issue)</span>}</span>
                                                         <input value={driverCallDraft.soRma} onChange={e => setDriverCallDraft(prev => ({ ...prev, soRma: e.target.value }))} placeholder="SO-016967144" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500" />
                                                     </label>
                                                 </div>
@@ -10803,11 +11094,12 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                 <label className="block mt-4">
                                                     <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Call Notes — Free Text</span>
                                                     <textarea rows="5" value={driverCallDraft.note} onChange={e => setDriverCallDraft(prev => ({ ...prev, note: e.target.value }))} placeholder="Customer issue, team response, refund, return, or follow-up..." className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none resize-y focus:border-indigo-500" />
-                                                </label>
+                                                    <span className="mt-1.5 block text-xs text-slate-400">Use the SO / RMA number to identify the delivery. Do not include customer names in your notes.</span>
+                                                </label></>}
                                                 {driverCallError && <p role="alert" className="mt-3 text-xs font-semibold text-rose-300">{driverCallError}</p>}
                                                 <div className="mt-4 flex justify-end gap-2">
                                                     <button onClick={() => { setIsCreatingDriverCall(false); setDriverCallError(''); }} className="px-4 py-2 rounded-lg border border-slate-600 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer">Cancel</button>
-                                                    <button onClick={addDriverCallNote} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black cursor-pointer">Add Driver Call</button>
+                                                    <button onClick={addDriverCallNote} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black cursor-pointer">{driverCallEntryType==='route-issue'?'Add Route Issue':'Add Driver Call'}</button>
                                                 </div>
                                             </div>
                                         )}
@@ -10819,7 +11111,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                     <span className={`font-semibold ${isManagerNote(note) || note.category === 'URGENT' ? 'text-rose-400' : 'text-slate-300'}`}>{note.category || 'General'}</span>
                                                 </div>
                                                 <p className="text-xs text-slate-400">{note.author || 'User'}{note.timestamp && ` · ${new Date(note.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}</p>
-                                                {note.driverCall && <p className="text-xs text-slate-300 break-words">{[note.driverCall.route, note.driverCall.stopNumber && `Stop ${note.driverCall.stopNumber}`, note.driverCall.driver, note.driverCall.customerName, note.driverCall.soRma].filter(Boolean).join(' · ')}</p>}
+                                                {note.driverCall && <p className="text-xs text-slate-300 break-words">{[note.driverCall.route, note.driverCall.stopNumber && `Stop ${note.driverCall.stopNumber}`, note.driverCall.driver, note.driverCall.soRma].filter(Boolean).join(' · ')}</p>}
                                                 <p className="text-sm text-slate-200 whitespace-pre-wrap break-words line-clamp-3">{String(note.driverCall?.note || note.text || 'Empty note')}</p>
                                                 <DriverCallIssueSummary note={note}/>
                                                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -10860,18 +11152,19 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                     </div>
                                                     {isEditing && isAdminUser && <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.filter(n => n.id !== note.id); setData(nd); }} className="text-slate-600 hover:text-rose-400 p-1 transition-colors cursor-pointer"><X className="w-5 h-5" /></button>}
                                                 </div>
+                                                {isEditing && saveErrorNoteId!=null && String(note.id)===String(saveErrorNoteId) && validateDriverCallIssue(note.driverCall) && <p role="alert" className="mb-3 text-sm text-rose-200">{validateDriverCallIssue(note.driverCall)}</p>}
                                                 {isEditing && (isAdminUser || !isManagerNote(note)) ? (
                                                     note.noteType === 'driver-call' && note.driverCall ? (
                                                         <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-4 space-y-3">
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                            {isRouteStatusCall(note.driverCall)?<RouteIssueEntryFields value={note.driverCall} onChange={call=>updateDriverCallIssue(note.id,call)} people={getDriverCallPeople()}/>:<><div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                                 <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Route / PFL</span><input className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 uppercase outline-none focus:border-indigo-500" value={String(note.driverCall.route || '')} onChange={e => updateDriverCallField(note.id, 'route', e.target.value)} /></label>
                                                                 <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Stop Number</span><input inputMode="numeric" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" value={String(note.driverCall.stopNumber || '')} onChange={e => updateDriverCallField(note.id, 'stopNumber', e.target.value)} /></label>
                                                                 <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Driver</span><select className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" value={String(note.driverCall.driver || '')} onChange={e => updateDriverCallField(note.id, 'driver', e.target.value)}><option value="">Select a driver or helper</option>{String(note.driverCall.driver || '').trim() && !getDriverCallPeople().includes(String(note.driverCall.driver || '').trim()) && <option value={String(note.driverCall.driver || '')}>{String(note.driverCall.driver || '')}</option>}{getDriverCallPeople().map(name => <option key={name} value={name}>{name}</option>)}</select></label>
-                                                                <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Customer Name</span><input className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" value={String(note.driverCall.customerName || '')} onChange={e => updateDriverCallField(note.id, 'customerName', e.target.value)} /></label>
+                                                                
                                                                 <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">SO / RMA Number</span><input className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" value={String(note.driverCall.soRma || '')} onChange={e => updateDriverCallField(note.id, 'soRma', e.target.value)} /></label>
                                                             </div>
                                                             <DriverCallIssueFields value={note.driverCall} onChange={call=>updateDriverCallIssue(note.id,call)}/>
-                                                            <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Call Notes — Free Text</span><textarea className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none resize-y focus:border-indigo-500" rows="4" value={String(note.driverCall.note || '')} onChange={e => updateDriverCallField(note.id, 'note', e.target.value)} /></label>
+                                                            <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-widest text-slate-500">Call Notes — Free Text</span><textarea className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none resize-y focus:border-indigo-500" rows="4" value={String(note.driverCall.note || '')} onChange={e => updateDriverCallField(note.id, 'note', e.target.value)} /></label></>}
                                                         </div>
                                                     ) : (
                                                         <textarea aria-label={isManagerNote(note) ? 'Manager note text' : 'Note text'} className={`w-full bg-slate-950 border rounded-xl p-4 text-slate-200 text-sm focus:ring-2 outline-none resize-none ${note.category === 'URGENT' || isManagerNote(note) ? 'border-rose-500/50 focus:ring-rose-500' : 'border-slate-700 focus:ring-indigo-500'}`} rows="3" value={String(note.text)} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.map(n => n.id === note.id ? { ...n, text: String(e.target.value) } : n); setData(nd); }} />
@@ -10880,7 +11173,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                     note.noteType === 'driver-call' && note.driverCall ? (
                                                         <div className="text-slate-200 text-sm font-medium leading-relaxed border-l-4 border-indigo-500 pl-6 py-1">
                                                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">
-                                                                <span>Route: {String(note.driverCall.route || '')}</span><span>Stop: {String(note.driverCall.stopNumber || '')}</span><span>Driver: {String(note.driverCall.driver || '')}</span><span>Customer: {String(note.driverCall.customerName || '')}</span><span>SO / RMA: {String(note.driverCall.soRma || '')}</span>
+                                                                <span>Route: {String(note.driverCall.route || '')}</span><span>Driver: {String(note.driverCall.driver || '')}</span>{!isRouteStatusCall(note.driverCall) && <><span>Stop: {String(note.driverCall.stopNumber || '')}</span><span>SO / RMA: {String(note.driverCall.soRma || '')}</span></>}
                                                             </div>
                                                             <p className="whitespace-pre-wrap">{String(note.driverCall.note || '')}</p>
                                                         </div>
@@ -10890,7 +11183,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                 )}
 
                                                 {!(isEditing && note.noteType==='driver-call') && <DriverCallIssueSummary note={note}/>}
-                                                {isEditing && note.noteType!=='driver-call' && driverCallSegmentInfo(note.driverCall) && <DriverCallIssueFields value={note.driverCall} onChange={call=>updateDriverCallIssue(note.id,call)}/>}
+                                                {isEditing && note.noteType!=='driver-call' && driverCallSegmentInfo(note.driverCall) && <DriverCallIssueFields value={note.driverCall} onChange={call=>updateDriverCallIssue(note.id,call)} routeOnly={isRouteStatusCall(note.driverCall)}/>}
                                                 <div className="mt-4 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-widest">
                                                     {(() => {
                                                         const likes = note.likes || [];
