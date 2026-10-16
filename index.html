@@ -5826,6 +5826,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [enabled,setEnabled]=useState(()=>desktopNotificationsEnabled(uid));
             const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
             useEffect(()=>{
+                if(!message.startsWith('Enabled for your account') && !message.startsWith('Test banner requested.'))return;
+                const timer=window.setTimeout(()=>setMessage(''),4000);
+                return()=>window.clearTimeout(timer);
+            },[message]);
+            useEffect(()=>{
                 const refresh=()=>{setPermission(window.Notification?.permission || 'unsupported');setEnabled(desktopNotificationsEnabled(uid));};
                 refresh();window.addEventListener('focus',refresh);window.addEventListener('storage',refresh);
                 return()=>{window.removeEventListener('focus',refresh);window.removeEventListener('storage',refresh);};
