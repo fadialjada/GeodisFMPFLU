@@ -5837,6 +5837,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             },[uid]);
             if(!uid)return null;
             const allowed=enabled && permission==='granted',supported=desktopNotificationsSupported();
+            if(allowed)return null;
             const toggle=async()=>{
                 setMessage('');setBusy(true);
                 try{
