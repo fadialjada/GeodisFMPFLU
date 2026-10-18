@@ -1628,18 +1628,11 @@
 .chat-image-only { position:relative; width:300px; max-width:100%; margin-top:3px; text-align:left; }
 .chat-image-open { display:block; width:100%; padding:0; border:0; background:#172230; border-radius:14px; overflow:hidden; cursor:zoom-in; }
 .chat-image-open img { display:block; width:100%; height:auto; max-height:360px; object-fit:contain; }
-.chat-image-open:focus-visible, .chat-image-options:focus-visible { outline:2px solid #a5b4cf; outline-offset:3px; }
+.chat-image-open:focus-visible { outline:2px solid #a5b4cf; outline-offset:3px; }
 .chat-image-loading { display:flex; align-items:center; justify-content:center; gap:8px; min-height:150px; font-size:12px; color:#a4b2c6; }
-.chat-image-options { position:absolute; right:8px; top:8px; display:flex; align-items:center; justify-content:center; width:29px; height:26px; border:0; border-radius:8px; background:#101827e8; color:#e2e8f0; cursor:pointer; }
-.chat-image-options:hover { background:#101827; }
-.chat-image-options:disabled { opacity:.6; cursor:wait; }
-.chat-image-menu { position:absolute; right:8px; top:40px; z-index:5; padding:4px; min-width:135px; border:1px solid #40506a; border-radius:10px; background:#1d2a3c; box-shadow:0 8px 24px #02061766; }
-.chat-image-menu button { display:flex; align-items:center; gap:9px; width:100%; padding:10px 12px; border:0; border-radius:7px; background:transparent; color:#e2e8f0; font:600 12px system-ui; cursor:pointer; }
-.chat-image-menu button:hover, .chat-image-menu button:focus-visible { background:#31435b; }
 .team-chat-panel .chat-inbox-pane .minimal-chat-stack .team-chat-message.chat-image-message { padding:0; background:transparent; box-shadow:none; }
 .chat-image-message .minimal-chat-meta { padding:0 3px; }
 @media(max-width:480px) { .chat-image-only { width:260px; } }
-@media(pointer:coarse) { .chat-image-options { width:44px; height:44px; } .chat-image-menu { top:58px; } .chat-image-menu button { min-height:44px; } }
 
 </style>
 </head>
@@ -4785,21 +4778,6 @@
         const ChatAttachmentCard = ({ attachment, messageId, uid, active, onPreview, conversationId = null }) => {
             const [imageUrl, setImageUrl] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('');
             const cardRef = useRef(null), blobRef = useRef(null), aliveRef = useRef(true);
-            const [imageMenuOpen,setImageMenuOpen]=useState(false);
-            const imageOptionsRef=useRef(null), imageDownloadRef=useRef(null);
-            useEffect(()=>{
-                if(!imageMenuOpen)return;
-                imageDownloadRef.current?.focus();
-                const close=event=>{
-                    if(event.type==='keydown'){
-                        if(event.key!=='Escape')return;
-                        event.stopPropagation();setImageMenuOpen(false);imageOptionsRef.current?.focus();
-                    }else if(!cardRef.current?.contains(event.target))setImageMenuOpen(false);
-                };
-                document.addEventListener('pointerdown',close);document.addEventListener('keydown',close,true);
-                return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',close,true);};
-            },[imageMenuOpen]);
-            useEffect(()=>{setImageMenuOpen(false);},[active,attachment?.path]);
             const valid = isChatAttachment(attachment, messageId, uid, conversationId);
             const kind = valid ? chatFilePreviewKind(attachment.contentType) : 'document';
             useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
@@ -4831,12 +4809,10 @@
                 finally { if (aliveRef.current) setBusy(false); }
             };
             if (!valid) return <p className="mt-2 text-xs text-slate-400">Attachment unavailable.</p>;
-            if(kind==='image')return <div ref={cardRef} data-chat-attachment className="chat-image-only" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))setImageMenuOpen(false);}}>
-                <button type="button" aria-label="Enlarge shared image" disabled={busy} onClick={()=>{setImageMenuOpen(false);open(false);}} className="chat-image-open">
+            if(kind==='image')return <div ref={cardRef} data-chat-attachment className="chat-image-only">
+                <button type="button" aria-label="Enlarge shared image" disabled={busy} onClick={() => open(false)} className="chat-image-open">
                     {imageUrl?<img src={imageUrl} alt="Shared image"/>:<span className="chat-image-loading"><Loader2 className="h-5 w-5 animate-spin"/>Loading image…</span>}
                 </button>
-                <button ref={imageOptionsRef} type="button" className="chat-image-options" aria-label="Image options" aria-haspopup="menu" aria-expanded={imageMenuOpen} disabled={busy} onClick={()=>setImageMenuOpen(value=>!value)} onKeyDown={event=>{if(event.key==='ArrowDown'){event.preventDefault();setImageMenuOpen(true);}}}><ChevronDown className="h-4 w-4"/></button>
-                {imageMenuOpen&&<div role="menu" aria-label="Image actions" className="chat-image-menu"><button ref={imageDownloadRef} type="button" role="menuitem" disabled={busy} onClick={()=>{setImageMenuOpen(false);open(true);imageOptionsRef.current?.focus();}}><Download className="h-4 w-4"/>Download</button></div>}
                 {error&&<p role="status" className="mt-2 text-xs text-rose-300">{error}</p>}
             </div>;
             return <div ref={cardRef} data-chat-attachment className="mt-2 w-64 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/60 text-left">
