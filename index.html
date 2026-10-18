@@ -1560,6 +1560,70 @@
             });
         })();
     </script>
+<style id="mobile-website-controls">
+/* Phone controls: retain compact artwork inside comfortable tap targets. */
+@media (max-width: 767px), (max-width: 1023px) and (pointer: coarse) {
+    .dashboard-header-actions > button,
+    .dashboard-header-actions > .relative > button {
+        min-width: 44px;
+        min-height: 44px;
+    }
+    .dashboard-top-nav button { min-height: 44px; }
+    .team-chat-panel {
+        height: min(660px, calc(var(--phone-viewport-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1.5rem));
+    }
+    .team-chat-panel .chat-inbox-layout .team-chat-messages { min-height: 0; }
+    .team-chat-panel .chat-inbox-toggle,
+    .team-chat-panel .chat-window-close {
+        width: 44px;
+        height: 44px;
+    }
+    .team-chat-panel button[aria-label="Clear Team Chat"] { min-height: 44px; }
+    .team-chat-panel .team-chat-compose-controls {
+        grid-template-columns: 44px 44px minmax(0, 1fr) auto;
+    }
+    .team-chat-panel .team-chat-compose-controls > button[aria-label="Add emoji"],
+    .team-chat-panel .team-chat-compose-controls > button[aria-label="Attach file"] {
+        width: 44px;
+        height: 44px;
+        min-height: 44px;
+    }
+    .team-chat-panel .team-chat-send { min-height: 44px; }
+    .dashboard-footer .footer-profile-button,
+    .dashboard-footer .dashboard-settings-button {
+        min-width: 44px;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+    }
+    /* Profiles render outside the dashboard shell, so include them explicitly. */
+    .profile-photo-editor input:not([type="range"]),
+    .profile-photo-editor select,
+    .profile-photo-editor textarea { font-size: 16px; }
+}
+
+/* When the keyboard leaves little height, let the picker use the visible screen. */
+@media (max-width: 767px) and (max-height: 500px), (max-width: 1023px) and (max-height: 500px) and (pointer: coarse) {
+    .team-chat-panel .chat-inbox-conversation-head { padding: 8px 12px; }
+    .team-chat-panel .chat-inbox-conversation-head small {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .team-chat-panel .chat-inbox-layout .team-chat-messages { padding: 0 12px; }
+    .team-chat-panel #team-chat-emoji-picker {
+        position: fixed;
+        top: calc(var(--phone-viewport-top, 0px) + env(safe-area-inset-top) + 0.75rem);
+        left: max(0.75rem, env(safe-area-inset-left));
+        right: max(0.75rem, env(safe-area-inset-right));
+        bottom: auto;
+        height: calc(var(--phone-viewport-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1.5rem);
+        max-height: none;
+        margin-bottom: 0;
+    }
+}
+
+</style>
 </head>
 <body class="balanced-picture-theme bg-slate-900 text-slate-100 font-sans antialiased overflow-x-hidden">
     <div id="root"></div>
@@ -4874,6 +4938,104 @@
             });
         };
 
+        const DATA_REPORT_WORKBOOK_STYLE = {"styles":"\u003c?xml version=\"1.0\" encoding=\"utf-8\"?>\u003cx:styleSheet xmlns:x=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\u003cx:numFmts count=\"7\">\u003cx:numFmt numFmtId=\"200\" formatCode=\"@\" />\u003cx:numFmt numFmtId=\"201\" formatCode=\"mm/dd/yyyy\" />\u003cx:numFmt numFmtId=\"202\" formatCode=\"#,##0\" />\u003cx:numFmt numFmtId=\"203\" formatCode=\"0.00\" />\u003cx:numFmt numFmtId=\"204\" formatCode=\"0.0%\" />\u003cx:numFmt numFmtId=\"205\" formatCode=\"h:mm AM/PM\" />\u003cx:numFmt numFmtId=\"206\" formatCode=\"mm/dd/yyyy h:mm AM/PM\" />\u003c/x:numFmts>\u003cx:fonts count=\"6\">\u003cx:font>\u003cx:sz val=\"11\" />\u003cx:name val=\"Carlito\" />\u003c/x:font>\u003cx:font>\u003cx:sz val=\"11\" />\u003cx:color rgb=\"FF1E293B\" />\u003cx:name val=\"Arial\" />\u003c/x:font>\u003cx:font>\u003cx:b />\u003cx:sz val=\"16\" />\u003cx:color rgb=\"FF1E293B\" />\u003cx:name val=\"Arial\" />\u003c/x:font>\u003cx:font>\u003cx:sz val=\"11\" />\u003cx:color rgb=\"FF475569\" />\u003cx:name val=\"Arial\" />\u003c/x:font>\u003cx:font>\u003cx:sz val=\"11\" />\u003cx:color rgb=\"FF64748B\" />\u003cx:name val=\"Arial\" />\u003c/x:font>\u003cx:font>\u003cx:b />\u003cx:sz val=\"11\" />\u003cx:color rgb=\"FFFFFFFF\" />\u003cx:name val=\"Arial\" />\u003c/x:font>\u003c/x:fonts>\u003cx:fills count=\"5\">\u003cx:fill>\u003cx:patternFill patternType=\"none\" />\u003c/x:fill>\u003cx:fill>\u003cx:patternFill patternType=\"gray125\" />\u003c/x:fill>\u003cx:fill>\u003cx:patternFill patternType=\"solid\">\u003cx:fgColor rgb=\"FF334155\" />\u003c/x:patternFill>\u003c/x:fill>\u003cx:fill>\u003cx:patternFill patternType=\"solid\">\u003cx:fgColor rgb=\"FFFFFFFF\" />\u003c/x:patternFill>\u003c/x:fill>\u003cx:fill>\u003cx:patternFill patternType=\"solid\">\u003cx:fgColor rgb=\"FFF1F5F9\" />\u003c/x:patternFill>\u003c/x:fill>\u003c/x:fills>\u003cx:borders count=\"4\">\u003cx:border>\u003cx:left />\u003cx:right />\u003cx:top />\u003cx:bottom />\u003cx:diagonal />\u003c/x:border>\u003cx:border>\u003cx:left />\u003cx:right style=\"thin\">\u003cx:color rgb=\"FFFFFFFF\" />\u003c/x:right>\u003cx:top />\u003cx:bottom />\u003cx:diagonal />\u003c/x:border>\u003cx:border>\u003cx:left style=\"thin\">\u003cx:color rgb=\"FFFFFFFF\" />\u003c/x:left>\u003cx:right style=\"thin\">\u003cx:color rgb=\"FFFFFFFF\" />\u003c/x:right>\u003cx:top />\u003cx:bottom />\u003cx:diagonal />\u003c/x:border>\u003cx:border>\u003cx:left style=\"thin\">\u003cx:color rgb=\"FFFFFFFF\" />\u003c/x:left>\u003cx:right />\u003cx:top />\u003cx:bottom />\u003cx:diagonal />\u003c/x:border>\u003c/x:borders>\u003cx:cellStyleXfs count=\"1\">\u003cx:xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" />\u003c/x:cellStyleXfs>\u003cx:cellXfs count=\"41\">\u003cx:xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" />\u003cx:xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" />\u003cx:xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"3\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"4\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"1\" fillId=\"2\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"2\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"3\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"2\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"3\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"2\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"5\" fillId=\"2\" borderId=\"3\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"left\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"200\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"left\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"201\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"202\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"203\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"204\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"205\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"200\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"200\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"left\" vertical=\"top\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"206\" fontId=\"1\" fillId=\"3\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"left\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"200\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"left\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"0\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"201\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"202\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"203\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"204\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"205\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003cx:xf numFmtId=\"200\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"200\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"left\" vertical=\"top\" wrapText=\"1\" />\u003c/x:xf>\u003cx:xf numFmtId=\"206\" fontId=\"1\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">\u003cx:alignment horizontal=\"right\" vertical=\"center\" />\u003c/x:xf>\u003c/x:cellXfs>\u003cx:cellStyles count=\"1\">\u003cx:cellStyle name=\"Normal\" xfId=\"0\" />\u003c/x:cellStyles>\u003c/x:styleSheet>","theme":"\u003c?xml version=\"1.0\" encoding=\"utf-8\"?>\u003ca:theme name=\"ChatGPT\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">\u003ca:themeElements>\u003ca:clrScheme name=\"ChatGPT\">\u003ca:dk1>\u003ca:sysClr val=\"windowText\" lastClr=\"000000\" />\u003c/a:dk1>\u003ca:lt1>\u003ca:sysClr val=\"window\" lastClr=\"FFFFFF\" />\u003c/a:lt1>\u003ca:dk2>\u003ca:srgbClr val=\"0E2841\" />\u003c/a:dk2>\u003ca:lt2>\u003ca:srgbClr val=\"E8E8E8\" />\u003c/a:lt2>\u003ca:accent1>\u003ca:srgbClr val=\"156082\" />\u003c/a:accent1>\u003ca:accent2>\u003ca:srgbClr val=\"E97132\" />\u003c/a:accent2>\u003ca:accent3>\u003ca:srgbClr val=\"196B24\" />\u003c/a:accent3>\u003ca:accent4>\u003ca:srgbClr val=\"0F9ED5\" />\u003c/a:accent4>\u003ca:accent5>\u003ca:srgbClr val=\"A02B93\" />\u003c/a:accent5>\u003ca:accent6>\u003ca:srgbClr val=\"4EA72E\" />\u003c/a:accent6>\u003ca:hlink>\u003ca:srgbClr val=\"467886\" />\u003c/a:hlink>\u003ca:folHlink>\u003ca:srgbClr val=\"96607D\" />\u003c/a:folHlink>\u003c/a:clrScheme>\u003ca:fontScheme name=\"Office\">\u003ca:majorFont>\u003ca:latin typeface=\"Calibri Light\" />\u003ca:ea typeface=\"Calibri Light\" />\u003ca:cs typeface=\"Calibri Light\" />\u003c/a:majorFont>\u003ca:minorFont>\u003ca:latin typeface=\"Calibri\" />\u003ca:ea typeface=\"Calibri\" />\u003ca:cs typeface=\"Calibri\" />\u003c/a:minorFont>\u003c/a:fontScheme>\u003ca:fmtScheme name=\"ChatGPT\">\u003ca:fillStyleLst>\u003ca:solidFill>\u003ca:schemeClr val=\"phClr\" />\u003c/a:solidFill>\u003ca:gradFill>\u003ca:gsLst>\u003ca:gs pos=\"0\">\u003ca:schemeClr val=\"phClr\">\u003ca:tint val=\"67000\" />\u003ca:lumMod val=\"110000\" />\u003ca:satMod val=\"105000\" />\u003c/a:schemeClr>\u003c/a:gs>\u003ca:gs pos=\"50000\">\u003ca:schemeClr val=\"phClr\">\u003ca:tint val=\"73000\" />\u003ca:lumMod val=\"105000\" />\u003ca:satMod val=\"103000\" />\u003c/a:schemeClr>\u003c/a:gs>\u003ca:gs pos=\"100000\">\u003ca:schemeClr val=\"phClr\">\u003ca:tint val=\"81000\" />\u003ca:lumMod val=\"105000\" />\u003ca:satMod val=\"109000\" />\u003c/a:schemeClr>\u003c/a:gs>\u003c/a:gsLst>\u003ca:lin ang=\"5400000\" scaled=\"0\" />\u003c/a:gradFill>\u003ca:gradFill>\u003ca:gsLst>\u003ca:gs pos=\"0\">\u003ca:schemeClr val=\"phClr\">\u003ca:tint val=\"94000\" />\u003ca:lumMod val=\"102000\" />\u003ca:satMod val=\"103000\" />\u003c/a:schemeClr>\u003c/a:gs>\u003ca:gs pos=\"50000\">\u003ca:schemeClr val=\"phClr\">\u003ca:shade val=\"100000\" />\u003ca:lumMod val=\"100000\" />\u003ca:satMod val=\"110000\" />\u003c/a:schemeClr>\u003c/a:gs>\u003ca:gs pos=\"100000\">\u003ca:schemeClr val=\"phClr\">\u003ca:shade val=\"78000\" />\u003ca:lumMod val=\"99000\" />\u003ca:satMod val=\"120000\" />\u003c/a:schemeClr>\u003c/a:gs>\u003c/a:gsLst>\u003ca:lin ang=\"5400000\" scaled=\"0\" />\u003c/a:gradFill>\u003c/a:fillStyleLst>\u003ca:lnStyleLst>\u003ca:ln w=\"12700\">\u003ca:solidFill>\u003ca:schemeClr val=\"phClr\" />\u003c/a:solidFill>\u003ca:prstDash val=\"solid\" />\u003c/a:ln>\u003ca:ln w=\"19050\">\u003ca:solidFill>\u003ca:schemeClr val=\"phClr\" />\u003c/a:solidFill>\u003ca:prstDash val=\"solid\" />\u003c/a:ln>\u003ca:ln w=\"25400\">\u003ca:solidFill>\u003ca:schemeClr val=\"phClr\" />\u003c/a:solidFill>\u003ca:prstDash val=\"solid\" />\u003c/a:ln>\u003c/a:lnStyleLst>\u003ca:effectStyleLst>\u003ca:effectStyle>\u003ca:effectLst />\u003c/a:effectStyle>\u003ca:effectStyle>\u003ca:effectLst />\u003c/a:effectStyle>\u003ca:effectStyle>\u003ca:effectLst>\u003ca:outerShdw blurRad=\"57150\" dist=\"19050\" dir=\"5400000\">\u003ca:srgbClr val=\"000000\">\u003ca:alpha val=\"63000\" />\u003c/a:srgbClr>\u003c/a:outerShdw>\u003c/a:effectLst>\u003c/a:effectStyle>\u003c/a:effectStyleLst>\u003ca:bgFillStyleLst>\u003ca:solidFill>\u003ca:schemeClr val=\"phClr\" />\u003c/a:solidFill>\u003ca:solidFill>\u003ca:schemeClr val=\"phClr\">\u003ca:tint val=\"95000\" />\u003ca:satMod val=\"170000\" />\u003c/a:schemeClr>\u003c/a:solidFill>\u003ca:gradFill>\u003ca:gsLst>\u003ca:gs pos=\"0\">\u003ca:schemeClr val=\"phClr\">\u003ca:tint val=\"93000\" />\u003ca:shade val=\"98000\" />\u003ca:lumMod val=\"102000\" />\u003ca:satMod val=\"150000\" />\u003c/a:schemeClr>\u003c/a:gs>\u003ca:gs pos=\"50000\">\u003ca:schemeClr val=\"phClr\">\u003ca:tint val=\"98000\" />\u003ca:shade val=\"90000\" />\u003ca:lumMod val=\"103000\" />\u003ca:satMod val=\"130000\" />\u003c/a:schemeClr>\u003c/a:gs>\u003ca:gs pos=\"100000\">\u003ca:schemeClr val=\"phClr\">\u003ca:shade val=\"63000\" />\u003ca:satMod val=\"120000\" />\u003c/a:schemeClr>\u003c/a:gs>\u003c/a:gsLst>\u003ca:lin ang=\"5400000\" scaled=\"0\" />\u003c/a:gradFill>\u003c/a:bgFillStyleLst>\u003c/a:fmtScheme>\u003c/a:themeElements>\u003c/a:theme>","map":{"title":3,"subtitle":4,"context":5,"header":14,"body":[{"text":19,"date":21,"integer":22,"decimal":23,"percent":24,"time":25,"details":27,"datetime":28},{"text":31,"date":33,"integer":34,"decimal":35,"percent":36,"time":37,"details":39,"datetime":40}]}};
+        const dataReportColumn = index => {
+            let column='';for(let value=index+1;value>0;value=Math.floor((value-1)/26))column=String.fromCharCode(65+(value-1)%26)+column;return column;
+        };
+        const dataReportNumber = value => {
+            if(value==null || String(value).trim()==='')return null;
+            if(typeof value==='number')return Number.isFinite(value)?value:null;
+            const text=String(value).trim().replace(/%$/,'');
+            if(!/^[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$/.test(text))return null;
+            const number=Number(text.replace(/,/g,''));return Number.isFinite(number)&&Math.abs(number)<=Number.MAX_SAFE_INTEGER?number:null;
+        };
+        const dataReportValue = (value,type) => {
+            if(value==null || value==='')return {value:null,type:'text'};
+            if(['integer','decimal','percent'].includes(type)){
+                const number=dataReportNumber(value);return number==null?{value:String(value),type:'text'}:{value:type==='percent'?number/100:number,type};
+            }
+            if(type==='time'){
+                const minutes=hosEtaMinutes(value);return minutes==null?{value:String(value),type:'text'}:{value:minutes/1440,type};
+            }
+            if(type==='date' && /^\d{4}-\d{2}-\d{2}$/.test(String(value)) && hosDateKey(String(value)))return {value:Date.parse(value+'T00:00:00Z')/86400000+25569,type};
+            if(type==='datetime' && Number.isFinite(Date.parse(value))){
+                const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(part=>[part.type,part.value]));
+                return {value:Date.UTC(+parts.year,+parts.month-1,+parts.day,+parts.hour,+parts.minute)/86400000+25569,type};
+            }
+            return {value:String(value),type:type==='details'?'details':'text'};
+        };
+        const dataReportCsv = report => {
+            const cell=value=>{let text=String(value??'');if(typeof value!=='number' && /^[\s\uFEFF]*[=+@-]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';};
+            return '\uFEFF'+[report.columns.map(column=>column.csvLabel || column.label),...report.rows.map(row=>row.map((value,index)=>{
+                if(report.percentSuffix && report.columns[index].type==='percent' && dataReportNumber(value)!=null)return String(dataReportNumber(value))+'%';
+                if(report.columns[index].type==='time' && hosEtaMinutes(value)!=null)return hosClock(hosEtaMinutes(value));
+                return value;
+            }))].map(row=>row.map(cell).join(',')).join('\r\n');
+        };
+        const dataReportWorkbook = report => {
+            const x=hosEscapeXml,template=DATA_REPORT_WORKBOOK_STYLE,mapping=template.map,lastColumn=dataReportColumn(report.columns.length-1),lastRow=6+report.rows.length;
+            if(!report.columns.length || report.columns.length>16384 || lastRow>1048576)throw new Error('The selected report is too large for one Excel sheet. Choose a smaller date range.');
+            const cell=(column,row,value,style)=>value==null?`<c r="${column}${row}" s="${style}"/>`:typeof value==='number'?`<c r="${column}${row}" s="${style}"><v>${value}</v></c>`:`<c r="${column}${row}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${x(value)}</t></is></c>`;
+            let sheet=`<row r="1" ht="10" customHeight="1"/><row r="2" ht="30" customHeight="1">${cell('A',2,'Final Mile Operations',mapping.title)}</row><row r="3" ht="25" customHeight="1">${cell('A',3,report.title,mapping.subtitle)}</row><row r="4" ht="27" customHeight="1">${cell('A',4,[report.context,report.rows.length+(report.rows.length===1?' record.':' records.')+' Central time.'].filter(Boolean).join(' '),mapping.context)}</row><row r="5" ht="10" customHeight="1"/>`;
+            sheet+=`<row r="6" ht="34" customHeight="1">${report.columns.map((column,index)=>cell(dataReportColumn(index),6,column.label,mapping.header)).join('')}</row>`;
+            report.rows.forEach((row,index)=>{
+                const styles=mapping.body[index%2];let height=26;
+                const cells=report.columns.map((column,colIndex)=>{
+                    const typed=dataReportValue(row[colIndex],column.type),text=typed.value==null?'':String(typed.value);
+                    if(typeof typed.value==='string' && text.length>32767)throw new Error('A note exceeds Excel’s cell limit. Use CSV for this report or choose fewer replies.');
+                    if(column.type==='details')height=Math.max(height,Math.min(400,text.split(/\r?\n/).reduce((sum,line)=>sum+Math.max(1,Math.ceil(line.length/Math.max(10,column.width-4))),0)*15+10));
+                    return cell(dataReportColumn(colIndex),index+7,typed.value,styles[typed.type]??styles.text);
+                }).join('');
+                sheet+=`<row r="${index+7}" ht="${height}" customHeight="1">${cells}</row>`;
+            });
+            const sheetName=String(report.sheetName || report.title).replace(/[\[\]:*?/\\]/g,' ').slice(0,31)||'Report',frozen=Number(report.freezeColumns || 0),xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+            const files={
+                '[Content_Types].xml':xml+`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${template.theme?'<Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>':''}</Types>`,
+                '_rels/.rels':xml+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+                'xl/workbook.xml':xml+`<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${x(sheetName)}" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm.Print_Titles" localSheetId="0">'${x(sheetName.replace(/'/g,"''"))}'!$1:$6</definedName></definedNames></workbook>`,
+                'xl/_rels/workbook.xml.rels':xml+`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>${template.theme?'<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>':''}</Relationships>`,
+                'xl/styles.xml':template.styles,
+                'xl/worksheets/sheet1.xml':xml+`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="6" ${frozen?`xSplit="${frozen}"`:''} topLeftCell="${dataReportColumn(frozen)}7" activePane="${frozen?'bottomRight':'bottomLeft'}" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="26"/><cols>${report.columns.map((column,index)=>`<col min="${index+1}" max="${index+1}" width="${column.width || 22}" customWidth="1"/>`).join('')}</cols><sheetData>${sheet}</sheetData>${report.rows.length?`<autoFilter ref="A6:${lastColumn}${lastRow}"/>`:''}<mergeCells count="3">${[2,3,4].map(row=>`<mergeCell ref="A${row}:${lastColumn}${row}"/>`).join('')}</mergeCells><printOptions horizontalCentered="0"/><pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" header="0.2" footer="0.2"/><pageSetup paperSize="1" orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>`
+            };
+            if(template.theme)files['xl/theme/theme1.xml']=template.theme;
+            return hosZip(files);
+        };
+        const downloadDataReport = (report,format='xlsx') => {
+            if(!report.rows.length)return false;
+            const csv=format==='csv',blob=new Blob([csv?dataReportCsv(report):dataReportWorkbook(report)],{type:csv?'text/csv;charset=utf-8':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+            link.href=url;link.download=report.filename+'.'+(csv?'csv':'xlsx');document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return true;
+        };
+        const DataExportFormat = ({value,onChange}) => <label className="inline-flex items-center gap-2 text-xs text-slate-400"><span>Format</span><select aria-label="Export format" value={value} onChange={event=>onChange(event.target.value)} className="rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm font-medium text-slate-200 outline-none focus:border-indigo-400"><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV (.csv)</option></select></label>;
+        const dataReportDates = (start,end) => start&&end?`Dates: ${start} to ${end}.`:start?`Dates: from ${start}.`:end?`Dates: through ${end}.`:'All saved dates.';
+        const dataReportFilenameRange = (start,end) => start&&end?`${start}_to_${end}`:start?`from_${start}`:end?`through_${end}`:'All_Dates';
+        const routeDataReport = (records,{current=false,date='',start='',end=''}={}) => {
+            const names={cnt:'Count',door:'Door',serviceUnit:'Route number',route:'Route',contractor:'Contractor',driver:'Driver',helper:'Helper',stops:'Stops',pcs:'Pieces',cube:'Cube',hos:'Recorded HOS',mileage:'Mileage',uniform:'Uniform',timeOffDock:'ETA',returned:'Returned',checkedIn:'Checked in'};
+            const numeric={cnt:'integer',stops:'integer',pcs:'integer',cube:'decimal',hos:'decimal',mileage:'decimal'};
+            const routeColumns=ROUTE_COLUMNS.map(column=>({label:names[column.key]||column.label,csvLabel:column.label,type:column.type==='time'?'time':numeric[column.key]||'text',width:['contractor','driver','helper'].includes(column.key)?27:column.key==='route'?23:['serviceUnit','hos','timeOffDock'].includes(column.key)?18:14}));
+            const columns=current?routeColumns:[{label:'Date',type:'date',width:16},...routeColumns];
+            const rows=records.flatMap(record=>(record.routeTable||[]).map(route=>{
+                const values=ROUTE_COLUMNS.map(column=>column.type==='checkbox'?(route[column.key]?'Yes':'No'):column.type==='custom_uniform'?(route.uniform?'Yes':route.uniformNote||'No'):route[column.key]??'');
+                return current?values:[record.date,...values];
+            }));
+            return {title:current?'Routes':'Historical routes',sheetName:'Routes',context:current?`Route date: ${date}.`:dataReportDates(start,end),filename:'Final_Mile_Routes_'+(current?date:dataReportFilenameRange(start,end)),columns,rows,freezeColumns:current?3:4};
+        };
+        const summaryDataReport = (records,start='',end='',getKpis,formatNumber) => ({
+            title:'Daily dashboard summary',sheetName:'Summary',context:dataReportDates(start,end),filename:'Final_Mile_Summary_'+dataReportFilenameRange(start,end),freezeColumns:1,
+            columns:[{label:'Data date',csvLabel:'Data Date',type:'date',width:16},{label:'Import date',csvLabel:'Import Date',type:'datetime',width:25},{label:'Number of routes',csvLabel:'Number of Routes',type:'integer',width:20},{label:'Number of orders',csvLabel:'Number of Orders',type:'integer',width:20},...['Uniform','On-time dispatch','ETA met','Completed routes','On-time delivery','Execution score'].map((label,index)=>({label:label+' (%)',csvLabel:['Uniform%','OnTimeDispatch%','ETAMet%','CompletedRoutes%','OTD%','ExecutionScore%'][index],type:'percent',width:21}))],
+            rows:records.map(record=>{const kpi=getKpis(record);return [record.date,record.lastUpdatedAt||'N/A',kpi.routes,kpi.orders,...[kpi.uniformPerc,kpi.offDockPerc,kpi.etaPerc,kpi.compPerc,kpi.otd,kpi.executionScore].map(value=>formatNumber(value))];})
+        });
+        const metricsDataReport = (records,type,start='',end='') => ({
+            percentSuffix:true,
+            title:type==='feedback'?'Driver feedback':type==='wtd'?'Week-to-date driver metrics':'Month-to-date driver metrics',sheetName:type==='feedback'?'Feedback':type.toUpperCase(),context:dataReportDates(start,end),filename:'Final_Mile_'+type.toUpperCase()+'_'+dataReportFilenameRange(start,end),freezeColumns:type==='feedback'?4:3,
+            columns:type==='feedback'?[{label:'Data date',csvLabel:'Data Date',type:'date',width:16},{label:'Feedback date',csvLabel:'Feedback Date',type:'date',width:18},{label:'First name',csvLabel:'First Name',type:'text',width:24},{label:'Last name',csvLabel:'Last Name',type:'text',width:24},{label:'Delivery type',csvLabel:'Delivery Type',type:'text',width:24},{label:'Score',type:'decimal',width:15},{label:'Order number',csvLabel:'Order Number',type:'text',width:24},{label:'Comment',type:'details',width:75}]:[{label:'Data date',csvLabel:'Data Date',type:'date',width:16},{label:'First name',csvLabel:'First Name',type:'text',width:24},{label:'Last name',csvLabel:'Last Name',type:'text',width:24},{label:'Survey count',csvLabel:'Survey Count',type:'integer',width:18},{label:'Survey average',csvLabel:'Survey AVG',type:'decimal',width:20},{label:'On-time delivery (%)',csvLabel:'OnTime%',type:'percent',width:23},{label:'Completion (%)',csvLabel:'Completion %',type:'percent',width:22},{label:'Exchange (%)',csvLabel:'Exchange %',type:'percent',width:20}],
+            rows:records.flatMap(record=>(record.metricsTracker?.[type]||[]).map(row=>type==='feedback'?[record.date,row.date||'',row.firstName||'',row.lastName||'',row.type||'',row.score??'',row.orderNum??'',row.comment||'']:[record.date,row.firstName||'',row.lastName||'',row.surveyCnt??'',row.surveyAvg??'',row.onTime??'',row.completion??'',row.exchange??'']))
+        });
+        const issueDataReport = (entries,filters) => {
+            const matrix=issueReviewExportRows(entries),widths=[16,28,24,24,46,52,27,85];
+            const selected=[filters.segment&&filters.segment!=='all'?'Segment: '+(DRIVER_CALL_SEGMENTS.find(segment=>segment.id===filters.segment)?.label||filters.segment)+'.':'',filters.query?'Search: '+filters.query+'.':''].filter(Boolean).join(' ');
+            return {title:'Issue Review',sheetName:'Issue Review',context:dataReportDates(filters.start,filters.end)+' '+selected,filename:'Final_Mile_Issue_Review_'+dataReportFilenameRange(filters.start,filters.end),freezeColumns:3,columns:matrix[0].map((label,index)=>({label,type:index===0?'date':index===7?'details':'text',width:widths[index]})),rows:matrix.slice(1)};
+        };
+
         const ISSUE_REVIEW_TYPES = [
             { id: 'refused', label: 'Customer refused', pattern: /\b(?:refus(?:e|ed|es|al)|declined (?:the )?delivery|rejected (?:the )?(?:item|delivery))\b/gi },
             { id: 'damage', label: 'Damage', pattern: /\b(?:damag(?:e|ed|es)|broken|dent(?:ed|s)?|scratch(?:ed|es)?|factory\s+(?:defect|fault|issue)|manufactur(?:er|ing)\s+defect)\b/gi },
@@ -4996,18 +5158,19 @@
             const today = new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
             const [filters,setFilters] = useState(()=>({query:'',start:today.slice(0,8)+'01',end:today,source:'all',segment:'all',reason:'all',category:'all',status:'all'}));
             const [openKey,setOpenKey] = useState(''), [drafts,setDrafts] = useState({}), [message,setMessage] = useState('');
+            const [exportFormat,setExportFormat]=useState('xlsx'),[downloadError,setDownloadError]=useState('');
             const report = useMemo(()=>buildIssueReviewReport({account,records,reviews,filters}),[account?.uid,records,reviews,filters]);
             if (!account?.uid) return null;
             const change = (key,value) => {setFilters(previous=>({...previous,[key]:value,...(key==='segment'?{reason:'all'}:{})}));setMessage('');};
             const exportResults = () => {
                 if (!account?.uid || !loaded || !report.matches.length || (filters.start && filters.end && filters.start > filters.end)) return;
-                const url = URL.createObjectURL(new Blob([issueReviewCsv(report.matches)],{type:'text/csv;charset=utf-8'}));
-                const link=document.createElement('a');link.href=url;link.download=`Issue Review ${filters.start || 'all'} to ${filters.end || 'all'}.csv`;link.click();
-                setTimeout(()=>URL.revokeObjectURL(url),1000);setMessage('Filtered results downloaded with the updated call columns. Open the CSV in Excel.');
+                setDownloadError('');setMessage('');
+                try{downloadDataReport(issueDataReport(report.matches,filters),exportFormat);setMessage(exportFormat==='csv'?'Filtered results downloaded as CSV.':'Formatted Excel report downloaded.');}
+                catch(error){setDownloadError(error.message || 'This report could not be downloaded. Please try again.');}
             };
             const fieldClass='w-full min-w-0 rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-400';
             return <section className="issue-review-panel px-8 py-6 space-y-5" data-dashboard-edit-ignore="true" aria-label="Issue Review">
-                <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-bold text-white">Issue Review</h3><p className="mt-1 text-xs text-slate-400">Search saved notes, driver calls, and replies across dates. Classifications are saved for your account.</p></div><button type="button" disabled={!loaded || !report.matches.length || Boolean(filters.start && filters.end && filters.start > filters.end)} onClick={exportResults} className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700 disabled:opacity-40"><Download className="h-4 w-4"/>Export CSV</button></div>
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-bold text-white">Issue Review</h3><p className="mt-1 text-xs text-slate-400">Search saved notes, driver calls, and replies across dates. Classifications are saved for your account.</p></div><div className="flex flex-wrap items-center gap-2"><DataExportFormat value={exportFormat} onChange={value=>{setExportFormat(value);setDownloadError('');}}/><button type="button" disabled={!loaded || !report.matches.length || Boolean(filters.start && filters.end && filters.start > filters.end)} onClick={exportResults} className="dashboard-data-export inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 cursor-pointer"><Download className="h-4 w-4 shrink-0" />Export {exportFormat==='csv'?'CSV':'Excel'}</button></div></div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <label className="sm:col-span-2 text-xs text-slate-400">Search wording <input type="search" className={'mt-1.5 '+fieldClass} value={filters.query} onChange={event=>change('query',event.target.value)} placeholder="driver name, damage, rescue, hardware, SO/RMA…"/><span className="mt-1 block">Use commas to search for either word or phrase.</span></label>
                     <label className="text-xs text-slate-400">From<input type="date" className={'mt-1.5 '+fieldClass} value={filters.start} onInput={event=>change('start',event.currentTarget.value)}/></label>
@@ -5022,7 +5185,7 @@
                 {filters.start && filters.end && filters.start > filters.end && <p role="alert" className="text-sm text-rose-300">Choose an end date on or after the start date.</p>}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Distinct cases by issue type">{ISSUE_REVIEW_TYPES.map(type=><button key={type.id} type="button" aria-pressed={filters.category===type.id} onClick={()=>change('category',filters.category===type.id?'all':type.id)} className={`rounded-xl border p-3 text-left ${filters.category===type.id?'border-indigo-400 bg-indigo-500/15':'border-slate-700 bg-slate-900/40'}`}><span className="block text-xs text-slate-300">{type.label}</span><span className="mt-1 block text-2xl font-bold tabular-nums text-white">{loaded ? report.counts[type.id] || 0 : '—'}</span></button>)}</div>
                 <div className="space-y-1 text-xs text-slate-400"><p role="status" aria-live="polite">{loaded ? `${report.matches.length} matching ${report.matches.length===1?'conversation':'conversations'} · ${report.caseCount} distinct ${report.caseCount===1?'case':'cases'}` : 'Loading saved conversations…'}</p><p>Suggested matches need your review. Matching SO/RMA numbers count once per issue type; one case may have several types.</p>{connection==='lost' && <p className="text-amber-300">Connection lost. Showing last synced records; classifications need a connection to save.</p>}</div>
-                {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}{message && <p role="status" className="text-sm text-emerald-300">{message}</p>}
+                {downloadError && <p role="alert" className="text-sm text-rose-300">{downloadError}</p>}{error && <p role="alert" className="text-sm text-rose-300">{error}</p>}{message && <p role="status" className="text-sm text-emerald-300">{message}</p>}
                 <div className="divide-y divide-slate-700">{loaded && report.matches.length===0 ? <p className="py-8 text-center text-sm text-slate-400">No saved conversations match. Change the dates or wording.</p> : report.matches.map(entry=>{
                     const draft=drafts[entry.key] ?? (entry.review ? entry.excluded?'none':entry.types.length===1?entry.types[0]:'suggested' : 'suggested');
                     return <article key={entry.key} className="py-5 space-y-3">
@@ -5404,7 +5567,9 @@
         const ChatSidebarToggle = ({open,onToggle}) => <button type="button" aria-label={open?'Hide conversations':'Show conversations'} title={open?'Hide conversations':'Show conversations'} aria-expanded={open} aria-controls="chat-conversation-inbox" onClick={onToggle} className="chat-inbox-toggle">{open?'‹':'›'}</button>;
         const ChatWindowClose = ({onClose}) => <button type="button" aria-label="Close" title="Close chat" onClick={onClose} className="chat-window-close"><X className="h-4 w-4"/></button>;
         const PrivateChatPanel = ({user,users,currentName,active,chatOpen,selectedUid,onSelectPerson,onSelectTeam,sharedUnread,canSend,soundReady,onUnread,onIncoming,onBusy,onPreview,owner,photos,titles,sharedPreview,onViewProfile,sidebarOpen,onToggleSidebar,onCloseChat}) => {
-            const uid=user?.uid,recipientUid=selectedUid;
+            // Auth can change before the parent's selection-reset effect runs.
+            // Never construct a private conversation with the new account itself.
+            const uid=user?.uid,recipientUid=selectedUid&&selectedUid!==uid?selectedUid:'';
             const [conversations,setConversations]=useState([]),[ui,setUI]=useState(()=>normalizePrivateChatUI(null)),[viewsReady,setViewsReady]=useState(false);
             const [localOpened,setLocalOpened]=useState([]),[newChatOpen,setNewChatOpen]=useState(false),[search,setSearch]=useState(''),[removeTarget,setRemoveTarget]=useState(null),[removeScope,setRemoveScope]=useState('mine');
             const [localOpenThrough,setLocalOpenThrough]=useState({});
@@ -6345,7 +6510,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             { id:'missingMetrics', name:'Morning metrics missing', time:'08:00', timing:'time', sound:'notification', repeatMinutes:0, description:'Required month-to-date scores have not been entered for today. Entered zero scores are valid.' },
             { id:'noteAcknowledgment', name:'Team acknowledgment overdue', delayMinutes:60, timing:'delay', sound:'notification', repeatMinutes:0, description:'A team member has not acknowledged your Manager Note within the chosen window. You do not need to acknowledge your own note.' },
             { id:'preloadUnassigned', name:'Preload team not selected', time:'16:30', timing:'time', sound:'preload-arrival', repeatMinutes:0, description:'A contractor is scheduled, but no exact driver/helper team has been linked.' },
-            { id:'restDay', name:'Rest day required', timing:'assignment', sound:'urgent', repeatMinutes:0, description:'Someone is assigned all seven days of one Monday–Sunday week. Monday starts a fresh count.' },
+
             { id:'driverIssue', name:'Important driver call', timing:'event', sound:'manager-signal', repeatMinutes:0, description:'A newly saved damage, refusal, exchange, rescue, no-fit, mislabel, late-route, truck breakdown or incorrect-item issue, or a General call marked Needs manager attention. Only your account is alerted.' },
             { id:'urgentFollowUp', name:'Urgent issue awaiting follow-up', delayMinutes:60, timing:'delay', sound:'urgent', repeatMinutes:15, description:'An urgent driver issue remains unresolved after its follow-up window. Only you control its private follow-up status.' }
         ];
@@ -6463,15 +6628,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 }
             }
             }
-            const weekStarts=new Set([day,tomorrow].map(date=>{const stamp=Date.parse(date+'T12:00:00Z');return managerAlertDayOffset(date,-((new Date(stamp).getUTCDay()+6)%7));}));
-            for(const monday of weekStarts) {
-                const people=new Map();
-                for(let offset=0;offset<7;offset++) for(const row of days.get(managerAlertDayOffset(monday,offset))?.routeTable || []) for(const role of ['driver','helper']) {
-                    const name=normalizeAssignmentName(row[role]); if(!name) continue;
-                    const key=name.toLowerCase(); if(!people.has(key)) people.set(key,{name,days:new Set()});people.get(key).days.add(offset);
-                }
-                for(const [key,person] of people) if(person.days.size===7) add('restDay',monday+':'+key,'red',person.name+' is assigned all seven days of the same week.',[['Week',monday+' to '+managerAlertDayOffset(monday,6)],['Required rest','One day within this Monday–Sunday week. Monday resets the count.']],{section:'routes',dateKey:managerAlertDayOffset(monday,6)});
-            }
+            // Driver duplicate and weekly-rest checks are local pre-save assignment warnings.
+            // Do not reannounce saved assignments in the manager's Notifications feed.
             return alerts.sort((a,b)=>(a.tone==='red'?0:1)-(b.tone==='red'?0:1) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
         };
 
@@ -6681,7 +6839,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 md:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
                         <div><h3 className="text-lg font-semibold text-white">Hours of Service <span className="text-indigo-300">(HOS)</span></h3><p className="text-xs text-slate-400 mt-1.5 leading-relaxed">Estimated hours · 5:30 AM to the saved route ETA · Central time · Regular routes only</p></div>
-                        <button type="button" onClick={exportReport} disabled={!valid||!rows.length} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer"><Download className="w-4 h-4"/> Export Excel</button>
+                        <button type="button" onClick={exportReport} disabled={!valid||!rows.length} className="dashboard-data-export inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 cursor-pointer"><Download className="h-4 w-4 shrink-0" /> Export Excel</button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
                         <label className="block text-xs font-medium text-slate-400 space-y-2"><span>Driver</span><input aria-label="HOS Driver" type="search" list="hos-driver-options" placeholder="Search driver" className={field} value={filters.driver} onChange={event=>update('driver',event.target.value)}/><datalist id="hos-driver-options">{options('driver').map(name=><option key={name} value={name}/>)}</datalist></label>
@@ -6907,6 +7065,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [headerCalendarMonth, setHeaderCalendarMonth] = useState(openDates[0].slice(0, 7));
             const [data, setData] = useState(DEFAULT_DATA);
             const [localRouteAssignmentEdit, setLocalRouteAssignmentEdit] = useState(null);
+            const driverAssignmentAlertRef = useRef(null);
             useEffect(() => { setLocalRouteAssignmentEdit(null); }, [user?.uid, activeDate, isEditMode]);
             const applyLocalRouteTableChange = nextRows => {
                 if (!user || !isEditing || activeTab !== 'routes' || routesSubTab !== 'table' || !canEditSection('routes') || isLoading) return;
@@ -6935,6 +7094,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const [historyDateTo, setHistoryDateTo] = useState('');
             const [historyView, setHistoryView] = useState('routes'); // routes, metrics or hos
             const [historyMetricsSubTab, setHistoryMetricsSubTab] = useState('wtd');
+            const [dataExportFormat,setDataExportFormat]=useState('xlsx'),[dataExportError,setDataExportError]=useState('');
             
             const [isPreloadModalOpen, setIsPreloadModalOpen] = useState(false);
             const [preloadActiveDate, setPreloadActiveDate] = useState(openDates[0]);
@@ -8465,137 +8625,15 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 return true;
             });
 
-            const exportToCSV = () => {
-                if (filteredHistoryData.length === 0) return;
-                const headers = ["Data Date","Import Date","Number of Routes","Number of Orders","Uniform%","OnTimeDispatch%","ETAMet%","CompletedRoutes%","OTD%","ExecutionScore%"];
-                const rows = filteredHistoryData.map(h => {
-                    const kpi = calculateKPIs(h);
-                    const formattedImportDate = h.lastUpdatedAt ? `"${new Date(h.lastUpdatedAt).toLocaleString()}"` : '"N/A"';
-                    return [
-                        h.date, formattedImportDate, kpi.routes, kpi.orders,
-                        toFixedSafe(kpi.uniformPerc), toFixedSafe(kpi.offDockPerc), toFixedSafe(kpi.etaPerc), toFixedSafe(kpi.compPerc), toFixedSafe(kpi.otd), toFixedSafe(kpi.executionScore)
-                    ];
-                });
-                const csvContent ="data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", `Geodis_Recap_Export_${new Date().toISOString().split('T')[0]}.csv`);
-                document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            const performDataExport = report => {
+                setDataExportError('');
+                try{if(!downloadDataReport(report,dataExportFormat))setDataExportError('No saved rows are available for this report and date range.');}
+                catch(error){setDataExportError(error.message || 'This report could not be downloaded. Please try again.');}
             };
-
-            const exportHistoryRoutesToCSV = () => {
-                if (filteredHistoryData.length === 0) return;
-                
-                let hasRoutes = false;
-                const headers = ['"Date"', ...ROUTE_COLUMNS.map(col => `"${col.label}"`)];
-                const rows = [];
-                
-                filteredHistoryData.forEach(h => {
-                    if (h.routeTable && h.routeTable.length > 0) {
-                        hasRoutes = true;
-                        h.routeTable.forEach(row => {
-                            const rowData = [ `"${h.date}"` ];
-                            ROUTE_COLUMNS.forEach(col => {
-                                let val = row[col.key];
-                                if (col.type === 'checkbox') { val = val ? 'Yes' : 'No'; } 
-                                else if (col.type === 'custom_uniform') { val = row.uniform ? 'Yes' : (row.uniformNote || 'No'); }
-                                else if (col.type === 'time' && val) { val = formatTime(val); }
-                                const escapedVal = String(val || '').replace(/"/g, '""');
-                                rowData.push(`"${escapedVal}"`);
-                            });
-                            rows.push(rowData.join(","));
-                        });
-                    }
-                });
-
-                if (!hasRoutes) return;
-
-                const csvContent ="data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                
-                let fileName = 'Geodis_Historical_Routes';
-                if (historyDateFrom && historyDateTo) fileName += `_${historyDateFrom}_to_${historyDateTo}`;
-                else if (historyDateFrom) fileName += `_from_${historyDateFrom}`;
-                else if (historyDateTo) fileName += `_to_${historyDateTo}`;
-                else fileName += '_All';
-                
-                link.setAttribute("download", `${fileName}.csv`);
-                document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            };
-
-            const exportHistoricalMetricsToCSV = (type) => {
-                if (filteredHistoryData.length === 0) return;
-                
-                let hasData = false;
-                let headers = [];
-                const rows = [];
-                
-                if (type === 'feedback') {
-                    headers = ["Data Date","Feedback Date","First Name","Last Name","Delivery Type","Score","Order Number","Comment"];
-                    filteredHistoryData.forEach(h => {
-                        const feedbackList = h.metricsTracker?.feedback || [];
-                        if (feedbackList.length > 0) hasData = true;
-                        feedbackList.forEach(row => {
-                            rows.push([
-                                `"${h.date}"`, `"${row.date || ''}"`, `"${row.firstName || ''}"`, `"${row.lastName || ''}"`, `"${row.type || ''}"`,
-                                row.score, `"${row.orderNum || ''}"`, `"${(row.comment || '').replace(/"/g, '""')}"`
-                            ].join(","));
-                        });
-                    });
-                } else {
-                    headers = ["Data Date","First Name","Last Name","Survey Count","Survey AVG","OnTime%","Completion %","Exchange %"];
-                    filteredHistoryData.forEach(h => {
-                        const metricsList = h.metricsTracker?.[type] || [];
-                        if (metricsList.length > 0) hasData = true;
-                        metricsList.forEach(row => {
-                            rows.push([
-                                `"${h.date}"`, `"${row.firstName || ''}"`, `"${row.lastName || ''}"`, 
-                                row.surveyCnt, row.surveyAvg, `"${row.onTime}%"`, `"${row.completion}%"`, `"${row.exchange}%"`
-                            ].join(","));
-                        });
-                    });
-                }
-
-                if (!hasData) return;
-
-                const csvContent ="data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                
-                let fileName = `Geodis_Historical_${type.toUpperCase()}`;
-                if (historyDateFrom && historyDateTo) fileName += `_${historyDateFrom}_to_${historyDateTo}`;
-                else if (historyDateFrom) fileName += `_from_${historyDateFrom}`;
-                else if (historyDateTo) fileName += `_to_${historyDateTo}`;
-                else fileName += '_All';
-
-                link.setAttribute("download", `${fileName}.csv`);
-                document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            };
-
-            const exportCurrentRoutesToCSV = () => {
-                if (!data.routeTable || data.routeTable.length === 0) return;
-                const headers = ROUTE_COLUMNS.map(col => `"${col.label}"`);
-                const rows = data.routeTable.map(row => {
-                    return ROUTE_COLUMNS.map(col => {
-                        let val = row[col.key];
-                        if (col.type === 'checkbox') { val = val ? 'Yes' : 'No'; } 
-                        else if (col.type === 'custom_uniform') { val = row.uniform ? 'Yes' : (row.uniformNote || 'No'); }
-                        else if (col.type === 'time' && val) { val = formatTime(val); }
-                        const escapedVal = String(val || '').replace(/"/g, '""');
-                        return `"${escapedVal}"`;
-                    }).join(",");
-                });
-                const csvContent ="data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", `Geodis_Routes_${activeDate}.csv`);
-                document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            };
+            const exportToCSV = () => { if(filteredHistoryData.length)performDataExport(summaryDataReport(filteredHistoryData,historyDateFrom,historyDateTo,calculateKPIs,toFixedSafe)); };
+            const exportHistoryRoutesToCSV = () => { if(filteredHistoryData.length)performDataExport(routeDataReport(filteredHistoryData,{start:historyDateFrom,end:historyDateTo})); };
+            const exportHistoricalMetricsToCSV = type => { if(filteredHistoryData.length)performDataExport(metricsDataReport(filteredHistoryData,type,historyDateFrom,historyDateTo)); };
+            const exportCurrentRoutesToCSV = () => { if(data.routeTable?.length)performDataExport(routeDataReport([{date:activeDate,routeTable:data.routeTable}],{current:true,date:activeDate})); };
 
             const handleDownloadScreenshot = async () => {
                 if (!window.html2canvas || !dashboardRef.current || isCapturing) return;
@@ -10594,6 +10632,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
             const driverAssignmentAlertKey = ['routes-edit', user?.uid, activeDate, localRouteAssignmentEdit?.token, ...driverAssignmentWarnings.sameDay, ...driverAssignmentWarnings.consecutive].join('|');
             const showDriverAssignmentAlert = !isLoading && isEditing && activeTab === 'routes' && routesSubTab === 'table' && ownsLocalRouteAssignmentEdit
                 && (driverAssignmentWarnings.sameDay.length + driverAssignmentWarnings.consecutive.length) > 0 && !isAssignmentAlertAcknowledged(driverAssignmentAlertKey);
+            // A warning above a long table can otherwise be outside the assigner's viewport.
+            // Reveal only a new local conflict; unrelated edits and shared snapshots stay quiet.
+            useEffect(() => {
+                if (showDriverAssignmentAlert) driverAssignmentAlertRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+            }, [showDriverAssignmentAlert, driverAssignmentAlertKey]);
             const preloadAssignmentAlertKey = ['preload', preloadActiveDate, ...preloadAssignmentWarnings].join('|');
 
             // Assignment/schedule alerts stay silent by default; an admin can enable them.
@@ -10641,7 +10684,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 if (!showDriverAssignmentAlert) return null;
 
                 return (
-                    <div className="mb-4 bg-rose-950/40 border border-rose-500/40 text-rose-100 p-4 rounded-xl shadow-[0_0_15px_rgba(244,63,94,0.18)] animate-in slide-in-from-top-2">
+                    <div ref={driverAssignmentAlertRef} role="alert" aria-live="assertive" data-dashboard-edit-ignore="true" className="mb-4 bg-rose-950/40 border border-rose-500/40 text-rose-100 p-4 rounded-xl shadow-[0_0_15px_rgba(244,63,94,0.18)] animate-in slide-in-from-top-2">
                         <div className="flex items-start gap-3">
                             <div className="bg-rose-500/20 p-2 rounded-lg text-rose-300 animate-pulse"><AlertTriangle className="w-5 h-5" /></div>
                             <div className="min-w-0">
@@ -11363,8 +11406,9 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             <button type="button" aria-pressed={routesSubTab === 'morning-report'} onClick={() => { setRoutesSubTab('morning-report'); setIsRoutesFullscreen(false); }} className={"inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold " + (routesSubTab === 'morning-report' ? 'bg-slate-600/70 text-white' : 'text-slate-400 hover:text-white')}><FileText className="w-3.5 h-3.5" />Morning Report</button>
                                             <button type="button" aria-pressed={routesSubTab === 'team-assignment'} onClick={() => { setRoutesSubTab('team-assignment'); setIsRoutesFullscreen(false); }} className={"inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold " + (routesSubTab === 'team-assignment' ? 'bg-slate-600/70 text-white' : 'text-slate-400 hover:text-white')}><Users className="w-3.5 h-3.5" />Team Assignment</button>
                                         </nav>
-                                        <button onClick={exportCurrentRoutesToCSV} disabled={(!data.routeTable || data.routeTable.length === 0)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-900/40 cursor-pointer">
-                                            <Download className="w-4 h-4" /> Export CSV
+                                        <DataExportFormat value={dataExportFormat} onChange={value=>{setDataExportFormat(value);setDataExportError('');}}/>
+                                        <button onClick={exportCurrentRoutesToCSV} disabled={(!data.routeTable || data.routeTable.length === 0)} className="dashboard-data-export inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 cursor-pointer">
+                                            <Download className="h-4 w-4 shrink-0" /> Export {dataExportFormat==='csv'?'CSV':'Excel'}
                                         </button>
                                         {isEditing && routesSubTab === 'table' && (
                                             <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); const newRow = { id: Date.now().toString() }; ROUTE_COLUMNS.forEach(col => { newRow[col.key] = col.type === 'checkbox' ? false : ''; }); nd.routeTable.push(newRow); applyLocalRouteTableChange(nd.routeTable); }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-900/40 cursor-pointer">
@@ -11374,6 +11418,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                     </div>
                                 </div>
 
+                                {dataExportError&&<p role="alert" className="mb-4 text-sm text-rose-300">{dataExportError}</p>}
                                 {routesSubTab === 'morning-report' ? (
                                     <MorningReport data={data} activeDate={activeDate} setData={setData} displayDateString={displayDateString} metricsTotals={data.metricsTracker?.mtdTotals || calculateMetricsTotals(data.metricsTracker?.mtd)} isEditing={isEditing} reportRef={morningReportScreenshotRef} onCapture={handleDownloadMorningReportScreenshot} onCopyImage={() => downloadPanelScreenshot(morningReportScreenshotRef.current, `Morning-Report-${activeDate}.png`, 'blob')} isCapturing={isCapturing} contractors={masterLists.contractors || []} />
                                 ) : routesSubTab === 'team-assignment' ? (
@@ -11730,7 +11775,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                         ) : activeTab === 'history' ? (
                             
                             <div className="animate-in fade-in duration-500">
-                                <div className="dashboard-history-toolbar flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6">
+                                <div className="dashboard-history-toolbar flex flex-col 2xl:flex-row justify-between items-start 2xl:items-center gap-4 mb-6">
                                     <div className="flex items-center gap-4">
                                         <h2 className="text-xl font-black text-white flex items-center gap-3"><TableIcon className="w-6 h-6 text-indigo-500" /> Data History</h2>
                                         <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
@@ -11750,32 +11795,33 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                 <button onClick={() => { setHistoryDateFrom(''); setHistoryDateTo(''); }} className="ml-2 text-slate-500 hover:text-rose-400 transition-colors" title="Clear Dates"><X className="w-4 h-4" /></button>
                                             )}
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex flex-wrap items-center gap-2"><DataExportFormat value={dataExportFormat} onChange={value=>{setDataExportFormat(value);setDataExportError('');}}/>
                                             {historyView === 'metrics' && (
                                                 <>
-                                                    <button onClick={exportToCSV} disabled={filteredHistoryData.length === 0} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg font-bold text-xs transition-all shadow-lg cursor-pointer">
-                                                        <Download className="w-3 h-3" /> Summary
+                                                    <button onClick={exportToCSV} disabled={filteredHistoryData.length === 0} className="dashboard-data-export inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 cursor-pointer">
+                                                        <Download className="h-4 w-4 shrink-0" /> Summary
                                                     </button>
-                                                    <button onClick={() => exportHistoricalMetricsToCSV('wtd')} disabled={filteredHistoryData.length === 0} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg font-bold text-xs transition-all shadow-lg cursor-pointer">
-                                                        <Download className="w-3 h-3" /> WTD
+                                                    <button onClick={() => exportHistoricalMetricsToCSV('wtd')} disabled={filteredHistoryData.length === 0} className="dashboard-data-export inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 cursor-pointer">
+                                                        <Download className="h-4 w-4 shrink-0" /> WTD
                                                     </button>
-                                                    <button onClick={() => exportHistoricalMetricsToCSV('mtd')} disabled={filteredHistoryData.length === 0} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg font-bold text-xs transition-all shadow-lg cursor-pointer">
-                                                        <Download className="w-3 h-3" /> MTD
+                                                    <button onClick={() => exportHistoricalMetricsToCSV('mtd')} disabled={filteredHistoryData.length === 0} className="dashboard-data-export inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 cursor-pointer">
+                                                        <Download className="h-4 w-4 shrink-0" /> MTD
                                                     </button>
-                                                    <button onClick={() => exportHistoricalMetricsToCSV('feedback')} disabled={filteredHistoryData.length === 0} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg font-bold text-xs transition-all shadow-lg cursor-pointer">
-                                                        <Download className="w-3 h-3" /> Feedback
+                                                    <button onClick={() => exportHistoricalMetricsToCSV('feedback')} disabled={filteredHistoryData.length === 0} className="dashboard-data-export inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 cursor-pointer">
+                                                        <Download className="h-4 w-4 shrink-0" /> Feedback
                                                     </button>
                                                 </>
                                             )}
                                             {historyView === 'routes' && (
-                                                <button onClick={exportHistoryRoutesToCSV} disabled={filteredHistoryData.length === 0} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-lg shadow-indigo-900/40 cursor-pointer">
-                                                    <Route className="w-4 h-4" /> Export Routes
+                                                <button onClick={exportHistoryRoutesToCSV} disabled={filteredHistoryData.length === 0} className="dashboard-data-export inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 cursor-pointer">
+                                                    <Download className="h-4 w-4 shrink-0" /> Export Routes
                                                 </button>
                                             )}
                                         </div>
                                     </div>)}
                                 </div>
                                 
+                                {historyView!=='hos'&&dataExportError&&<p role="alert" className="mb-4 text-sm text-rose-300">{dataExportError}</p>}
                                 {historyView === 'hos' ? <HoursOfServicePanel records={historyData} loaded={managerHistoryLoaded || historyData.length > 0} today={getChicagoDateKey()} /> : (<div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-2xl relative">
                                     <div className="overflow-x-auto">
                                         {historyView === 'routes' ? (
