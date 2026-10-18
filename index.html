@@ -1624,6 +1624,24 @@
 }
 
 </style>
+<style id="chat-image-only-style">
+.chat-image-only { position:relative; width:300px; max-width:100%; margin-top:3px; text-align:left; }
+.chat-image-open { display:block; width:100%; padding:0; border:0; background:#172230; border-radius:14px; overflow:hidden; cursor:zoom-in; }
+.chat-image-open img { display:block; width:100%; height:auto; max-height:360px; object-fit:contain; }
+.chat-image-open:focus-visible, .chat-image-options:focus-visible { outline:2px solid #a5b4cf; outline-offset:3px; }
+.chat-image-loading { display:flex; align-items:center; justify-content:center; gap:8px; min-height:150px; font-size:12px; color:#a4b2c6; }
+.chat-image-options { position:absolute; right:8px; top:8px; display:flex; align-items:center; justify-content:center; width:29px; height:26px; border:0; border-radius:8px; background:#101827e8; color:#e2e8f0; cursor:pointer; }
+.chat-image-options:hover { background:#101827; }
+.chat-image-options:disabled { opacity:.6; cursor:wait; }
+.chat-image-menu { position:absolute; right:8px; top:40px; z-index:5; padding:4px; min-width:135px; border:1px solid #40506a; border-radius:10px; background:#1d2a3c; box-shadow:0 8px 24px #02061766; }
+.chat-image-menu button { display:flex; align-items:center; gap:9px; width:100%; padding:10px 12px; border:0; border-radius:7px; background:transparent; color:#e2e8f0; font:600 12px system-ui; cursor:pointer; }
+.chat-image-menu button:hover, .chat-image-menu button:focus-visible { background:#31435b; }
+.team-chat-panel .chat-inbox-pane .minimal-chat-stack .team-chat-message.chat-image-message { padding:0; background:transparent; box-shadow:none; }
+.chat-image-message .minimal-chat-meta { padding:0 3px; }
+@media(max-width:480px) { .chat-image-only { width:260px; } }
+@media(pointer:coarse) { .chat-image-options { width:44px; height:44px; } .chat-image-menu { top:58px; } .chat-image-menu button { min-height:44px; } }
+
+</style>
 </head>
 <body class="balanced-picture-theme bg-slate-900 text-slate-100 font-sans antialiased overflow-x-hidden">
     <div id="root"></div>
@@ -4767,6 +4785,21 @@
         const ChatAttachmentCard = ({ attachment, messageId, uid, active, onPreview, conversationId = null }) => {
             const [imageUrl, setImageUrl] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('');
             const cardRef = useRef(null), blobRef = useRef(null), aliveRef = useRef(true);
+            const [imageMenuOpen,setImageMenuOpen]=useState(false);
+            const imageOptionsRef=useRef(null), imageDownloadRef=useRef(null);
+            useEffect(()=>{
+                if(!imageMenuOpen)return;
+                imageDownloadRef.current?.focus();
+                const close=event=>{
+                    if(event.type==='keydown'){
+                        if(event.key!=='Escape')return;
+                        event.stopPropagation();setImageMenuOpen(false);imageOptionsRef.current?.focus();
+                    }else if(!cardRef.current?.contains(event.target))setImageMenuOpen(false);
+                };
+                document.addEventListener('pointerdown',close);document.addEventListener('keydown',close,true);
+                return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',close,true);};
+            },[imageMenuOpen]);
+            useEffect(()=>{setImageMenuOpen(false);},[active,attachment?.path]);
             const valid = isChatAttachment(attachment, messageId, uid, conversationId);
             const kind = valid ? chatFilePreviewKind(attachment.contentType) : 'document';
             useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
@@ -4783,7 +4816,7 @@
                 if (active && valid && kind === 'image') {
                     const load = async () => {
                         try { const blob = await readFile(); if (!cancelled) { url = URL.createObjectURL(blob); setImageUrl(url); setError(''); } }
-                        catch { if (!cancelled) setError('Image preview unavailable. Try Preview or Download.'); }
+                        catch { if (!cancelled) setError('Image could not load. Click the image to retry.'); }
                     };
                     observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) { observer.disconnect(); load(); } });
                     if (cardRef.current) observer.observe(cardRef.current);
@@ -4798,6 +4831,14 @@
                 finally { if (aliveRef.current) setBusy(false); }
             };
             if (!valid) return <p className="mt-2 text-xs text-slate-400">Attachment unavailable.</p>;
+            if(kind==='image')return <div ref={cardRef} data-chat-attachment className="chat-image-only" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))setImageMenuOpen(false);}}>
+                <button type="button" aria-label="Enlarge shared image" disabled={busy} onClick={()=>{setImageMenuOpen(false);open(false);}} className="chat-image-open">
+                    {imageUrl?<img src={imageUrl} alt="Shared image"/>:<span className="chat-image-loading"><Loader2 className="h-5 w-5 animate-spin"/>Loading image…</span>}
+                </button>
+                <button ref={imageOptionsRef} type="button" className="chat-image-options" aria-label="Image options" aria-haspopup="menu" aria-expanded={imageMenuOpen} disabled={busy} onClick={()=>setImageMenuOpen(value=>!value)} onKeyDown={event=>{if(event.key==='ArrowDown'){event.preventDefault();setImageMenuOpen(true);}}}><ChevronDown className="h-4 w-4"/></button>
+                {imageMenuOpen&&<div role="menu" aria-label="Image actions" className="chat-image-menu"><button ref={imageDownloadRef} type="button" role="menuitem" disabled={busy} onClick={()=>{setImageMenuOpen(false);open(true);imageOptionsRef.current?.focus();}}><Download className="h-4 w-4"/>Download</button></div>}
+                {error&&<p role="status" className="mt-2 text-xs text-rose-300">{error}</p>}
+            </div>;
             return <div ref={cardRef} data-chat-attachment className="mt-2 w-64 max-w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/60 text-left">
                 {kind === 'image' && <button type="button" aria-label={'Preview ' + attachment.name} disabled={busy} onClick={() => open(false)} className="flex h-36 w-full items-center justify-center overflow-hidden bg-slate-950/50">
                     {imageUrl ? <img src={imageUrl} alt={attachment.name} className="h-full w-full object-contain" /> : <FileText className="h-8 w-8 text-slate-500" />}
@@ -5746,7 +5787,7 @@
                         {messages.length>=messageLimit&&<button type="button" onClick={()=>setMessageLimit(value=>value+150)} className="mx-auto text-xs text-slate-300 hover:text-white">Load earlier messages</button>}
                         {visibleMessages.map(message=>{const mine=message.authorUid===uid;return <div key={message.id} data-private-chat-message data-chat-message-owner={mine?'self':'other'} className="minimal-chat-row">
                             <UserAvatar uid={message.authorUid} name={mine?currentName:recipient.name} photos={photos} titles={titles} onView={onViewProfile} size={40}/>
-                            <div className="minimal-chat-stack"><div className="team-chat-message group text-slate-100">
+                            <div className="minimal-chat-stack"><div className={`team-chat-message group text-slate-100 ${!String(message.text || '').trim() && chatFilePreviewKind(message.attachment?.contentType) === 'image' && editing !== message.id ? 'chat-image-message' : ''}`}>
                                 {editing===message.id?<div><textarea aria-label="Edit private message" value={editText} disabled={busy} onChange={event=>setEditText(event.target.value)} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3"/><div className="mt-2 flex gap-3"><button type="button" onClick={saveEdit} disabled={busy} className="text-xs text-emerald-300">Save</button><button type="button" disabled={busy} onClick={()=>setEditing(null)} className="text-xs text-slate-300">Cancel</button></div></div>:<><ChatMessageText text={message.text}/>{message.attachment&&<ChatAttachmentCard conversationId={cid} attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={active} onPreview={onPreview}/>}</>}
                                 <div className="minimal-chat-meta">{mine&&!getTeamChatSticker(message.text)&&editing!==message.id&&<button type="button" aria-label="Edit your private message" onClick={()=>{setEditing(message.id);setEditText(message.text);}} className="chat-message-edit opacity-0 group-hover:opacity-100 focus:opacity-100">Edit</button>}{message.editedAt&&<span>Edited</span>}<span>{new Date(message.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</span></div>
                                 {mine&&(conversation?.readSequence?.[recipientUid]||0)>=message.sequence&&<div className="minimal-chat-read-status">Seen by {recipient.name}</div>}
@@ -10896,7 +10937,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                                 <UserAvatar uid={message.authorUid} name={message.author} photos={profilePhotos} titles={profileTitles} onView={viewUserProfile} size={40}/>
                                                                 <div className="minimal-chat-stack">
                                                                     {!mine&&<span className="minimal-chat-author" title={profileTitles[message.authorUid]||undefined}>{String(message.author || 'Team')}</span>}
-                                                                    <div className={`team-chat-message group text-slate-100 ${editingChatId === message.id ? 'w-full' : ''}`}>
+                                                                    <div className={`team-chat-message group text-slate-100 ${editingChatId === message.id ? 'w-full' : ''} ${!String(message.text || '').trim() && chatFilePreviewKind(message.attachment?.contentType) === 'image' && editingChatId !== message.id ? 'chat-image-message' : ''}`}>
                                                                         {editingChatId === message.id ? (
                                                                             <div><textarea aria-label="Edit message" value={editingChatText} onChange={event => setEditingChatText(event.target.value)} disabled={isSavingChatEdit} className="w-full rounded border border-slate-600 bg-slate-950 p-2 text-xs text-slate-100" rows="3"/><div className="mt-2 flex gap-3"><button type="button" disabled={isSavingChatEdit || (!editingChatText.trim() && !message.attachment)} onClick={saveTeamChatEdit} className="text-xs text-emerald-300 disabled:opacity-40">Save</button><button type="button" disabled={isSavingChatEdit} onClick={() => setEditingChatId(null)} className="text-xs text-slate-300">Cancel</button></div></div>
                                                                         ) : <div data-chat-message-body className="min-w-0"><ChatMessageText text={message.text} mentionNames={message.mentionNames}/>{chatJumpMessage?.id === message.id && !teamChatMessages.some(item => item.id === message.id) && <div className="mt-1 text-[11px] text-slate-400">Earlier mentioned message · {new Date(message.timestamp).toLocaleDateString()}</div>}{message.attachment && !message.pending && <ChatAttachmentCard attachment={message.attachment} messageId={message.id} uid={message.authorUid} active={isTeamChatOpen} onPreview={setChatFilePreview}/>}</div>}
