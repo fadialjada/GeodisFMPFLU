@@ -12674,7 +12674,9 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
 
                     {}
                     <footer data-html2canvas-ignore="true" className={`dashboard-footer fixed bottom-0 left-0 right-0 backdrop-blur-md px-4 py-1 z-50 flex flex-col md:flex-row justify-between items-center gap-1.5 md:gap-3 ${isCapturing ? 'hidden' : ''}`}>
-                        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto max-w-full no-scrollbar md:flex-1">
+                        <div className="footer-online-area flex w-full min-w-0 max-w-full items-center gap-1.5 md:w-auto md:flex-1">
+                            {isAdminUser && <button type="button" onClick={openSettings} title="Settings" aria-label="Open Settings" className="dashboard-settings-button shrink-0 inline-flex items-center justify-center p-1.5 bg-transparent border-0 text-slate-300 hover:text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300"><Settings className="w-4 h-4" /></button>}
+                            <div className="footer-online-users flex min-w-0 items-center gap-1.5 overflow-x-auto max-w-full no-scrollbar">
                             <Users aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-500" />
                             <span className="text-[11px] font-medium text-slate-500 shrink-0">Online users</span>
                             <div className="flex items-center gap-0.5">
@@ -12691,7 +12693,6 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                         </CurrentUserNameLabel>
                                     )}
                                 </div>
-                                {isAdminUser && <button type="button" onClick={openSettings} title="Settings" aria-label="Open Settings" className="dashboard-settings-button shrink-0 inline-flex items-center justify-center p-1.5 bg-transparent border-0 text-slate-300 hover:text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300"><Settings className="w-4 h-4" /></button>}
                                 {activeUsers.filter(u => u.uid !== user?.uid).map(u => {
                                     const userIsIdle = isPresenceIdle(u);
                                     const userIsAway = isPresenceAway(u);
@@ -12716,6 +12717,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                     );
                                 })}
                             </div>
+                        </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-3 flex-wrap justify-center md:justify-end">
                             <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-medium text-slate-400">
