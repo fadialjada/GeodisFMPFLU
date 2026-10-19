@@ -10169,7 +10169,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                 };
                 const items = [];
                 const recapsByDate = new Map((historyData || []).map(record => [record.date, record]));
-                recapsByDate.set(activeDate, { date: activeDate, ...data });
+                // Date navigation renders before the requested day's snapshot arrives.
+                // Keep each note under its real date instead of duplicating the previous day.
+                if (!isLoading && dailySnapshotRef.current.date === activeDate) {
+                    recapsByDate.set(activeDate, { ...data, date: activeDate });
+                }
                 Array.from(recapsByDate.values()).forEach(dayRecord => {
                     const dateKey = dayRecord.date || activeDate;
                     const dateLabel = new Date(`${dateKey}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
