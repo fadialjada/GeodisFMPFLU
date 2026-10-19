@@ -2237,6 +2237,7 @@
         const DRIVER_CALL_SEGMENTS = [
             {id:'damage',label:'Damage',reasons:[{id:'concealed',label:'Concealed damage',cause:'product'},{id:'driver-damage',label:'Driver fault',cause:'driver'},{id:'factory-defect',label:'Factory defect',cause:'product'},{id:'damage-unknown',label:'Cause not confirmed',cause:'pending',legacy:true,hidden:true}]},
             {id:'refused',label:'Customer refused',reasons:[{id:'factory-defect',label:'Factory defect',cause:'product'},{id:'customer-preference',label:'Customer preference',cause:'customer'},{id:'refused-other',label:'Other',cause:'pending'},{id:'discoloration',label:'Discoloration',cause:'product',legacy:true}]},
+            {id:'exchange',label:'Exchange',reasons:[{id:'exchange-driver-fault',label:'Driver fault',cause:'driver'},{id:'exchange-not-driver-fault',label:'Not a driver fault',cause:'non-driver'}]},
             {id:'rescue',label:'Rescue',reasons:[{id:'missing-hardware',label:'Missing hardware — not taken from warehouse',cause:'driver'},{id:'pack-pieces',label:'Missing pieces inside the hardware pack',cause:'product'},{id:'wrong-pack',label:'Wrong hardware inside the supplied pack',cause:'product'},{id:'rescue-damage',label:'Damaged item',cause:'pending'},{id:'concealed',label:'Concealed damage',cause:'product'},{id:'driver-damage',label:'Driver fault',cause:'driver'},{id:'rescue-unknown',label:'Cause not confirmed',cause:'pending',legacy:true,hidden:true}]},
             {id:'no-fit',label:'No fit',reasons:[{id:'fit-doorway',label:'Does not fit through the door',cause:'pending'},{id:'fit-elevator',label:'Does not fit in the elevator',cause:'pending'},{id:'fit-home',label:'Does not fit inside the customer’s home',cause:'pending'},{id:'customer-preference',label:'Customer preference',cause:'customer'},{id:'fit-other',label:'Other / not confirmed',cause:'pending',legacy:true,hidden:true}]},
             {id:'mislabel',label:'Mislabel',reasons:[{id:'label-mismatch',label:'Label does not match the item or order',cause:'pending'}]},
@@ -2245,7 +2246,7 @@
             {id:'general',label:'General',reasons:[{id:'not-home',label:'Not at home',cause:'routine'},{id:'no-answer',label:'Customer not answering',cause:'routine'},{id:'eta-update',label:'ETA update',cause:'routine'},{id:'instructions',label:'Delivery instructions',cause:'routine'},{id:'exchange-followup',label:'Exchange / return follow-up',cause:'pending'},{id:'wrong-item',label:'Incorrect item / configuration',cause:'pending'},{id:'general-other',label:'Other',cause:'pending'}]}
         ];
         const DRIVER_CALL_ACTIONS = ['Pending decision','Exchange requested','Rescue requested','No exchange or rescue'];
-        const DRIVER_CALL_CAUSES = {driver:'Driver fault',product:'Product / hardware-pack issue — not driver fault',customer:'Customer preference — not driver fault',pending:'Responsibility not confirmed',routine:'Routine call'};
+        const DRIVER_CALL_CAUSES = {driver:'Driver fault','non-driver':'Not a driver fault',product:'Product / hardware-pack issue — not driver fault',customer:'Customer preference — not driver fault',pending:'Responsibility not confirmed',routine:'Routine call'};
         const defaultDriverCallIssue = () => ({segment:'',reason:'',damageStage:'',action:'Pending decision',guestSolution:'Not yet',needsManagerAttention:false,piecesScheduled:'',piecesDelivered:'',piecesAffected:'',routeStopsTotal:'',routeStopsCompleted:'',routeStopsLate:'',routeMinutesLate:'',routeIssueStatus:'active',routeBreakdownTracking:false,routeTruckStatus:'stopped',routeBreakdownNoticeSent:false,routeWindowTracking:false,routeWindowStop:'',routeNextWindowStart:'',routeNextWindowEnd:'',routeWindowStage:'pending',routeRevisedWindowStart:'',routeRevisedWindowEnd:'',classificationSource:'entered',classificationNeedsReview:false});
         const driverCallSegmentInfo = call => {
             const segment=DRIVER_CALL_SEGMENTS.find(item=>item.id===call?.segment);
@@ -2257,7 +2258,7 @@
             const next={...call,...patch};
             if(patch.segment!==undefined && patch.segment!==call.segment) {
                 next.reason=patch.segment==='mislabel'?'label-mismatch':patch.segment==='late-route'?'running-late':patch.segment==='truck-breakdown'?'truck-disabled':'';next.damageStage='';next.needsManagerAttention=false;
-                next.action=patch.segment==='rescue'?'Rescue requested':patch.segment==='refused'?'Exchange requested':patch.segment==='general'?'No exchange or rescue':'Pending decision';
+                next.action=patch.segment==='rescue'?'Rescue requested':['refused','exchange'].includes(patch.segment)?'Exchange requested':patch.segment==='general'?'No exchange or rescue':'Pending decision';
                 if(isRouteStatusCall(next)){next.action='No exchange or rescue';next.routeIssueStatus='active';}
                 if(next.segment==='truck-breakdown'){next.routeBreakdownTracking=true;next.routeTruckStatus='stopped';next.routeBreakdownNoticeSent=false;next.routeWindowTracking=false;next.routeWindowStage='pending';}
                 else {next.routeBreakdownTracking=false;if(next.segment==='late-route'){next.routeWindowTracking=true;next.routeWindowStage='pending';}}
@@ -2268,7 +2269,7 @@
             next.classificationNeedsReview=false;
             return next;
         };
-        const driverCallPiecesRequired = call => ['damage','refused','rescue','no-fit','mislabel'].includes(call?.segment)
+        const driverCallPiecesRequired = call => ['damage','refused','exchange','rescue','no-fit','mislabel'].includes(call?.segment)
             || ['exchange-followup','wrong-item'].includes(call?.reason)
             || ['Exchange requested','Rescue requested'].includes(call?.action);
         const validateDriverCallIssue = call => {
@@ -5125,7 +5126,7 @@
                 const validReview = candidate && candidate.revision === entry.revision && Array.isArray(candidate.types) ? candidate : null;
                 const classifiedCall=issueReviewClassifiedCall(note);
                 const issue=driverCallSegmentInfo(classifiedCall);entry.driverIssue=issue;entry.classifiedCall=classifiedCall;
-                entry.suggested = Array.from(new Set([...segments.flatMap(segment => issueReviewSuggestions(segment.text)),...(issue?[issue.segment.id]:[]),...(['Exchange requested'].includes(classifiedCall?.action)?['replacement']:[])]));
+                entry.suggested = Array.from(new Set([...segments.flatMap(segment => issueReviewSuggestions(segment.text)),...(issue?[issue.segment.id==='exchange'?'replacement':issue.segment.id]:[]),...(['Exchange requested'].includes(classifiedCall?.action)?['replacement']:[])]));
                 entry.review = validReview;
                 entry.staleReview = Boolean(candidate && !validReview);
                 entry.types = validReview ? validReview.types.filter(type => ISSUE_REVIEW_TYPES.some(item => item.id === type)) : entry.suggested;
