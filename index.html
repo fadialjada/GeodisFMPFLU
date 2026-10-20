@@ -1845,7 +1845,29 @@
             return { mondayStr: days[0], sundayStr: days[6], days, formattedDates };
         };
 
-        const getBonusWeekBoundaries = (dateStr) => getWeekBoundaries(dateStr);
+        // Metrics are entered on the report date and cover the previous workday.
+        const getMetricsReportingDate = (reportDate) => {
+            const coveredDay = new Date(reportDate + 'T12:00:00Z');
+            coveredDay.setUTCDate(coveredDay.getUTCDate() - 1);
+            return coveredDay.toISOString().split('T')[0];
+        };
+
+        const getBonusWeekBoundaries = (reportDate) => {
+            const metricsDate = getMetricsReportingDate(reportDate);
+            const week = getWeekBoundaries(metricsDate);
+            return { ...week, metricsDate, reportDate, isComplete: metricsDate === week.sundayStr };
+        };
+
+        const getMetricsReportingPeriod = (reportDate, scope = 'wtd') => {
+            const throughDate = getMetricsReportingDate(reportDate);
+            const week = getWeekBoundaries(throughDate);
+            const startDate = scope === 'mtd' ? throughDate.slice(0, 8) + '01' : week.mondayStr;
+            const label = (date, withWeekday = false) => new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', {
+                timeZone: 'UTC', month: 'short', day: 'numeric', ...(withWeekday ? { weekday: 'short' } : {})
+            });
+            return { reportDate, startDate, throughDate, throughLabel: label(throughDate, true),
+                rangeLabel: startDate === throughDate ? label(throughDate) : `${label(startDate)} – ${label(throughDate)}` };
+        };
 
         const getOfficeWeekBoundaries = (dateStr) => {
             const d = new Date(dateStr + 'T12:00:00');
@@ -11618,7 +11640,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                         <Activity className="w-7 h-7 text-slate-100" />
                                         <div>
                                             <h2 className="text-lg font-black text-white">Metrics Tracker</h2>
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Performance Snapshot: <span className="text-indigo-400">{displayDateString}</span></div>
+                                            <div className="text-xs font-medium text-slate-400 mt-0.5">Report date: <span className="text-indigo-300">{displayDateString}</span></div>
+                                            {metricsSubTab !== 'feedback' && <p className="text-xs text-slate-400 mt-1">Scores through <span className="text-slate-200">{getMetricsReportingPeriod(activeDate, metricsSubTab).throughLabel}</span> · {metricsSubTab === 'wtd' ? 'Week' : 'Month'}: {getMetricsReportingPeriod(activeDate, metricsSubTab).rangeLabel}</p>}
                                         </div>
                                     </div>
                                      <div className="flex items-center gap-2">
@@ -11665,6 +11688,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             <div>
                                                 <div className="text-sm font-black text-white tracking-wide">Metrics Tracker</div>
                                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{metricsSubTab.toUpperCase()} snapshot</div>
+                                                {metricsSubTab !== 'feedback' && <div className="text-xs text-slate-400 mt-1">Scores through {getMetricsReportingPeriod(activeDate, metricsSubTab).throughLabel} · {getMetricsReportingPeriod(activeDate, metricsSubTab).rangeLabel}</div>}
                                             </div>
                                         </div>
                                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{displayDateString}</div>
@@ -11722,7 +11746,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             <table className="w-full text-left border-collapse whitespace-nowrap" style={{ backgroundColor: '#1e293b', color: '#f8fafc', borderCollapse: 'collapse', width: '100%', fontFamily: 'sans-serif' }}>
                                                 <thead>
                                                     <tr className="bg-slate-900 border-b border-slate-700">
-                                                        <th colSpan="2" className="px-3 py-2 text-[10px] font-black uppercase text-right text-slate-400 tracking-wider" style={{ padding: '8px 16px', borderRight: '1px solid #334155' }}>MINIMUM TARGET ({metricsSubTab.toUpperCase()})</th>
+                                                        <th colSpan="2" className="px-3 py-2 text-[10px] font-black uppercase text-center text-slate-400 tracking-wider" style={{ padding: '8px 16px', borderRight: '1px solid #334155', textAlign: 'center' }}>MINIMUM TARGET ({metricsSubTab.toUpperCase()})</th>
                                                         <th className="px-3 py-2 text-xs font-black text-center text-white bg-slate-800 border-x border-slate-700 shadow-inner" style={{ padding: '8px 16px' }}>{metricsSubTab === 'wtd' ? '10' : '40'}</th>
                                                         <th className="px-3 py-2 text-xs font-black text-center text-white bg-slate-800 border-x border-slate-700 shadow-inner" style={{ padding: '8px 16px' }}>9.65</th>
                                                         <th className="px-3 py-2 text-xs font-black text-center text-white bg-slate-800 border-x border-slate-700 shadow-inner" style={{ padding: '8px 16px' }}>97.50%</th>
@@ -12217,6 +12241,8 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                                                 Week Of: <span className="text-indigo-400">{getBonusWeekBoundaries(activeDate).formattedDates[0]} - {getBonusWeekBoundaries(activeDate).formattedDates[6]}</span>
                                             </div>
+                                            <p className="text-xs text-slate-400 mt-1">Metrics entered {displayDateString} · Scores through <span className="text-slate-200">{getMetricsReportingPeriod(activeDate).throughLabel}</span></p>
+                                            <p className={`text-xs mt-1 ${getBonusWeekBoundaries(activeDate).isComplete ? 'text-emerald-300' : 'text-amber-300'}`}>{getBonusWeekBoundaries(activeDate).isComplete ? 'Completed week · Sunday included' : 'Week in progress · Final Sunday scores arrive Monday'}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -12241,6 +12267,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                             <div>
                                                 <div className="text-sm font-black text-white tracking-wide">Weekly Bonus Evaluation</div>
                                                 <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Bonus snapshot</div>
+                                                <div className="text-xs text-slate-400 mt-1">Report date: {displayDateString} · Scores through {getMetricsReportingPeriod(activeDate).throughLabel}</div>
                                             </div>
                                         </div>
                                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{getBonusWeekBoundaries(activeDate).formattedDates[0]} - {getBonusWeekBoundaries(activeDate).formattedDates[6]}</div>
