@@ -5824,14 +5824,14 @@
             const text = String(value ?? '');
             return text.endsWith('%') ? <>{text.slice(0, -1)}<span className="metric-ring-percent">%</span></> : value;
         };
-        const MetricRingVisual = ({ settings, moving, percentage, displayValue, colors, preview = false, sequenceIndex }) => {
+        const MetricRingVisual = ({ settings, moving, percentage, displayValue, colors, preview = false, sequenceIndex, centered = false }) => {
             const glow = settings.enabled && settings.glowStrength > 0 ? settings.glowMode : 'off';
             const showcase=settings.enabled && settings.showcase && (sequenceIndex != null || (preview && moving));
             const accent=normalizeDashboardRingSettings(settings).showcaseAccent;
             return <div className="metric-ring-visual relative w-32 h-32 z-10 flex items-center justify-center" style={ringVisualProperties(settings,sequenceIndex)}
                 data-ring-glow={glow} data-ring-style={settings.glowStyle} data-ring-motion={settings.enabled && moving && !showcase ? settings.motion : 'none'} data-ring-hover={settings.enabled ? (showcase && settings.hoverEffect==='expand'?'highlight':settings.hoverEffect) : 'none'}
                 data-ring-showcase={showcase?'on':undefined} data-ring-showcase-motion={showcase && settings.motionStrength>0?'on':'off'} data-ring-showcase-mood={settings.showcaseMood} data-ring-showcase-accent={showcase?accent:undefined}>
-                <div className="metric-ring-motion absolute inset-0">
+                <div className="metric-ring-motion absolute inset-0 flex items-center justify-center">
                     {showcase && <><span aria-hidden="true" data-html2canvas-ignore="true" className={`metric-ring-showcase-halo ${colors.ring}`} />
                         {accent==='soft' && <span aria-hidden="true" data-html2canvas-ignore="true" className={`metric-ring-showcase-orbit ${colors.ring}`}><span className="metric-ring-showcase-glint" /></span>}
                         {['comet','mix'].includes(accent) && <span aria-hidden="true" data-html2canvas-ignore="true" className={`metric-ring-showcase-comet ${colors.ring}`} />}
@@ -5842,9 +5842,10 @@
                         <circle cx="50" cy="50" r="40" className={`metric-ring-track stroke-current ${colors.text} opacity-20`} strokeWidth="6" fill="transparent" />
                         <circle cx="50" cy="50" r="40" className={`metric-ring-stroke stroke-current ${colors.ring} transition-all duration-1000 ease-out`} style={preview && glow === 'pulse' ? { animationDelay: `${-settings.glowInterval * .55}s` } : undefined} strokeWidth="6" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * Math.max(0, Math.min(100, percentage || 0))) / 100} strokeLinecap="round" />
                     </svg>
+                    {centered&&<span className={`metric-ring-value text-base md:text-lg font-semibold tracking-normal z-10 ${colors.text}`}><MetricRingNumber value={displayValue}/></span>}
                 </div>
                 {settings.enabled && moving && settings.motion === 'fireworks' && settings.motionStrength > 0 && <MetricRingFireworks strength={settings.motionStrength} />}
-                <span className={`metric-ring-value text-base md:text-lg font-semibold tracking-normal z-10 ${colors.text}`}><MetricRingNumber value={displayValue}/></span>
+                {!centered&&<span className={`metric-ring-value text-base md:text-lg font-semibold tracking-normal z-10 ${colors.text}`}><MetricRingNumber value={displayValue}/></span>}
             </div>;
         };
         const DashboardRingSettings = ({ settings, change, save, discard, busy, loaded, dirty }) => {
@@ -11135,7 +11136,7 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                     </div>
                                 )}
                                 
-                                <section className="mb-10">
+                                <section className="mb-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                         <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md relative overflow-hidden group">
                                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none"><Truck className="w-24 h-24 text-slate-100" /></div>
@@ -11245,12 +11246,11 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                                     const pctSafeguard = Math.max(0, Math.min(100, isNaN(card.pct) ? 0 : card.pct));
                                                     const Icon = card.icon;
                                                     return (
-                                                        <div key={idx} className="metric-ring-card bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
+                                                        <div key={idx} className="metric-ring-card bg-slate-900 px-5 pt-2 pb-2 rounded-2xl border border-slate-800 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
                                                             <div className="absolute top-4 right-4 opacity-[0.03]"><Icon className="w-16 h-16 text-white" /></div>
-                                                            <div className="mb-4 mt-2"><MetricRingVisual settings={displayedDashboardRings} moving={ringMotionActive} percentage={pctSafeguard} displayValue={card.displayValue} colors={colors} sequenceIndex={idx} /></div>
+                                                            <div className="w-full h-[156px] grid place-items-center shrink-0"><MetricRingVisual centered settings={displayedDashboardRings} moving={ringMotionActive} percentage={pctSafeguard} displayValue={card.displayValue} colors={colors} sequenceIndex={idx} /></div>
                                                             <span className={`text-[10px] md:text-[11px] font-black uppercase tracking-widest z-10 text-center mb-1 ${colors.text}`}>{card.title}</span>
-                                                            <span className="text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center z-10 mb-4">{card.targetDisplay}</span>
-                                                            <div className="z-10 text-[9px] font-black text-indigo-200/90 uppercase tracking-[0.1em] text-center bg-slate-950 px-5 py-2.5 rounded-xl border border-slate-800 shadow-inner flex items-center gap-3 whitespace-nowrap">
+                                                            <div className="z-10 text-[9px] font-black text-indigo-200/90 uppercase tracking-[0.1em] text-center bg-slate-950 px-3 py-2 rounded-xl border border-slate-800 shadow-inner flex items-center gap-2 whitespace-nowrap">
                                                                 <span>{card.yestValue} YEST</span><span className="text-slate-700">|</span><span>{card.wtdValue} WTD</span>
                                                             </div>
                                                         </div>
@@ -11330,51 +11330,47 @@ const TeamAssignmentReport = ({data, activeDate, displayDateString, preloadSched
                                 </section>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                                    <div role="region" aria-label="Next Day Routes" className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col">
+                                    <div role="region" aria-label="Next Day Routes" className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col text-center">
                                         <div className="px-4 py-3 bg-slate-900/50 border-b border-slate-700 text-xs font-bold uppercase text-indigo-300 tracking-widest">Next Day Routes</div>
-                                        <div className="p-4 space-y-3 flex-1">
-                                            <div className="flex items-center justify-between text-sm pb-3 border-b border-slate-700/50">
+                                        <div className="p-4 space-y-3 flex-1 flex flex-col justify-center">
+                                            <div className="flex items-center justify-center gap-3 text-sm pb-3 border-b border-slate-700/50">
                                                 <span className="text-slate-400 font-bold uppercase text-[10px]">Planned Routes</span>
-                                                <span className="font-black text-indigo-400 flex flex-col items-end leading-tight">
+                                                <span className="font-black text-indigo-400 flex flex-col items-center leading-tight">
                                                     <span>{String(plannedNextDayRoutes)}</span>
                                                     {isEditing && <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Auto</span>}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center justify-between text-sm pb-3 border-b border-slate-700/50">
+                                            <div className="flex items-center justify-center gap-3 text-sm pb-3 border-b border-slate-700/50">
                                                 <span className="text-slate-400 font-bold uppercase text-[10px]">Confirmed Routes</span>
-                                                <span className="font-black text-emerald-400 flex flex-col items-end leading-tight">
+                                                <span className="font-black text-emerald-400 flex flex-col items-center leading-tight">
                                                     <span>{String(confirmedNextDayRoutes)}</span>
                                                     {isEditing && <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Auto</span>}
                                                 </span>
                                             </div>
+                                            <div className="flex items-center justify-center gap-3 text-xs font-bold uppercase" data-next-day-confirmation="true">
+                                                <span>All {plannedNextDayRoutes} Confirmed</span>
+                                                <StatusBadge status={plannedNextDayRoutes > 0 && confirmedNextDayRoutes >= plannedNextDayRoutes} isEditing={false} />
+                                            </div>
                                             {(data.endOfDay?.admin || []).map((item, idx) => {
-                                                let displayLabel = String(item.label);
-                                                let isAutoCompliant = item.status;
-                                                let isAutoDisabled = false;
-                                                if (displayLabel ==="Action Center Clear") return null;
-                                                if (item.label ==="All Routes Confirmed") {
-                                                    const plannedRoutes = plannedNextDayRoutes;
-                                                    const confirmed = confirmedNextDayRoutes;
-                                                    displayLabel = `All ${plannedRoutes} Confirmed`;
-                                                    isAutoCompliant = (plannedRoutes > 0 && confirmed >= plannedRoutes);
-                                                    isAutoDisabled = true; 
-                                                }
+                                                const displayLabel = String(item.label);
+                                                const labelKey = displayLabel.trim().toLowerCase();
+                                                if (labelKey === 'action center clear' || labelKey === 'all routes confirmed') return null;
                                                 return (
-                                                    <div key={idx} className="flex items-center justify-between text-xs font-bold uppercase">
+                                                    <div key={idx} className="flex items-center justify-center gap-3 text-xs font-bold uppercase">
                                                         <span>{displayLabel}</span>
-                                                        <StatusBadge status={isAutoCompliant} isEditing={isEditing && !isAutoDisabled} onClick={() => !isAutoDisabled && (() => { const nd = JSON.parse(JSON.stringify(data)); nd.endOfDay.admin[idx].status = !nd.endOfDay.admin[idx].status; setData(nd); })()} />
+                                                        <StatusBadge status={item.status} isEditing={isEditing} onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.endOfDay.admin[idx].status = !nd.endOfDay.admin[idx].status; setData(nd); }} />
                                                     </div>
                                                 );
                                             })}
                                         </div>
                                     </div>
 
-                                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col">
+                                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col text-center">
                                         <div className="px-4 py-3 bg-slate-900/50 border-b border-slate-700 text-xs font-black uppercase text-slate-100 tracking-widest">End-of-Day Final Tasks</div>
-                                        <div className="p-4 space-y-4 flex-1">
+                                        <div className="p-4 space-y-4 flex-1 flex flex-col justify-center">
                                             {(data.midDay?.status || []).map((item, idx) => (
-                                                <div key={idx} className="flex items-center justify-between text-xs font-bold uppercase">
-                                                    <span className="text-slate-300">{String(item.label)}</span>
+                                                <div key={idx} className="mx-auto flex w-full max-w-[22rem] items-center justify-between gap-2 text-left text-xs font-bold uppercase [&>button]:shrink-0" style={{ containerType: 'inline-size' }}>
+                                                    <span className="whitespace-nowrap text-slate-300" style={{ fontSize: 'clamp(8px, calc((100cqw - 116px) / 18), 12px)' }}>{String(item.label)}</span>
                                                     <StatusBadge status={item.status} isEditing={isEditing} onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.midDay.status[idx].status = !nd.midDay.status[idx].status; setData(nd); }} />
                                                 </div>
                                             ))}
