@@ -7636,25 +7636,28 @@ const WeeklyBilling = (() => {
                 <ellipse cx="78" cy="85" rx="34" ry="57" fill={'url(#rib-'+id+')'} opacity={pale?'.15':'.65'}/>
                 <path d="M62 33C39 55 38 113 61 138M92 31C119 54 122 111 99 139M37 38C17 61 18 114 36 131M119 39C138 63 139 106 122 128" fill="none" stroke={pale?'#8d794b':'#703b22'} strokeOpacity=".5" strokeWidth="2"/>
                 <path d="M47 41C28 54 25 67 25 81M70 37C59 54 55 77 58 98M106 44C117 60 121 79 117 99" fill="none" stroke="#ffe0a2" strokeOpacity={pale?'.38':'.24'} strokeWidth="2.5" strokeLinecap="round"/>
-                {carved&&<><ellipse cx="78" cy="91" rx="51" ry="37" fill={'url(#glow-'+id+')'} opacity=".55"/><g fill={'url(#carve-'+id+')'} stroke="#6d321d" strokeWidth="2.7" strokeLinejoin="round"><path d="M35 75L57 55L63 82Q48 76 35 75Z"/><path d="M94 81L103 55L125 74Q109 75 94 81Z"/><path d="M70 91L78 78L86 92Z"/><path d="M34 99L49 105L56 99L65 110L78 106L91 111L100 102L108 107L125 97C118 131 49 136 34 99Z"/></g><path d="M42 104Q77 126 116 103" fill="none" stroke="#fff1b9" strokeOpacity=".55" strokeWidth="1.5"/></>}
+                {carved&&<><ellipse className="overview-halloween-pumpkin-aura" cx="78" cy="91" rx="62" ry="46" fill={'url(#ember-glow-'+id+')'}/><g className="overview-halloween-pumpkin-light" filter={'url(#light-bloom-'+id+')'} fill={'url(#carve-'+id+')'} stroke="#6d321d" strokeWidth="2.7" strokeLinejoin="round"><path d="M35 75L57 55L63 82Q48 76 35 75Z"/><path d="M94 81L103 55L125 74Q109 75 94 81Z"/><path d="M70 91L78 78L86 92Z"/><path d="M34 99L49 105L56 99L65 110L78 106L91 111L100 102L108 107L125 97C118 131 49 136 34 99Z"/></g><path d="M42 104Q77 126 116 103" fill="none" stroke="#fff1b9" strokeOpacity=".55" strokeWidth="1.5"/></>}
             </g>;
             const StillLife=({side})=>{const id='refined-halloween-'+side;return <svg className={'overview-halloween-pumpkins '+side} viewBox="0 0 420 330" aria-hidden="true" focusable="false">
                 <defs>
+                    <radialGradient id={'ember-glow-'+id}><stop stopColor="#ffe9a0" stopOpacity=".72"/><stop offset=".42" stopColor="#ffc04a" stopOpacity=".38"/><stop offset="1" stopColor="#f8892b" stopOpacity="0"/></radialGradient>
+                    <linearGradient id={'candle-flame-'+id} x1="0" y1="1" x2=".35" y2="0"><stop stopColor="#ff9f2e"/><stop offset=".5" stopColor="#ffe291"/><stop offset="1" stopColor="#fff8d3"/></linearGradient>
+                    <filter id={'light-bloom-'+id} x="-80%" y="-80%" width="260%" height="260%" colorInterpolationFilters="sRGB"><feGaussianBlur stdDeviation="3.2" result="bloom"/><feMerge><feMergeNode in="bloom"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
                     <linearGradient id={'shell-'+id} x1="0" y1="0" x2=".75" y2="1"><stop stopColor="#f4b55f"/><stop offset=".28" stopColor="#d77931"/><stop offset=".7" stopColor="#a84e23"/><stop offset="1" stopColor="#452b22"/></linearGradient>
                     <linearGradient id={'cream-'+id} x1="0" y1="0" x2=".7" y2="1"><stop stopColor="#f5ddb0"/><stop offset=".6" stopColor="#c8a36c"/><stop offset="1" stopColor="#69513b"/></linearGradient>
                     <linearGradient id={'rib-'+id} x1="0" y1="0" x2="1" y2=".3"><stop stopColor="#ffca73" stopOpacity=".2"/><stop offset=".5" stopColor="#f29b43"/><stop offset="1" stopColor="#76351e" stopOpacity=".2"/></linearGradient>
                     <linearGradient id={'stem-'+id}><stop stopColor="#364a37"/><stop offset=".5" stopColor="#82905a"/><stop offset="1" stopColor="#424c34"/></linearGradient>
-                    <radialGradient id={'carve-'+id}><stop stopColor="#fff4c2"/><stop offset=".55" stopColor="#ffd270"/><stop offset="1" stopColor="#e29b38"/></radialGradient>
+                    <radialGradient id={'carve-'+id}><stop stopColor="#fffce1"/><stop offset=".48" stopColor="#ffe38b"/><stop offset="1" stopColor="#ffaf3c"/></radialGradient>
                     <radialGradient id={'glow-'+id}><stop stopColor="#ffc36b" stopOpacity=".4"/><stop offset="1" stopColor="#ffc36b" stopOpacity="0"/></radialGradient>
                     <linearGradient id={'lantern-'+id} x1="0" y1="0" x2="1" y2=".4"><stop stopColor="#2b2b2c"/><stop offset=".5" stopColor="#7c6349"/><stop offset="1" stopColor="#25272b"/></linearGradient>
                 </defs>
                 <ellipse cx="220" cy="233" rx="195" ry="94" fill={'url(#glow-'+id+')'}/>
                 <ellipse cx="215" cy="289" rx="178" ry="18" fill="#0a0e16" opacity=".48"/>
                 <g transform="translate(56 56) rotate(-6 40 120)">
-                    <ellipse cx="43" cy="116" rx="62" ry="88" fill={'url(#glow-'+id+')'}/>
+                    <ellipse className="overview-halloween-candle-glow" cx="43" cy="102" rx="64" ry="87" fill={'url(#ember-glow-'+id+')'}/>
                     <path d="M28 20C9-16 71-16 56 20" fill="none" stroke="#957453" strokeWidth="4"/><path d="M21 28L30 16H55L65 28L75 37H11Z" fill={'url(#lantern-'+id+')'}/>
                     <path d="M15 39H70L76 145H9Z" fill="#e9a64d" fillOpacity=".12" stroke="#9e7951" strokeWidth="2"/><path d="M20 44H65L69 136H16Z" fill={'url(#glow-'+id+')'}/>
-                    <path d="M34 134V97Q43 90 52 97V134" fill="#ddc9a5"/><path d="M43 96C25 85 41 70 44 63C47 74 57 88 43 96" fill="#ffc56c"/><path d="M44 90C36 83 44 76 44 76C49 84 48 87 44 90" fill="#fff0b2"/>
+                    <path d="M34 134V97Q43 90 52 97V134" fill="#ddc9a5"/><g className="overview-halloween-candle-flame" filter={'url(#light-bloom-'+id+')'}><path d="M43 96C25 85 41 70 44 63C47 74 57 88 43 96" fill={'url(#candle-flame-'+id+')'}/><path d="M44 90C36 83 44 76 44 76C49 84 48 87 44 90" fill="#fffce5"/></g>
                     <path d="M15 39L24 140M70 39L61 140M43 39V59M12 81H73" fill="none" stroke="#82694f" strokeWidth="3"/><path d="M8 142H77L81 155H4Z" fill={'url(#lantern-'+id+')'}/>
                 </g>
                 <PumpkinFruit id={id} x="205" y="125" scale={.9}/>
@@ -7669,7 +7672,75 @@ const WeeklyBilling = (() => {
             const scenery=enabled?<div className="overview-halloween-scenery" aria-hidden="true" data-html2canvas-ignore="true" data-dashboard-edit-ignore="true">
                 <div className="overview-halloween-edge left"/><div className="overview-halloween-edge right"/>
                 <StillLife side="left"/><StillLife side="right"/>
-                <div className="overview-halloween-ghost-flight">
+
+                <svg className="overview-halloween-night" viewBox="0 0 250 230" aria-hidden="true" focusable="false"><defs><radialGradient id="refined-halloween-moon-halo"><stop stopColor="#fff1bc" stopOpacity=".7"/><stop offset=".45" stopColor="#f5d58c" stopOpacity=".43"/><stop offset=".74" stopColor="#e9b765" stopOpacity=".14"/><stop offset="1" stopColor="#e9b765" stopOpacity="0"/></radialGradient><radialGradient id="refined-halloween-moon" cx=".38" cy=".35" r=".7"><stop stopColor="#fff8dc"/><stop offset=".64" stopColor="#f2dba5"/><stop offset="1" stopColor="#b29b74"/></radialGradient><filter id="refined-halloween-moon-bloom" x="-55%" y="-55%" width="210%" height="210%" colorInterpolationFilters="sRGB"><feGaussianBlur stdDeviation="3.8" result="moonGlow"/><feMerge><feMergeNode in="moonGlow"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><circle className="overview-halloween-moon-halo" cx="151" cy="78" r="78" fill="url(#refined-halloween-moon-halo)"/><circle className="overview-halloween-moon-orb" cx="151" cy="78" r="43" fill="url(#refined-halloween-moon)" filter="url(#refined-halloween-moon-bloom)"/><g fill="#655e54" opacity=".22"><ellipse cx="134" cy="60" rx="12" ry="9"/><circle cx="167" cy="94" r="10"/><circle cx="145" cy="98" r="6"/><circle cx="168" cy="59" r="5"/></g><path d="M130 42A40 40 0 0 0 119 98" stroke="#f8e2ad" strokeOpacity=".45" fill="none" strokeWidth="1.5"/><g fill="#717e91" opacity=".65"><path d="M31 130Q43 117 56 130L60 124L64 131Q76 120 89 128L80 139L72 137L63 148L56 139L47 141Z"/><path d="M114 168Q124 155 133 165L138 159L142 165Q153 155 164 161L156 173L147 170L140 179L133 171L125 174Z"/><path d="M183 139Q191 130 199 137L203 132L206 137Q215 129 224 135L217 145L210 142L204 150L198 143L192 145Z"/></g><g fill="#e0c79e" opacity=".38"><path d="M64 38V48M59 43H69M207 36V44M203 40H211" stroke="#e0c79e" strokeWidth="1"/><circle cx="82" cy="86" r="1.1"/><circle cx="214" cy="100" r="1.3"/></g></svg>
+                <svg className="overview-halloween-web" viewBox="0 0 210 240" aria-hidden="true" focusable="false"><g fill="none" stroke="#b2b9c4" strokeWidth=".85" opacity=".3"><path d="M0 0H185M0 0L179 48M0 0L151 99M0 0L104 147M0 0L49 177M0 0V200"/><path d="M42 0Q36 10 40 12Q33 15 35 23Q23 26 24 34Q12 34 12 43Q5 37 0 46M85 0Q73 18 80 22Q63 31 66 43Q45 47 47 67Q24 66 24 87Q11 77 0 91M129 0Q110 27 122 33Q96 46 100 65Q68 73 70 99Q36 103 36 130Q16 116 0 137M175 0Q148 35 165 44Q130 64 135 89Q91 100 95 134Q49 143 49 176Q23 158 0 183"/><path d="M104 147V201" strokeOpacity=".7"/></g><g stroke="#a3acba" strokeWidth="1" opacity=".38" fill="none"><path d="M98 210L90 203L85 204M97 215L87 214L82 219M110 210L118 203L123 204M111 215L121 214L126 219"/><ellipse cx="104" cy="211" rx="6" ry="8" fill="#6d798a"/><circle cx="104" cy="202" r="3" fill="#6d798a"/></g></svg>
+                <svg className="overview-halloween-leaf-spray left" viewBox="0 0 230 280" aria-hidden="true" focusable="false"><path d="M3 268C15 209 2 155 38 107C60 79 54 47 80 21M23 160L75 132M34 112L7 83M55 73L101 66" fill="none" stroke="#7c6648" strokeWidth="1.5" opacity=".55"/><g fill="#ad7542" opacity=".5"><path d="M47 106L58 91L64 95L67 84L73 93L83 91L79 102L90 106L75 111L71 123L61 114L49 117Z"/><path d="M78 36L85 21L91 24L94 12L101 22L111 19L107 32L117 37L103 42L100 54L90 44L78 48Z"/><path d="M11 173C39 160 50 176 33 187C25 187 19 181 11 173Z"/><path d="M7 89C24 67 33 76 27 91C21 99 13 98 7 89Z"/></g><g fill="#c8a46b" opacity=".38"><path d="M68 137C88 117 102 130 91 143C83 147 76 145 68 137Z"/><path d="M18 218C40 197 49 212 37 224C29 229 22 225 18 218Z"/></g></svg>
+                <svg className="overview-halloween-leaf-spray right" viewBox="0 0 230 280" aria-hidden="true" focusable="false"><path d="M3 268C15 209 2 155 38 107C60 79 54 47 80 21M23 160L75 132M55 73L101 66" fill="none" stroke="#7c6648" strokeWidth="1.5" opacity=".55"/><g fill="#aa6538" opacity=".5"><path d="M47 106L58 91L64 95L67 84L73 93L83 91L79 102L90 106L75 111L71 123L61 114L49 117Z"/><path d="M78 36L85 21L91 24L94 12L101 22L111 19L107 32L117 37L103 42L100 54L90 44L78 48Z"/><path d="M11 173C39 160 50 176 33 187C25 187 19 181 11 173Z"/></g><path d="M68 137C88 117 102 130 91 143C83 147 76 145 68 137Z" fill="#c8a46b" opacity=".38"/></svg>
+            </div>:null;
+            return <>
+                <style>{`
+                    body.overview-halloween-visible .dashboard-main-content{position:relative;z-index:1}
+                    body.overview-halloween-visible .dashboard-main-content:has(.dashboard-fullscreen-panel){z-index:auto}
+                    .overview-halloween-scenery{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;user-select:none}
+                    .overview-halloween-pumpkins{position:absolute;width:320px;height:auto;bottom:44px;opacity:.88}
+                    .overview-halloween-pumpkins.left{left:max(8px,calc(50% - 974px))}
+                    .overview-halloween-pumpkins.right{right:max(8px,calc(50% - 974px));transform:scaleX(-1);width:300px;bottom:55px;opacity:.75}
+                    .overview-halloween-edge{position:absolute;bottom:35px;width:360px;height:320px;background:radial-gradient(ellipse at bottom,#bb712a17,transparent 72%)}
+                    .overview-halloween-edge.left{left:max(0px,calc(50% - 1000px))}.overview-halloween-edge.right{right:max(0px,calc(50% - 1000px))}
+                    .overview-halloween-night{position:absolute;right:max(12px,calc(50% - 960px));top:78px;width:220px;height:auto;opacity:.7}
+                    .overview-halloween-web{position:absolute;left:0;top:78px;width:170px;height:auto;opacity:.65}
+                    .overview-halloween-leaf-spray{position:absolute;width:180px;height:auto;top:170px;opacity:.65}
+                    .overview-halloween-leaf-spray.left{left:max(0px,calc(50% - 1010px))}.overview-halloween-leaf-spray.right{right:max(0px,calc(50% - 1010px));transform:scaleX(-1);top:340px;opacity:.55}
+                    @media(max-width:1600px){.overview-halloween-pumpkins{width:235px;opacity:.65;bottom:45px}.overview-halloween-pumpkins.right{width:220px;opacity:.5;bottom:50px}.overview-halloween-night{width:170px;opacity:.48}.overview-halloween-leaf-spray{width:135px;opacity:.35}.overview-halloween-web{width:130px;opacity:.48}}
+                    @media(max-width:1100px){.overview-halloween-pumpkins{width:170px;opacity:.45}.overview-halloween-pumpkins.right{width:160px;opacity:.35}.overview-halloween-night{width:135px;opacity:.3}.overview-halloween-web{width:100px;opacity:.35}.overview-halloween-leaf-spray{display:none}}
+                    @media(max-width:700px){.overview-halloween-pumpkins{width:125px;opacity:.28;bottom:46px}.overview-halloween-pumpkins.right{width:115px;opacity:.22;bottom:48px}.overview-halloween-night,.overview-halloween-web{display:none}}
+                    .overview-halloween-pumpkin-light{opacity:.96;animation:overview-pumpkin-light 3.8s ease-in-out infinite}
+                    .overview-halloween-pumpkin-aura{opacity:.76;animation:overview-ember-glow 3.8s ease-in-out infinite}
+                    .overview-halloween-candle-glow{opacity:.88;animation:overview-ember-glow 2.9s ease-in-out infinite}
+                    .overview-halloween-candle-flame{opacity:1;transform-box:fill-box;transform-origin:50% 100%;animation:overview-candle-flicker 2.9s ease-in-out infinite}
+                    .overview-halloween-pumpkins.right .overview-halloween-pumpkin-light,.overview-halloween-pumpkins.right .overview-halloween-pumpkin-aura{animation-delay:-1.4s}
+                    .overview-halloween-pumpkins.right .overview-halloween-candle-glow,.overview-halloween-pumpkins.right .overview-halloween-candle-flame{animation-delay:-.9s}
+                    @keyframes overview-pumpkin-light{0%,100%{opacity:.84}28%{opacity:1}46%{opacity:.91}62%{opacity:.99}81%{opacity:.88}}
+                    @keyframes overview-ember-glow{0%,100%{opacity:.66}28%{opacity:.96}46%{opacity:.78}62%{opacity:1}81%{opacity:.74}}
+                    @keyframes overview-candle-flicker{0%,100%{transform:rotate(-1.5deg) scale(.98,1);opacity:.94}22%{transform:rotate(2deg) scale(1.03,1.08);opacity:1}43%{transform:rotate(-2deg) scale(.96,.95);opacity:.86}61%{transform:rotate(1deg) scale(1.02,1.05);opacity:1}79%{transform:rotate(-1deg) scale(.99,.98);opacity:.91}}
+                    @media(prefers-reduced-motion:reduce){.overview-halloween-pumpkin-light,.overview-halloween-pumpkin-aura,.overview-halloween-candle-glow,.overview-halloween-candle-flame{animation:none!important;opacity:.96}.overview-halloween-candle-flame{transform:none}}
+                    .overview-halloween-ghost-flight{--ghost-cycle:38s;--ghost-delay:-7s;--ghost-direction:normal;--ghost-size:clamp(66px,min(7vw,9vh),116px);--ghost-left:max(12px,calc(50vw - 890px));--ghost-right:calc(100vw - var(--ghost-size) - var(--ghost-left));position:fixed;left:0;top:0;width:var(--ghost-size);height:auto;pointer-events:none;user-select:none;opacity:.66;z-index:0;transform-origin:50% 50%;will-change:transform;animation:overview-ghost-flight var(--ghost-cycle) cubic-bezier(.42,0,.38,1) var(--ghost-delay) infinite var(--ghost-direction)}
+                    .overview-halloween-ghost{display:block;width:100%;height:auto;transform-origin:50% 55%;animation:overview-ghost-haunt 5.8s ease-in-out infinite}
+                    .overview-halloween-ghost-hand{transform-box:fill-box;animation:overview-ghost-reach 3.4s ease-in-out infinite}
+                    .overview-halloween-ghost-hand.left{transform-origin:100% 60%}.overview-halloween-ghost-hand.right{transform-origin:0% 60%;animation-direction:reverse;animation-delay:-1.2s}
+                    @keyframes overview-ghost-flight{
+                        0%,100%{transform:translate3d(var(--ghost-left),26vh,0) rotate(-9deg);opacity:.62}
+                        12%{transform:translate3d(calc(var(--ghost-left) + 42px),15vh,0) rotate(13deg);opacity:.74}
+                        25%{transform:translate3d(calc(var(--ghost-left) + 12px),48vh,0) rotate(-14deg);opacity:.66}
+                        36%{transform:translate3d(43vw,64vh,0) rotate(22deg);opacity:.44}
+                        48%{transform:translate3d(var(--ghost-right),42vh,0) rotate(12deg);opacity:.66}
+                        61%{transform:translate3d(calc(var(--ghost-right) - 36px),20vh,0) rotate(-15deg);opacity:.74}
+                        73%{transform:translate3d(calc(var(--ghost-right) - 22px),57vh,0) rotate(17deg);opacity:.64}
+                        84%{transform:translate3d(46vw,67vh,0) rotate(-23deg);opacity:.44}
+                        93%{transform:translate3d(calc(var(--ghost-left) + 16px),45vh,0) rotate(8deg);opacity:.66}
+                    }
+                    @keyframes overview-ghost-haunt{0%,100%{transform:translate3d(0,0,0) rotate(-3deg) scale(.98)}28%{transform:translate3d(0,-7px,0) rotate(5deg) scale(1.03)}52%{transform:translate3d(0,1px,0) rotate(-5deg) scale(1.1)}68%{transform:translate3d(0,-5px,0) rotate(4deg) scale(1.04)}83%{transform:translate3d(0,4px,0) rotate(-2deg) scale(1)}}
+                    @keyframes overview-ghost-reach{0%,100%{transform:rotate(-5deg)}45%{transform:rotate(13deg)}70%{transform:rotate(-10deg)}}
+                    .overview-halloween-ghost-companion{--ghost-size:clamp(60px,min(6vw,8vh),100px);--ghost-cycle:46s;--ghost-delay:-22s;--ghost-direction:reverse}
+                    .overview-halloween-ghost-companion .overview-halloween-ghost{animation-delay:-2.8s}
+                    .overview-halloween-ghost-red,.overview-halloween-ghost-scary{opacity:0;animation:overview-ghost-red var(--ghost-cycle) ease-in-out var(--ghost-delay) infinite var(--ghost-direction)}
+                    .overview-halloween-ghost-calm{opacity:1;animation:overview-ghost-calm var(--ghost-cycle) ease-in-out var(--ghost-delay) infinite var(--ghost-direction)}
+                    @keyframes overview-ghost-red{0%,48%,82%,100%{opacity:0}56%,74%{opacity:1}}
+                    @keyframes overview-ghost-calm{0%,48%,82%,100%{opacity:1}56%,74%{opacity:0}}
+                    @media(prefers-reduced-motion:reduce){.overview-halloween-ghost-flight,.overview-halloween-ghost-flight *{animation:none!important}.overview-halloween-ghost-flight{transform:translate3d(var(--ghost-left),30vh,0);opacity:.45;will-change:auto;z-index:0}.overview-halloween-ghost-companion{transform:translate3d(var(--ghost-right),40vh,0)}}
+
+                    @media print{.overview-halloween-scenery,.overview-halloween-ghost-flight,.overview-halloween-toggle{display:none!important}}
+
+.overview-halloween-toggle{display:inline-flex;align-items:center;gap:5px;border:1px solid #91704d50;border-radius:20px;background:#342c231a;color:#bc9c76;padding:3px 8px;font:inherit;font-size:9px;font-weight:600;letter-spacing:.02em;text-transform:none;cursor:pointer}.overview-halloween-toggle:hover{background:#815c3422;color:#e7be8e}.overview-halloween-toggle:focus-visible{outline:2px solid #d5a263;outline-offset:3px}.overview-halloween-toggle svg{width:13px;height:13px}.overview-halloween-storage-error{color:#f6c778;font-size:10px;letter-spacing:normal;text-transform:none}
+                `}</style>
+                {controlTarget && createPortal(<>
+                {owner && <button type="button" disabled={busy || !loaded} className="overview-halloween-toggle" aria-label={enabled?'Hide Halloween decorations':'Show Halloween decorations'} aria-pressed={enabled} title={enabled?'Hide Halloween decorations for everyone':'Show Halloween decorations for everyone'} onClick={toggle} data-html2canvas-ignore="true" data-dashboard-edit-ignore="true"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M9 5C8 2 10 1 12 1M9 5C5 3 2 6 2 11C2 16 6 18 10 17C14 18 18 16 18 11C18 6 14 3 11 5Z"/><path d="M8 5C5 8 5 14 8 17M12 5C15 8 15 14 12 17"/></svg>{busy?'Saving…':enabled?'Halloween':'Show Halloween'}</button>}
+                {owner && storageError && <span role="status" className="overview-halloween-storage-error">{storageError}</span>}
+                </>,controlTarget)}
+                {scenery && createPortal(scenery,document.querySelector('.dashboard-page-shell') || document.body)}
+                {enabled && createPortal(<>
+                <div className="overview-halloween-ghost-flight" aria-hidden="true" data-html2canvas-ignore="true" data-dashboard-edit-ignore="true">
                     <svg className="overview-halloween-ghost" viewBox="0 0 180 220" aria-hidden="true" focusable="false">
                         <defs>
                             <radialGradient id="halloween-ghost-halo-one"><stop stopColor="#bfd8e8" stopOpacity=".16"/><stop offset="1" stopColor="#bfd8e8" stopOpacity="0"/></radialGradient>
@@ -7704,7 +7775,7 @@ const WeeklyBilling = (() => {
                     </svg>
                 </div>
 
-                <div className="overview-halloween-ghost-flight overview-halloween-ghost-companion">
+                <div className="overview-halloween-ghost-flight overview-halloween-ghost-companion" aria-hidden="true" data-html2canvas-ignore="true" data-dashboard-edit-ignore="true">
                     <svg className="overview-halloween-ghost" viewBox="0 0 180 220" aria-hidden="true" focusable="false">
                         <defs>
                             <radialGradient id="halloween-ghost-halo-two"><stop stopColor="#bfd8e8" stopOpacity=".16"/><stop offset="1" stopColor="#bfd8e8" stopOpacity="0"/></radialGradient>
@@ -7738,64 +7809,7 @@ const WeeklyBilling = (() => {
                         </g>
                     </svg>
                 </div>
-
-                <svg className="overview-halloween-night" viewBox="0 0 250 230" aria-hidden="true" focusable="false"><defs><radialGradient id="refined-halloween-moon-halo"><stop stopColor="#ebc68a" stopOpacity=".24"/><stop offset="1" stopColor="#ebc68a" stopOpacity="0"/></radialGradient><radialGradient id="refined-halloween-moon"><stop stopColor="#f6dfac"/><stop offset=".7" stopColor="#b6a17e"/><stop offset="1" stopColor="#786e5e"/></radialGradient></defs><circle cx="151" cy="78" r="78" fill="url(#refined-halloween-moon-halo)"/><circle cx="151" cy="78" r="43" fill="url(#refined-halloween-moon)" opacity=".65"/><g fill="#655e54" opacity=".22"><ellipse cx="134" cy="60" rx="12" ry="9"/><circle cx="167" cy="94" r="10"/><circle cx="145" cy="98" r="6"/><circle cx="168" cy="59" r="5"/></g><path d="M130 42A40 40 0 0 0 119 98" stroke="#f8e2ad" strokeOpacity=".45" fill="none" strokeWidth="1.5"/><g fill="#717e91" opacity=".65"><path d="M31 130Q43 117 56 130L60 124L64 131Q76 120 89 128L80 139L72 137L63 148L56 139L47 141Z"/><path d="M114 168Q124 155 133 165L138 159L142 165Q153 155 164 161L156 173L147 170L140 179L133 171L125 174Z"/><path d="M183 139Q191 130 199 137L203 132L206 137Q215 129 224 135L217 145L210 142L204 150L198 143L192 145Z"/></g><g fill="#e0c79e" opacity=".38"><path d="M64 38V48M59 43H69M207 36V44M203 40H211" stroke="#e0c79e" strokeWidth="1"/><circle cx="82" cy="86" r="1.1"/><circle cx="214" cy="100" r="1.3"/></g></svg>
-                <svg className="overview-halloween-web" viewBox="0 0 210 240" aria-hidden="true" focusable="false"><g fill="none" stroke="#b2b9c4" strokeWidth=".85" opacity=".3"><path d="M0 0H185M0 0L179 48M0 0L151 99M0 0L104 147M0 0L49 177M0 0V200"/><path d="M42 0Q36 10 40 12Q33 15 35 23Q23 26 24 34Q12 34 12 43Q5 37 0 46M85 0Q73 18 80 22Q63 31 66 43Q45 47 47 67Q24 66 24 87Q11 77 0 91M129 0Q110 27 122 33Q96 46 100 65Q68 73 70 99Q36 103 36 130Q16 116 0 137M175 0Q148 35 165 44Q130 64 135 89Q91 100 95 134Q49 143 49 176Q23 158 0 183"/><path d="M104 147V201" strokeOpacity=".7"/></g><g stroke="#a3acba" strokeWidth="1" opacity=".38" fill="none"><path d="M98 210L90 203L85 204M97 215L87 214L82 219M110 210L118 203L123 204M111 215L121 214L126 219"/><ellipse cx="104" cy="211" rx="6" ry="8" fill="#6d798a"/><circle cx="104" cy="202" r="3" fill="#6d798a"/></g></svg>
-                <svg className="overview-halloween-leaf-spray left" viewBox="0 0 230 280" aria-hidden="true" focusable="false"><path d="M3 268C15 209 2 155 38 107C60 79 54 47 80 21M23 160L75 132M34 112L7 83M55 73L101 66" fill="none" stroke="#7c6648" strokeWidth="1.5" opacity=".55"/><g fill="#ad7542" opacity=".5"><path d="M47 106L58 91L64 95L67 84L73 93L83 91L79 102L90 106L75 111L71 123L61 114L49 117Z"/><path d="M78 36L85 21L91 24L94 12L101 22L111 19L107 32L117 37L103 42L100 54L90 44L78 48Z"/><path d="M11 173C39 160 50 176 33 187C25 187 19 181 11 173Z"/><path d="M7 89C24 67 33 76 27 91C21 99 13 98 7 89Z"/></g><g fill="#c8a46b" opacity=".38"><path d="M68 137C88 117 102 130 91 143C83 147 76 145 68 137Z"/><path d="M18 218C40 197 49 212 37 224C29 229 22 225 18 218Z"/></g></svg>
-                <svg className="overview-halloween-leaf-spray right" viewBox="0 0 230 280" aria-hidden="true" focusable="false"><path d="M3 268C15 209 2 155 38 107C60 79 54 47 80 21M23 160L75 132M55 73L101 66" fill="none" stroke="#7c6648" strokeWidth="1.5" opacity=".55"/><g fill="#aa6538" opacity=".5"><path d="M47 106L58 91L64 95L67 84L73 93L83 91L79 102L90 106L75 111L71 123L61 114L49 117Z"/><path d="M78 36L85 21L91 24L94 12L101 22L111 19L107 32L117 37L103 42L100 54L90 44L78 48Z"/><path d="M11 173C39 160 50 176 33 187C25 187 19 181 11 173Z"/></g><path d="M68 137C88 117 102 130 91 143C83 147 76 145 68 137Z" fill="#c8a46b" opacity=".38"/></svg>
-            </div>:null;
-            return <>
-                <style>{`
-                    body.overview-halloween-visible .dashboard-main-content{position:relative;z-index:1}
-                    body.overview-halloween-visible .dashboard-main-content:has(.dashboard-fullscreen-panel){z-index:auto}
-                    .overview-halloween-scenery{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;user-select:none}
-                    .overview-halloween-pumpkins{position:absolute;width:320px;height:auto;bottom:44px;opacity:.88}
-                    .overview-halloween-pumpkins.left{left:max(8px,calc(50% - 974px))}
-                    .overview-halloween-pumpkins.right{right:max(8px,calc(50% - 974px));transform:scaleX(-1);width:300px;bottom:55px;opacity:.75}
-                    .overview-halloween-edge{position:absolute;bottom:35px;width:360px;height:320px;background:radial-gradient(ellipse at bottom,#bb712a17,transparent 72%)}
-                    .overview-halloween-edge.left{left:max(0px,calc(50% - 1000px))}.overview-halloween-edge.right{right:max(0px,calc(50% - 1000px))}
-                    .overview-halloween-night{position:absolute;right:max(12px,calc(50% - 960px));top:78px;width:220px;height:auto;opacity:.7}
-                    .overview-halloween-web{position:absolute;left:0;top:78px;width:170px;height:auto;opacity:.65}
-                    .overview-halloween-leaf-spray{position:absolute;width:180px;height:auto;top:170px;opacity:.65}
-                    .overview-halloween-leaf-spray.left{left:max(0px,calc(50% - 1010px))}.overview-halloween-leaf-spray.right{right:max(0px,calc(50% - 1010px));transform:scaleX(-1);top:340px;opacity:.55}
-                    @media(max-width:1600px){.overview-halloween-pumpkins{width:235px;opacity:.65;bottom:45px}.overview-halloween-pumpkins.right{width:220px;opacity:.5;bottom:50px}.overview-halloween-night{width:170px;opacity:.48}.overview-halloween-leaf-spray{width:135px;opacity:.35}.overview-halloween-web{width:130px;opacity:.48}}
-                    @media(max-width:1100px){.overview-halloween-pumpkins{width:170px;opacity:.45}.overview-halloween-pumpkins.right{width:160px;opacity:.35}.overview-halloween-night{width:135px;opacity:.3}.overview-halloween-web{width:100px;opacity:.35}.overview-halloween-leaf-spray{display:none}}
-                    @media(max-width:700px){.overview-halloween-pumpkins{width:125px;opacity:.28;bottom:46px}.overview-halloween-pumpkins.right{width:115px;opacity:.22;bottom:48px}.overview-halloween-night,.overview-halloween-web{display:none}}
-                    .overview-halloween-ghost-flight{--ghost-mood-duration:24s;--ghost-mood-delay:0s;--ghost-size:clamp(66px,7vw,116px);--ghost-left:max(12px,calc(50vw - 890px));--ghost-right:calc(100vw - var(--ghost-size) - var(--ghost-left));position:absolute;left:0;top:0;width:var(--ghost-size);height:auto;pointer-events:none;user-select:none;opacity:.66;will-change:transform;animation:overview-ghost-flight 38s cubic-bezier(.42,0,.38,1) infinite;animation-delay:-7s}
-                    .overview-halloween-ghost{display:block;width:100%;height:auto;transform-origin:50% 55%;animation:overview-ghost-haunt 5.8s ease-in-out infinite}
-                    .overview-halloween-ghost-hand{transform-box:fill-box;animation:overview-ghost-reach 3.4s ease-in-out infinite}
-                    .overview-halloween-ghost-hand.left{transform-origin:100% 60%}.overview-halloween-ghost-hand.right{transform-origin:0% 60%;animation-direction:reverse;animation-delay:-1.2s}
-                    @keyframes overview-ghost-flight{
-                        0%,100%{transform:translate3d(var(--ghost-left),26vh,0) rotate(-9deg);opacity:.62}
-                        12%{transform:translate3d(calc(var(--ghost-left) + 42px),15vh,0) rotate(13deg);opacity:.74}
-                        25%{transform:translate3d(calc(var(--ghost-left) + 12px),48vh,0) rotate(-14deg);opacity:.66}
-                        36%{transform:translate3d(43vw,64vh,0) rotate(22deg);opacity:.44}
-                        48%{transform:translate3d(var(--ghost-right),42vh,0) rotate(12deg);opacity:.66}
-                        61%{transform:translate3d(calc(var(--ghost-right) - 36px),20vh,0) rotate(-15deg);opacity:.74}
-                        73%{transform:translate3d(calc(var(--ghost-right) - 22px),57vh,0) rotate(17deg);opacity:.64}
-                        84%{transform:translate3d(46vw,67vh,0) rotate(-23deg);opacity:.44}
-                        93%{transform:translate3d(calc(var(--ghost-left) + 16px),45vh,0) rotate(8deg);opacity:.66}
-                    }
-                    @keyframes overview-ghost-haunt{0%,100%{transform:translate3d(0,0,0) rotate(-3deg) scale(.98)}28%{transform:translate3d(0,-7px,0) rotate(5deg) scale(1.03)}52%{transform:translate3d(0,1px,0) rotate(-5deg) scale(1.1)}68%{transform:translate3d(0,-5px,0) rotate(4deg) scale(1.04)}83%{transform:translate3d(0,4px,0) rotate(-2deg) scale(1)}}
-                    @keyframes overview-ghost-reach{0%,100%{transform:rotate(-5deg)}45%{transform:rotate(13deg)}70%{transform:rotate(-10deg)}}
-                    .overview-halloween-ghost-companion{--ghost-size:clamp(60px,6vw,100px);--ghost-mood-duration:31s;--ghost-mood-delay:-17s;animation-duration:46s;animation-direction:reverse;animation-delay:-22s}
-                    .overview-halloween-ghost-companion .overview-halloween-ghost{animation-delay:-2.8s}
-                    .overview-halloween-ghost-red,.overview-halloween-ghost-scary{opacity:0;animation:overview-ghost-red var(--ghost-mood-duration) ease-in-out infinite;animation-delay:var(--ghost-mood-delay)}
-                    .overview-halloween-ghost-calm{opacity:1;animation:overview-ghost-calm var(--ghost-mood-duration) ease-in-out infinite;animation-delay:var(--ghost-mood-delay)}
-                    @keyframes overview-ghost-red{0%,48%,82%,100%{opacity:0}56%,74%{opacity:1}}
-                    @keyframes overview-ghost-calm{0%,48%,82%,100%{opacity:1}56%,74%{opacity:0}}
-                    @media(max-width:700px){.overview-halloween-ghost-flight{opacity:.4}}
-                    @media(prefers-reduced-motion:reduce){.overview-halloween-ghost-flight,.overview-halloween-ghost-flight *{animation:none!important}.overview-halloween-ghost-flight{transform:translate3d(var(--ghost-left),30vh,0);opacity:.45;will-change:auto}.overview-halloween-ghost-companion{transform:translate3d(var(--ghost-right),40vh,0)}}
-
-                    @media print{.overview-halloween-scenery,.overview-halloween-toggle{display:none!important}}
-
-.overview-halloween-toggle{display:inline-flex;align-items:center;gap:5px;border:1px solid #91704d50;border-radius:20px;background:#342c231a;color:#bc9c76;padding:3px 8px;font:inherit;font-size:9px;font-weight:600;letter-spacing:.02em;text-transform:none;cursor:pointer}.overview-halloween-toggle:hover{background:#815c3422;color:#e7be8e}.overview-halloween-toggle:focus-visible{outline:2px solid #d5a263;outline-offset:3px}.overview-halloween-toggle svg{width:13px;height:13px}.overview-halloween-storage-error{color:#f6c778;font-size:10px;letter-spacing:normal;text-transform:none}
-                `}</style>
-                {controlTarget && createPortal(<>
-                {owner && <button type="button" disabled={busy || !loaded} className="overview-halloween-toggle" aria-label={enabled?'Hide Halloween decorations':'Show Halloween decorations'} aria-pressed={enabled} title={enabled?'Hide Halloween decorations for everyone':'Show Halloween decorations for everyone'} onClick={toggle} data-html2canvas-ignore="true" data-dashboard-edit-ignore="true"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M9 5C8 2 10 1 12 1M9 5C5 3 2 6 2 11C2 16 6 18 10 17C14 18 18 16 18 11C18 6 14 3 11 5Z"/><path d="M8 5C5 8 5 14 8 17M12 5C15 8 15 14 12 17"/></svg>{busy?'Saving…':enabled?'Halloween':'Show Halloween'}</button>}
-                {owner && storageError && <span role="status" className="overview-halloween-storage-error">{storageError}</span>}
-                </>,controlTarget)}
-                {scenery && createPortal(scenery,document.querySelector('.dashboard-page-shell') || document.body)}
+                </>,document.body)}
             </>;
         };
 
