@@ -2735,10 +2735,19 @@
             return { label: 'Saved', color: 'text-emerald-400', icon: 'saved', detail: 'The database has confirmed the saved data.' };
         };
         const OWNER_UID = '9BdsuIRx3nNG3QrhEi8hjdgXGXz2';
-        const TEAM_UIDS = new Set([OWNER_UID, '0lydQXs1YggMpbN7IpVUBhM2Q1C2',
+        const TEAM_UIDS = new Set([OWNER_UID, '6Pzcze63B8PxQOgwUqNk08VAt6f2', '0lydQXs1YggMpbN7IpVUBhM2Q1C2',
             '8LDjZnhNd0XnkE2kPeL0tXLhImh2', 'XKs6jvncmtOH1vXIRuCLnN6zihh1',
             '79ko6RLyjbhlUClcMcw66lKmNg22', 'rlSdxiVJCIYO9fPTyzPyIFJJUEm2']);
-        const isOwnerAccount = account => Boolean(account?.uid && account.uid === OWNER_UID);
+        const MASTER_ADMIN_ACCOUNTS = new Map([[OWNER_UID,'fadi.aljada@geodis.com'],['6Pzcze63B8PxQOgwUqNk08VAt6f2','fadi.aljada@gmail.com']]);
+        const MASTER_ADMIN_EMAILS = new Set(MASTER_ADMIN_ACCOUNTS.values());
+        const normalizedLoginEmail = value => String(value || '').trim().toLowerCase();
+        const isMasterAdminEmail = value => MASTER_ADMIN_EMAILS.has(normalizedLoginEmail(value));
+        // Authorize the actual Firebase Auth user, never a display name, profile email label, or role.
+        // Bind the two existing Firebase Authentication accounts to their exact approved emails.
+        const isOwnerAccount = account => Boolean(account?.uid && MASTER_ADMIN_ACCOUNTS.has(account.uid)
+            && MASTER_ADMIN_ACCOUNTS.get(account.uid) === normalizedLoginEmail(account.email));
+        const isProtectedMasterAdminProfile = account => Boolean(account?.uid && MASTER_ADMIN_ACCOUNTS.has(account.uid));
+        const isMasterAdminUid = uid => Boolean(uid && MASTER_ADMIN_ACCOUNTS.has(uid));
         const validateNewLogin = draft => {
             const name = String(draft.name || '').trim(), email = String(draft.email || '').trim();
             const password = String(draft.password || '');
@@ -2770,8 +2779,9 @@
             'auth/unauthorized-domain':'This website address is not authorized in Firebase Authentication.'
         })[error?.code] || (error?.code === 'dashboard/password-policy' ? error.message : 'The login could not be created. Please try again.');
         const createDashboardLogin = async draft => {
-            if (!isOwnerAccount(auth.currentUser)) throw new Error('Only Fadi can create dashboard logins.');
+            if (!isUserAdministrator(auth.currentUser)) throw new Error('Only Master Admin or an assigned Admin can add users.');
             const fields = validateNewLogin(draft);
+            if(isMasterAdminEmail(fields.email))throw new Error('This login is protected.');
             let temporaryApp, temporaryAuth;
             try {
                 temporaryApp = initializeApp(firebaseConfig, 'dashboard-account-' + crypto.randomUUID());
@@ -2799,7 +2809,7 @@
             'auth/unauthorized-domain':'This website address is not authorized in Firebase Authentication.'
         })[error?.code] || 'The reset link could not be requested. Please try again.';
         const requestDashboardPasswordReset = async value => {
-            if (!isOwnerAccount(auth.currentUser)) throw new Error('Only Fadi can manage password resets here.');
+            if (!isOwnerAccount(auth.currentUser)) throw new Error('Only Master Admin can manage password resets here.');
             const email = validatePasswordResetEmail(value);
             try { await sendPasswordResetEmail(auth, email); }
             catch (error) {
@@ -2834,12 +2844,12 @@
             ? error.message : 'The password change could not be confirmed. Please try again, or use Send reset link.');
         const changeDashboardPassword = async draft => {
             const administrator = auth.currentUser;
-            if (!isOwnerAccount(administrator)) throw new Error('Only Fadi can change passwords here.');
+            if (!isOwnerAccount(administrator)) throw new Error('Only Master Admin can change passwords here.');
             const fields = validateDirectPasswordChange(draft);
             let temporaryApp, temporaryAuth;
             try {
                 let targetUser, targetAuth = auth;
-                if (fields.uid === OWNER_UID) {
+                if (fields.uid === administrator.uid) {
                     if (!administrator.email || fields.email.toLowerCase() !== administrator.email.toLowerCase())
                         throw Object.assign(new Error('Use the email you are currently signed in with.'), {code:'dashboard/password-target'});
                     targetUser = administrator;
@@ -2850,7 +2860,7 @@
                 }
                 const policy = await validatePassword(targetAuth, fields.password);
                 if (!policy.isValid) throw Object.assign(new Error(passwordPolicyMessage(policy)), {code:'dashboard/password-policy'});
-                if (fields.uid === OWNER_UID) {
+                if (fields.uid === administrator.uid) {
                     await reauthenticateWithCredential(targetUser, EmailAuthProvider.credential(fields.email, fields.currentPassword));
                 } else {
                     const credential = await signInWithEmailAndPassword(temporaryAuth, fields.email, fields.currentPassword);
@@ -2876,15 +2886,15 @@
             ? Array.from(new Set(value.filter(uid => typeof uid === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(uid)))).sort()
             : null;
         const requiresManagerNoteAcknowledgement = (note, uid, defaultUids = null) => {
-            if (!isManagerNote(note) || !uid || isOwnerAccount({uid}) || note.authorUid === uid) return false;
+            if (!isManagerNote(note) || !uid || isMasterAdminUid(uid) || note.authorUid === uid) return false;
             const selected = normalizeManagerNoteAcknowledgementUids(Array.isArray(note.managerNoteAcknowledgementUids)
                 ? note.managerNoteAcknowledgementUids : defaultUids);
             return selected === null || selected.includes(uid);
         };
         const saveManagerNoteAcknowledgementTeam = async ({uid, recipients, baseline, name}) => {
-            if (!isOwnerAccount(auth.currentUser) || auth.currentUser.uid !== uid) throw new Error('Only Fadi can save the Manager Note acknowledgement team.');
+            if (!isOwnerAccount(auth.currentUser) || auth.currentUser.uid !== uid) throw new Error('Only Master Admin can save the Manager Note acknowledgement team.');
             const chosen = normalizeManagerNoteAcknowledgementUids(recipients);
-            if (chosen === null || chosen.length !== new Set(recipients).size || chosen.includes(OWNER_UID)) throw new Error('Choose valid team accounts for acknowledgement.');
+            if (chosen === null || chosen.length !== new Set(recipients).size || chosen.some(isMasterAdminUid)) throw new Error('Choose valid team accounts for acknowledgement.');
             const ref = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
             await runTransaction(db, async transaction => {
                 const snapshot = await transaction.get(ref);
@@ -2946,13 +2956,13 @@
             const allowedActivity = new Set(['replies', 'likes', 'acknowledgedBy', 'acknowledgedAt']);
             for (const note of after) {
                 const previous = before.find(item => item.id === note.id);
-                if (isManagerNote(note) && !isManagerNote(previous)) throw new Error('Only Fadi can create Manager Notes.');
+                if (isManagerNote(note) && !isManagerNote(previous)) throw new Error('Only Master Admin can create Manager Notes.');
             }
             for (const previous of before.filter(isManagerNote)) {
                 const note = after.find(item => item.id === previous.id);
                 if (!note || [...new Set([...Object.keys(previous), ...Object.keys(note)])].some(key =>
                     !allowedActivity.has(key) && !sameSavedValue(previous[key], note[key]))) {
-                    throw new Error('Only Fadi can edit or remove Manager Notes.');
+                    throw new Error('Only Master Admin can edit or remove Manager Notes.');
                 }
             }
         };
@@ -2963,7 +2973,7 @@
 
         const PERMISSION_OPTIONS = [
             ['overview', 'Overview'], ['routes', 'Routes'], ['metrics', 'Metrics'],
-            ['shiftNotes', 'Shift Notes'], ['bonus', 'Bonus'], ['office', 'Office schedules'],
+            ['shiftNotes', 'Shift Notes'], ['bonus', 'Bonus'], ['office', 'Office schedules'], ['history', 'History'],
             ['masterLists', 'Master lists'], ['contractorPlan', 'Planned trucks'],
             ['parking', 'Parking assignments'], ['preload', 'Preload arrival & door'],
             ['preloadAssignments', 'Preload contractor assignments'], ['chat', 'Team Chat']
@@ -2978,42 +2988,213 @@
         const defaultAccessProfile = uid => ({ uid, name: DEFAULT_ACCOUNT_NAMES[uid] || '', email: '',
             enabled: TEAM_UIDS.has(uid), permissions: { ...DEFAULT_STAFF_PERMISSIONS } });
         const accessProfilesCache = new Map([...TEAM_UIDS].map(uid => [uid, defaultAccessProfile(uid)]));
+        let delegatedAdministrationEnabled=false;
+        const userAdministratorGrants=new Map();
+        const isUserAdministrator = account => isOwnerAccount(account)||Boolean(account?.uid&&delegatedAdministrationEnabled&&accessProfilesCache.get(account.uid)?.enabled&&userAdministratorGrants.get(account.uid)?.enabled===true);
+        const userAdministrationTarget = (uid,account=auth.currentUser) => {
+            if(!isUserAdministrator(account))throw new Error('Only Master Admin or an assigned Admin can manage users.');
+            if(!/^[A-Za-z0-9_-]{1,128}$/.test(uid)||isMasterAdminUid(uid))throw new Error('This account is protected.');
+            if(!isOwnerAccount(account)&&(uid===account.uid||userAdministratorGrants.get(uid)?.enabled===true||accessProfilesCache.get(uid)?.isUserAdmin===true))throw new Error('Only Master Admin can manage Admin accounts.');
+            return true;
+        };
+        const userDirectoryRecord = (profile,administrator=false) => ({uid:profile.uid,name:String(profile.name||''),email:String(profile.email||''),enabled:profile.enabled===true,permissions:{...profile.permissions},sectionActions:profile.sectionActions||{},dashboardDeleted:profile.dashboardDeleted===true,isUserAdmin:administrator===true});
+        const prepareUserManagementWrites = async (database,native,business,snapshots,queued) => {
+            const profiles=business.filter(item=>item.kind==='accessProfiles'),grants=business.filter(item=>item.kind==='userAdministrators');
+            if(!grants.length&&!profiles.length)return [];
+            if(!delegatedAdministrationEnabled&&!grants.length){if(!isOwnerAccount(auth.currentUser))throw new Error('Admin management has not been activated.');return [];}
+            const read=async ref=>{if(!snapshots.has(ref.path))snapshots.set(ref.path,await native.get(ref));return snapshots.get(ref.path);};
+            if(!isOwnerAccount(auth.currentUser)){
+                const role=await read(ownerRef('userAdministrators',auth.currentUser.uid));
+                const actor=await read(ownerRef('accessProfiles',auth.currentUser.uid));
+                if(!role.exists()||role.data().enabled!==true||!actor.exists()||actor.data().enabled!==true)throw new Error('Your Admin role or dashboard access was removed. Reopen the dashboard.');
+                if(grants.length)throw new Error('Only Master Admin can assign Admin roles.');
+            }
+            const writes=[];
+            for(const uid of new Set([...profiles,...grants].map(item=>item.id))){
+                userAdministrationTarget(uid);
+                const roleRef=ownerRef('userAdministrators',uid),roleSnap=await read(roleRef),roleBefore=roleSnap.exists()?roleSnap.data():{},roleChange=grants.find(item=>item.id===uid),roleAfter=roleChange?.afterRecord||roleBefore;
+                if(!isOwnerAccount(auth.currentUser)&&(roleBefore.enabled===true||roleAfter.enabled===true))throw new Error('Only Master Admin can manage Admin accounts.');
+                const profileChange=profiles.find(item=>item.id===uid),ref=ownerRef('accessProfiles',uid),snap=profileChange?null:await read(ref),profile=profileChange?.afterRecord||(snap?.exists()?snap.data():null);
+                if(!profile||profile.uid!==uid)throw new Error('Save this person’s normal user profile before assigning Admin access.');
+                if(isMasterAdminEmail(profile.email))throw new Error('This login is protected.');
+                writes.push({ref:ownerRef('userManagementDirectory',uid),data:userDirectoryRecord(profile,roleAfter.enabled===true)});
+            }
+            return writes;
+        };
+        const prepareUserAdministrationDirectory = async profiles => {
+            if(!isOwnerAccount(auth.currentUser))throw new Error('Only Master Admin can prepare Admin access.');
+            await getDocs(query(collection(db,'artifacts',appId,'public','data','userAdministrators'),limit(1)));
+            await getDocs(query(collection(db,'artifacts',appId,'public','data','userManagementDirectory'),limit(1)));
+            const ordinary=profiles.filter(profile=>!isProtectedMasterAdminProfile(profile));
+            for(let index=0;index<ordinary.length;index+=6){const group=ordinary.slice(index,index+6);await runTransaction(db,async transaction=>{
+                const rows=await Promise.all(group.map(async profile=>{const ref=ownerRef('accessProfiles',profile.uid),snap=await transaction.get(ref),role=await transaction.get(ownerRef('userAdministrators',profile.uid));return {ref,exists:snap.exists(),profile:snap.exists()?snap.data():{...defaultAccessProfile(profile.uid),name:profile.name,email:profile.email||''},role:role.exists()&&role.data().enabled===true};}));
+                for(const item of rows){if(!item.exists)transaction.set(item.ref,item.profile);transaction.set(ownerRef('userManagementDirectory',item.profile.uid),userDirectoryRecord(item.profile,item.role));}
+            });}
+            await runTransaction(db,async transaction=>{const ref=ownerRef('config','masterLists');await transaction.get(ref);transaction.set(ref,{delegatedAdministrationVersion:1},{merge:true});});delegatedAdministrationEnabled=true;
+        };
+        const writeDelegatedUserRemoval = async (uid,removing,actorName,restoredProfile=null) => {
+            userAdministrationTarget(uid);
+            return runTransaction(db,async transaction=>{const ref=ownerRef('accessProfiles',uid),snapshot=await transaction.get(ref),master=await transaction.get(ownerRef('config','masterLists'));
+                const before=snapshot.exists()?snapshot.data():defaultAccessProfile(uid);
+                if(!removing&&!before.dashboardDeleted)throw new Error('This user is not in Deleted users. Reopen their account.');
+                const source=removing?before:restoredProfile||before;
+                const profile={uid,name:String(source.name||''),email:String(source.email||''),enabled:removing?false:source.enabled===true,permissions:{...source.permissions},...(source.sectionActions?{sectionActions:source.sectionActions}:{}),dashboardDeleted:removing,lastUpdatedBy:actorName,lastUpdatedAt:new Date().toISOString()};
+                if(!ownerControlPolicyEnabled){delete profile.sectionActions;delete profile.permissions.history;}transaction.set(ref,profile);return{profile,master:master.exists()?master.data():DEFAULT_MASTER_LISTS};
+            });
+        };
+
         let settingsServiceAvailable = false;
         let currentAuditName = '';
         let dashboardLoginRequested = false, dashboardLoggedSessionUid = '';
         const normalizeAccessProfile = (uid, saved) => ({ ...defaultAccessProfile(uid), ...saved, uid,
-            enabled: uid === OWNER_UID || (saved ? saved.enabled === true : TEAM_UIDS.has(uid)),
-            permissions: saved ? Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, saved.permissions?.[key] === true]))
-                : { ...DEFAULT_STAFF_PERMISSIONS } });
-        const isRemovedDashboardUser = (account, removed = {}) => account.uid !== OWNER_UID && !account.enabled && Boolean(removed?.[account.uid]);
+            enabled: (auth.currentUser?.uid===uid && isOwnerAccount(auth.currentUser)) || (saved ? saved.enabled === true : TEAM_UIDS.has(uid)),
+            email: auth.currentUser?.uid===uid && isOwnerAccount(auth.currentUser) ? auth.currentUser.email : String(saved?.email||MASTER_ADMIN_ACCOUNTS.get(uid)||''),
+            name: String(saved?.name || (MASTER_ADMIN_ACCOUNTS.has(uid)?'Master Admin':DEFAULT_ACCOUNT_NAMES[uid]||'')),
+            permissions: saved ? Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, saved.sectionActions?.[key] ? saved.sectionActions[key].view===true && ['add','edit','delete'].some(action=>saved.sectionActions[key][action]===true) : saved.permissions?.[key]===true])) : { ...DEFAULT_STAFF_PERMISSIONS },
+            sectionActions: normalizeSectionActions(saved?.sectionActions,saved?.permissions||DEFAULT_STAFF_PERMISSIONS) });
+        const isRemovedDashboardUser = (account, removed = {}) => !isProtectedMasterAdminProfile(account) && !account.enabled && Boolean(removed?.[account.uid]||account.dashboardDeleted);
         const accountHasPermission = (account, key, profile = accessProfilesCache.get(account?.uid)) =>
-            isOwnerAccount(account) || Boolean(account?.uid && profile?.enabled && profile.permissions?.[key]);
+            isOwnerAccount(account) || Boolean(account?.uid && profile?.enabled && (profile.sectionActions?.[key] ? profile.sectionActions[key].view && ['add','edit','delete'].some(action=>profile.sectionActions[key][action]) : profile.permissions?.[key]));
         const requirePermission = key => {
             requireTeamAccount();
             if (!accountHasPermission(auth.currentUser, key)) throw new Error('You do not have permission to edit ' + (PERMISSION_OPTIONS.find(item => item[0] === key)?.[1] || key) + '.');
         };
-        const BUSINESS_COLLECTIONS = ['dailyRecaps', 'weeklyBonuses', 'officeSchedules', 'preloadSchedules', 'config', 'teamChat', 'accessProfiles', 'teamTasks'];
+        const ownerToday = () => new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+        const OWNER_ACTIONS = ['view','add','edit','delete','export'];
+        const ownerWeekKey = day => {const date=new Date(String(day)+'T12:00:00Z');if(!Number.isFinite(+date))throw new Error('Choose a valid date.');const n=date.getUTCDay();date.setUTCDate(date.getUTCDate()+(n===0?-6:1-n));return date.toISOString().slice(0,10);};
+        const ownerShiftDay = (day,n) => {const date=new Date(day+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+n);return date.toISOString().slice(0,10);};
+        const normalizeSectionActions = (saved,legacy={}) => Object.fromEntries(PERMISSION_OPTIONS.map(([key])=>[key,Object.fromEntries(OWNER_ACTIONS.map(action=>[action,action==='delete'?false:typeof saved?.[key]?.[action]==='boolean'?saved[key][action]:action==='view'||action==='export'?true:action==='delete'&&key==='shiftNotes'?false:legacy[key]===true]))]));
+        const accountCanAction = (account,key,action,profile=accessProfilesCache.get(account?.uid)) => {if(isOwnerAccount(account))return true;if(action==='delete'||!account?.uid||!profile?.enabled)return false;const flags=profile.sectionActions?.[key];const fallback=action==='view'||action==='export'?true:profile.permissions?.[key]===true;return (flags?.view??true)&&(typeof flags?.[action]==='boolean'?flags[action]:fallback);};
+        const requireSectionAction = (key,action) => {requireTeamAccount();if(!accountCanAction(auth.currentUser,key,action))throw new Error('You do not have '+action+' permission for '+(PERMISSION_OPTIONS.find(([id])=>id===key)?.[1]||key)+'.');};
+        const ownerPermissionKey = section => ({notes:'shiftNotes','driver-hub':'preload',driverHub:'preload'})[section]||section;
+        const ownerRef = (kind,id) => doc(db,'artifacts',appId,'public','data',kind,id);
+        let ownerControlPolicyEnabled=false;
+        const ownerLocksCache=new Map();
+        const ownerRecoveryDays=30;
+        const ownerRecoveryCollections=['auditEvents','activityEvents','dailyRecaps','weeklyBonuses','officeSchedules','preloadSchedules','teamTasks'];
+        const ownerPayload = value => Array.isArray(value)?value.map(ownerPayload):value&&typeof value==='object'&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null)?Object.fromEntries(Object.entries(value).map(([key,item])=>[key,ownerPayload(item)])):value;
+        const ownerRecordLabel = (kind,id,field,item) => ['auditEvents','activityEvents'].includes(kind)?'Activity: '+String(item.actorName||'Team member')+' '+String(item.summary||item.text||'').slice(0,120):field ? (field==='routeTable'?'Route ':'Note ')+(item.serviceUnit||item.route||item.driverCall?.route||String(item.text||'').slice(0,80)||item.id)+' · '+id : sectionNameForRecord(kind,id)+' · '+id;
+        const ownerArrayActions = (left=[],right=[]) => {const byId=new Map(left.map((item,i)=>[String(item?.id??i),item])),next=new Map(right.map((item,i)=>[String(item?.id??i),item])),actions=new Set();for(const [id,item]of next){if(!byId.has(id))actions.add('add');else if(!sameSavedValue(byId.get(id),item))actions.add('edit');}for(const id of byId.keys())if(!next.has(id))actions.add('delete');return [...actions];};
+        const ownerRequiredActions = (kind,before,after,operation) => {
+            const requirements=[],add=(section,actions)=>actions.forEach(action=>requirements.push([section,action])),changed=key=>!sameSavedValue(before?.[key],after?.[key]);
+            if(kind==='dailyRecaps'){
+                if(!Object.keys(before||{}).length){before=DEFAULT_DATA;after={...DEFAULT_DATA,...after,loadout:{...DEFAULT_DATA.loadout,...after.loadout},midDay:{...DEFAULT_DATA.midDay,...after.midDay},endOfDay:{...DEFAULT_DATA.endOfDay,...after.endOfDay}};}
+                for(const [field,key]of[['routeTable','routes'],['shiftNotes','shiftNotes']])if(changed(field))add(key,ownerArrayActions(before?.[field]||[],after?.[field]||[]));
+                if(changed('metricsTracker'))for(const field of new Set([...Object.keys(before?.metricsTracker||{}),...Object.keys(after?.metricsTracker||{})])){const a=before?.metricsTracker?.[field],b=after?.metricsTracker?.[field];if(!sameSavedValue(a,b))add('metrics',Array.isArray(a)||Array.isArray(b)?ownerArrayActions(a||[],b||[]):['edit']);}
+                if(changed('loadout')||changed('midDay')||changed('endOfDay')){const a=before?.loadout||{},b=after?.loadout||{};const {metrics:am,...ar}=a,{metrics:bm,...br}=b;if(!sameSavedValue(ar,br)||changed('midDay')||changed('endOfDay'))add('overview',['edit']);else if(!sameSavedValue(am,bm)&&!changed('routeTable'))add('overview',['edit']);}
+            }else if(kind==='teamChat'){add('chat',ownerArrayActions(before?.messages||[],after?.messages||[]));
+            }else if(kind==='config'){
+                for(const [field,key]of[['drivers','masterLists'],['helpers','masterLists'],['contractors','masterLists']])if(changed(field)){if(field==='contractors'&&accountHasPermission(auth.currentUser,'contractorPlan')&&!accountHasPermission(auth.currentUser,'masterLists'))add('contractorPlan',['edit']);else add(key,ownerArrayActions(before?.[field]||[],after?.[field]||[]));}
+                if(changed('parkingAssignments'))add('parking',['edit']);
+                if(changed('ownerControlVersion'))throw new Error('Only Master Admin can activate owner controls.');
+            }else if(kind==='officeSchedules'&&Array.isArray(before?.employees)&&Array.isArray(after?.employees)){add('office',ownerArrayActions(before.employees,after.employees));if(!sameSavedValue(before.afterHours,after.afterHours))add('office',['edit']);}
+            else {const key={weeklyBonuses:'bonus',officeSchedules:'office',preloadSchedules:'preload',teamChat:'chat'}[kind];if(key)add(key,[operation==='create'?'add':operation==='delete'?'delete':'edit']);}
+            return requirements;
+        };
+        const ownerLockRequirements = (kind,id,before,after) => {
+            const requested=[];
+            if(kind==='weeklyBonuses')requested.push({week:id,sections:['bonus','billing']});
+            if(kind==='dailyRecaps'){
+                if(!sameSavedValue(before.routeTable,after.routeTable))requested.push({week:ownerWeekKey(id),sections:['bonus','billing']});
+                if(!sameSavedValue(before.metricsTracker,after.metricsTracker))requested.push({week:ownerWeekKey(ownerShiftDay(id,-1)),sections:['metrics','bonus','billing']});
+            }
+            return requested;
+        };
+        const ownerIsSectionLocked = (section,date,locks=ownerLocksCache) => {
+            const key=ownerPermissionKey(section),get=week=>locks.get(week)||{};
+            if(key==='bonus'){const lock=get(ownerWeekKey(ownerShiftDay(date,-1)));return !!(lock.bonus||lock.billing);}
+            if(key==='metrics'){const lock=get(ownerWeekKey(ownerShiftDay(date,-1)));return !!(lock.metrics||lock.bonus||lock.billing);}
+            if(key==='routes'){const lock=get(ownerWeekKey(date));return !!(lock.bonus||lock.billing);}
+            return false;
+        };
+        const ownerRecoveryRecord = ({kind,id,field=null,item,index=null,state='trash',now=new Date().toISOString()}) => ({sourceCollection:kind,sourceId:id,field,itemId:field?item.id:null,index,payload:ownerPayload(item),state,deletedAt:now,expiresAt:state==='trash'?new Date(Date.parse(now)+ownerRecoveryDays*86400000).toISOString():null,deletedByUid:auth.currentUser.uid,deletedBy:currentAuditName||getDefaultUserName(auth.currentUser),label:ownerRecordLabel(kind,id,field,item)});
+        const ownerRemovedRecords = entry => {
+            if(entry.deleted&&ownerRecoveryCollections.includes(entry.kind))return [{kind:entry.kind,id:entry.id,item:entry.beforeRecord}];
+            if(entry.kind!=='dailyRecaps')return [];
+            return ['routeTable','shiftNotes'].flatMap(field=>(entry.beforeRecord[field]||[]).flatMap((item,index)=>(entry.afterRecord[field]||[]).some(next=>String(next.id)===String(item.id))?[]:[{kind:entry.kind,id:entry.id,field,item,index}]));
+        };
+        const prepareOwnerBusinessWrites = async (database,native,business,snapshots,options,ids) => {
+            for(const entry of business)if(!isOwnerAccount(auth.currentUser))for(const [key,action]of ownerRequiredActions(entry.kind,entry.beforeRecord,entry.afterRecord,entry.operation))requireSectionAction(key,action);
+            if(!ownerControlPolicyEnabled)return [];
+            const lockRequests=business.flatMap(entry=>ownerLockRequirements(entry.kind,entry.id,entry.beforeRecord,entry.afterRecord));
+            for(const week of new Set(lockRequests.map(item=>item.week))){const ref=ownerRef('weekLocks',week);if(!snapshots.has(ref.path))snapshots.set(ref.path,await native.get(ref));}
+            for(const request of lockRequests){const snap=snapshots.get(ownerRef('weekLocks',request.week).path),lock=snap.exists()?snap.data():{};if(request.sections.some(section=>lock[section]===true))throw new Error('The week of '+request.week+' is locked. Fadi must unlock it in Settings → Data Management before these records can change.');}
+            const plans=[];
+            for(const entry of business)for(const removed of ownerRemovedRecords(entry)){
+                const key='recovery:'+entry.ref.path+':'+(removed.field||'record')+':'+(removed.item.id??'record');if(!ids.has(key))ids.set(key,crypto.randomUUID());
+                plans.push({ref:ownerRef('ownerRecovery',ids.get(key)),data:ownerRecoveryRecord({...removed,state:options?.auditAction==='archive'?'archive':'trash'})});
+            }
+            return plans;
+        };
+        const ownerRequire = () => {if(!isOwnerAccount(auth.currentUser))throw new Error('Only Master Admin can manage saved data.');};
+        const ownerServicePreflight = async () => {ownerRequire();await Promise.all([getDocs(query(collection(db,'artifacts',appId,'public','data','ownerRecovery'),limit(1))),getDocs(query(collection(db,'artifacts',appId,'public','data','weekLocks'),limit(1)))]);return true;};
+        const ownerActivateControls = async () => {ownerRequire();await ownerServicePreflight();await runTransaction(db,async t=>{const ref=ownerRef('config','masterLists');await t.get(ref);t.set(ref,{ownerControlVersion:1},{merge:true});});ownerControlPolicyEnabled=true;};
+        const ownerManagementReceipt = (t,operation,count) => t.set(ownerRef('ownerManagementLog',crypto.randomUUID()),{actorUid:auth.currentUser.uid,actorName:currentAuditName||getDefaultUserName(auth.currentUser),operation,count,timestamp:new Date().toISOString()});
+        const ownerHistoryChange = async (selected,state) => {
+            ownerRequire();if(!ownerControlPolicyEnabled)throw new Error('Activate owner controls first.');if(!selected.length||selected.length>100)throw new Error('Choose 1–100 history entries.');
+            const recoveryIds=selected.map(()=>crypto.randomUUID());
+            await runTransaction(db,async t=>{
+                const snapshots=await Promise.all(selected.map(item=>t.get(ownerRef(item.sourceCollection,item.id))));
+                snapshots.forEach((snap,index)=>{const item=selected[index];if(!['auditEvents','activityEvents'].includes(item.sourceCollection)||!snap.exists()||!sameSavedValue(snap.data(),item.payload))throw new Error('History changed after the preview. Search again before cleaning it up.');});
+                snapshots.forEach((snap,index)=>{const item=selected[index];t.set(ownerRef('ownerRecovery',recoveryIds[index]),ownerRecoveryRecord({kind:item.sourceCollection,id:item.id,item:snap.data(),state}));t.delete(ownerRef(item.sourceCollection,item.id));});
+                ownerManagementReceipt(t,state==='archive'?'archive-history':'delete-history',selected.length);
+            });
+        };
+        const ownerRestoreRecovery = async record => {
+            ownerRequire();const recoveryRef=ownerRef('ownerRecovery',record.id);
+            await runTransaction(db,async t=>{
+                const snap=await t.get(recoveryRef);if(!snap.exists())throw new Error('This recovery item is no longer available.');const item=snap.data();
+                if(!['trash','archive'].includes(item.state)||!ownerRecoveryCollections.includes(item.sourceCollection))throw new Error('This item cannot be restored.');
+                if(item.state==='trash'&&Date.parse(item.expiresAt)<=Date.now())throw new Error('The 30-day restore period has ended. Use your downloaded backup.');
+                const ref=ownerRef(item.sourceCollection,item.sourceId),target=await t.get(ref);const existing=target.exists()?target.data():null;
+                if(item.field){if(item.sourceCollection!=='dailyRecaps'||!['routeTable','shiftNotes'].includes(item.field)||!existing)throw new Error('Restore the day record first.');const rows=existing[item.field]||[];if(rows.some(row=>String(row.id)===String(item.itemId)))throw new Error('An item with this ID already exists. Nothing was overwritten.');const restored=[...rows];restored.splice(Math.min(item.index??rows.length,rows.length),0,item.payload);t.set(ref,{[item.field]:restored,lastUpdatedBy:currentAuditName,lastUpdatedAt:new Date().toISOString()},{merge:true});}
+                else {if(existing&&!sameSavedValue(stripAuditMetadata(existing),stripAuditMetadata(item.payload)))throw new Error('A different saved record already exists. Nothing was overwritten.');if(!existing)t.set(ref,item.payload);}
+                t.set(recoveryRef,{state:'restored',restoredAt:new Date().toISOString(),restoredByUid:auth.currentUser.uid},{merge:true});ownerManagementReceipt(t,'restore',1);
+            },{auditAction:'restore'});
+        };
+        const ownerSetWeekLock = async (week,flags,baseline) => {
+            ownerRequire();if(!ownerControlPolicyEnabled||ownerWeekKey(week)!==week)throw new Error('Activate owner controls and choose a valid week.');
+            await runTransaction(db,async t=>{const ref=ownerRef('weekLocks',week),snapshot=await t.get(ref),current=snapshot.exists()?snapshot.data():null;if(!sameSavedValue(current,baseline))throw new Error('This lock changed on another computer. Reload it before saving.');t.set(ref,{week,endDate:ownerShiftDay(week,6),reportStart:ownerShiftDay(week,1),reportEnd:ownerShiftDay(week,7),...Object.fromEntries(['bonus','billing','metrics'].map(key=>[key,flags[key]===true])),updatedByUid:auth.currentUser.uid,updatedBy:currentAuditName,updatedAt:new Date().toISOString()});for(let day=0;day<7;day++){const flagsForDay={week,bonus:flags.bonus===true,billing:flags.billing===true,metrics:flags.metrics===true};t.set(ownerRef('weekLockDates',ownerShiftDay(week,day)),flagsForDay);t.set(ownerRef('weekLockReports',ownerShiftDay(week,day+1)),flagsForDay);}ownerManagementReceipt(t,'week-lock',1);});
+        };
+        const ownerCleanupPreview = async (kind,cutoff) => {
+            ownerRequire();if(!/^\d{4}-\d{2}-\d{2}$/.test(cutoff))throw new Error('Choose a cutoff date.');
+            const source=kind==='tasks'?'teamTasks':'dailyRecaps',snaps=await getDocs(query(collection(db,'artifacts',appId,'public','data',source),limit(1500))),rows=[];
+            snaps.forEach(snap=>{const value=snap.data();if(kind==='tasks'){if(value.status==='completed'&&String(value.updatedAt||'').slice(0,10)<cutoff)rows.push({key:source+'/'+snap.id,id:snap.id,sourceCollection:source,payload:value,label:value.title+' · completed'});return;}
+                if(snap.id>=cutoff)return;(value.shiftNotes||[]).forEach((note,index)=>{const resolved=note.driverCall?.routeIssueStatus==='resolved',ordinary=note.category==='General'&&!note.system&&!note.driverCall&&note.noteType!=='driver-call'&&!note.preloadReminder&&!note.preloadArrivalConfirmed&&!note.managerNoteAcknowledgement&&!note.preloadHistory;if((kind==='resolved'&&resolved)||(kind==='notes'&&ordinary))rows.push({key:source+'/'+snap.id+'/shiftNotes/'+note.id,id:String(note.id),sourceId:snap.id,sourceCollection:source,field:'shiftNotes',index,payload:note,label:ownerRecordLabel(source,snap.id,'shiftNotes',note)});});});return rows;
+        };
+        const ownerApplyCleanup = async selected => {
+            ownerRequire();if(!ownerControlPolicyEnabled||!selected.length||selected.length>100)throw new Error('Activate owner controls and choose 1–100 items.');
+            const grouped=new Map();for(const item of selected){const key=item.sourceCollection+'/'+(item.sourceId||item.id);if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(item);}
+            if(grouped.size>8)throw new Error('Choose items from up to 8 saved day records or tasks per cleanup.');
+            await runTransaction(db,async t=>{const groups=[...grouped.values()],snaps=await Promise.all(groups.map(items=>t.get(ownerRef(items[0].sourceCollection,items[0].sourceId||items[0].id))));
+                groups.forEach((items,index)=>{const snap=snaps[index];if(!snap.exists())throw new Error('An item changed after the preview. Preview the cleanup again.');const data=snap.data(),first=items[0];if(first.field){for(const item of items)if(!sameSavedValue((data[item.field]||[]).find(row=>String(row.id)===item.id),item.payload))throw new Error('A note changed after the preview. Preview the cleanup again.');}
+                    else if(!sameSavedValue(data,first.payload))throw new Error('A task changed after the preview. Preview the cleanup again.');});
+                groups.forEach((items,index)=>{const first=items[0],ref=ownerRef(first.sourceCollection,first.sourceId||first.id);if(first.field){const removed=new Set(items.map(item=>item.id));t.set(ref,{[first.field]:snaps[index].data()[first.field].filter(row=>!removed.has(String(row.id))),lastUpdatedBy:currentAuditName,lastUpdatedAt:new Date().toISOString()},{merge:true});}else t.delete(ref);});ownerManagementReceipt(t,'bulk-archive',selected.length);
+            },{auditAction:'archive'});
+        };
+
+        const BUSINESS_COLLECTIONS = ['dailyRecaps', 'weeklyBonuses', 'officeSchedules', 'preloadSchedules', 'config', 'teamChat', 'accessProfiles', 'teamTasks', 'userAdministrators'];
         const BACKUP_COLLECTIONS = ['dailyRecaps', 'weeklyBonuses', 'officeSchedules', 'preloadSchedules', 'config', 'teamChat', 'teamChatFiles'];
         const sectionNameForRecord = (kind, id) => ({ dailyRecaps: 'Daily dashboard', weeklyBonuses: 'Bonus',
-            officeSchedules: 'Office', preloadSchedules: 'Preload', config: 'Master lists', teamChat: 'Team Chat', teamChatFiles: 'Chat attachments', accessProfiles: 'Users & Permissions', teamTasks: 'Team Tasks' })[kind] || kind;
+            officeSchedules: 'Office', preloadSchedules: 'Preload', config: 'Master lists', teamChat: 'Team Chat', teamChatFiles: 'Chat attachments', accessProfiles: 'Users & Permissions', userAdministrators:'Admin roles', teamTasks: 'Team Tasks' })[kind] || kind;
         const TEAM_TASK_STATUSES = { open: 'Open', 'in-progress': 'In Progress', completed: 'Completed' };
         const MAX_TASK_ASSIGNEES = 8;
         const getTaskAssignedUids = task => Array.isArray(task?.assignedUids) ? task.assignedUids : task?.assignedUid ? [task.assignedUid] : [];
         const isTaskAssignedTo = (task, uid) => Boolean(uid && getTaskAssignedUids(task).includes(uid));
         const getTaskAssignedName = (task, uid, accounts = []) => accounts.find(account => account.uid === uid)?.name || task.assignedNames?.[uid] || (task.assignedUid === uid ? task.assignedName : 'Team member');
-        const getTaskRecipientUids = (task, actorUid) => actorUid === OWNER_UID ? getTaskAssignedUids(task) : [OWNER_UID, ...getTaskAssignedUids(task).filter(uid => uid !== actorUid && uid !== OWNER_UID)];
+        const getTaskRecipientUids = (task, actorUid) => isMasterAdminUid(actorUid) ? getTaskAssignedUids(task) : [OWNER_UID, ...getTaskAssignedUids(task).filter(uid => uid !== actorUid && uid !== OWNER_UID)];
         const getTaskEventRecipients = event => Array.isArray(event.recipientUids) ? event.recipientUids : [event.recipientUid];
         const TEAM_TASK_FIELDS = ['id', 'title', 'instructions', 'assignedUid', 'assignedName', 'assignedUids', 'assignedNames', 'dueAt', 'status', 'createdAt', 'createdByUid', 'createdBy', 'updatedAt', 'updatedByUid', 'updatedBy', 'events', '_auditId'];
         const validateTeamTaskWrite = (before, after, operation, account = auth.currentUser) => {
             const owner = isOwnerAccount(account);
-            if (operation === 'delete') { if (!owner) throw new Error('Only Fadi can delete tasks.'); return; }
+            if (operation === 'delete') { if (!owner) throw new Error('Only Master Admin can delete tasks.'); return; }
             const validString = (value, max, required = true) => typeof value === 'string' && value.length <= max && (!required || value.trim().length > 0);
             if (!after || Object.keys(after).some(key => !TEAM_TASK_FIELDS.includes(key)) || !validString(after.id, 128)
                 || !validString(after.title, 160) || !validString(after.instructions, 4000, false)
                 || !validString(after.assignedUid, 128) || !validString(after.assignedName, 100)
                 || !TEAM_TASK_STATUSES[after.status] || !Number.isFinite(Date.parse(after.dueAt))
                 || !Array.isArray(after.events) || after.events.length > 500
-                || after.createdByUid !== OWNER_UID || after.updatedByUid !== account?.uid) throw new Error('The task has invalid details.');
+                || (operation === 'create' ? after.createdByUid !== account?.uid || !owner : after.createdByUid !== before?.createdByUid) || after.updatedByUid !== account?.uid) throw new Error('The task has invalid details.');
             if ('assignedUids' in after || 'assignedNames' in after) {
                 const ids = after.assignedUids, names = after.assignedNames;
                 if (!Array.isArray(ids) || !ids.length || ids.length > MAX_TASK_ASSIGNEES || new Set(ids).size !== ids.length
@@ -3022,10 +3203,10 @@
                     || Object.keys(names).some(uid => !ids.includes(uid)) || after.assignedUid !== ids[0] || after.assignedName !== names[ids[0]]) throw new Error('Choose one to eight team members.');
             }
             if (operation === 'create') {
-                if (!owner || after.status !== 'open' || after.events.length !== 1 || after.events[0]?.type !== 'assigned') throw new Error('Only Fadi can create and assign tasks.');
+                if (!owner || after.status !== 'open' || after.events.length !== 1 || after.events[0]?.type !== 'assigned') throw new Error('Only Master Admin can create and assign tasks.');
             } else {
                 if (['id', 'createdAt', 'createdByUid', 'createdBy'].some(key => !sameSavedValue(before[key], after[key]))) throw new Error('The original task record must be preserved.');
-                if (!owner && (!isTaskAssignedTo(before, account?.uid) || ['title', 'instructions', 'assignedUid', 'assignedName', 'assignedUids', 'assignedNames', 'dueAt'].some(key => !sameSavedValue(before[key], after[key])))) throw new Error('Only Fadi can change task assignments and details.');
+                if (!owner && (!isTaskAssignedTo(before, account?.uid) || ['title', 'instructions', 'assignedUid', 'assignedName', 'assignedUids', 'assignedNames', 'dueAt'].some(key => !sameSavedValue(before[key], after[key])))) throw new Error('Only Master Admin can change task assignments and details.');
             }
             const previous = before?.events || [], event = after.events.at(-1);
             if (after.events.length !== previous.length + 1 || !previous.every((item, index) => sameSavedValue(item, after.events[index]))
@@ -3036,13 +3217,13 @@
                 || !['assigned', 'edited', 'status', 'update-request', 'update'].includes(event.type)
                 || !sameSavedValue(getTaskEventRecipients(event), getTaskRecipientUids(after, account?.uid))
                 || event.recipientUid !== getTaskRecipientUids(after, account?.uid)[0]) throw new Error('The task update is invalid.');
-            if (!owner && !['status', 'update'].includes(event.type)) throw new Error('Only Fadi can request updates or assign tasks.');
+            if (!owner && !['status', 'update'].includes(event.type)) throw new Error('Only Master Admin can request updates or assign tasks.');
             if (event.type !== 'status' && operation !== 'create' && before.status !== after.status) throw new Error('Choose a status action to change progress.');
             if (['update-request', 'update'].includes(event.type) && !event.text.trim()) throw new Error('Enter your update message.');
         };
         const getTeamTaskNotifications = (tasks, uid, readIds = []) => {
             const read = new Set(readIds);
-            return tasks.flatMap(task => (task.events || []).filter(event => (uid === OWNER_UID || isTaskAssignedTo(task, uid)) && getTaskEventRecipients(event).includes(uid) && event.authorUid !== uid && !read.has(event.id))
+            return tasks.flatMap(task => (task.events || []).filter(event => (isMasterAdminUid(uid) || isTaskAssignedTo(task, uid)) && (getTaskEventRecipients(event).includes(uid) || (isMasterAdminUid(uid)&&getTaskEventRecipients(event).includes(OWNER_UID))) && event.authorUid !== uid && !read.has(event.id))
                 .map(event => ({ ...event, taskId: task.id, title: task.title }))).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
         };
         const getTaskWaitingUids = task => {
@@ -3843,7 +4024,12 @@
             requireTeamAccount();
             if (kind === 'teamTasks') { validateTeamTaskWrite(before, after, operation); return; }
             if (isOwnerAccount(auth.currentUser)) return;
-            if (operation === 'delete' || kind === 'accessProfiles') throw new Error('Only Fadi can make this change.');
+            if(kind==='accessProfiles'){
+                const uid=after?.uid||before?.uid;userAdministrationTarget(uid);
+                if(operation==='delete'||(before?.uid&&after?.uid!==before.uid)||isMasterAdminEmail(after.email))throw new Error('This account is protected.');
+                return;
+            }
+            if (operation === 'delete' || kind === 'userAdministrators') throw new Error('Only Master Admin can make this change.');
             if (kind === 'dailyRecaps' && !Object.keys(before || {}).length) {
                 before = DEFAULT_DATA;
                 after = { ...DEFAULT_DATA, ...after,
@@ -3852,6 +4038,10 @@
                     endOfDay: { ...DEFAULT_DATA.endOfDay, ...after.endOfDay } };
             }
             const changed = key => !sameSavedValue(before?.[key], after?.[key]);
+            const removedRows = (left=[],right=[]) => left.some((item,index)=>!right.some((next,nextIndex)=>String(next?.id??nextIndex)===String(item?.id??index)));
+            if(kind==='dailyRecaps' && (removedRows(before?.routeTable,after?.routeTable)||removedRows(before?.shiftNotes,after?.shiftNotes)
+                || Object.keys(before?.metricsTracker||{}).some(key=>Array.isArray(before.metricsTracker[key])&&removedRows(before.metricsTracker[key],after?.metricsTracker?.[key]||[]))))throw new Error('Only Master Admin can delete saved routes, notes or metric rows.');
+            if(kind==='config'&&['drivers','helpers','contractors'].some(key=>removedRows(before?.[key],after?.[key])))throw new Error('Only Master Admin can delete team records.');
             if (kind === 'dailyRecaps') {
                 if (changed('routeTable')) requirePermission('routes');
                 if (changed('metricsTracker')) requirePermission('metrics');
@@ -3869,15 +4059,16 @@
             } else if (kind === 'config') {
                 if (changed('parkingAssignments')) requirePermission('parking');
                 const fields = ['drivers', 'helpers', 'nameOverrides'];
-                if (changed('nameOverrides')) throw new Error('Only Fadi can rename dashboard users.');
-                if (changed('managerNoteAcknowledgementUids')) throw new Error('Only Fadi can choose the Manager Note acknowledgement team.');
-                if (changed('overviewHalloweenEnabled')) throw new Error('Only Fadi can change the Halloween decorations.');
-                if (changed('billingCompaniesForExport')) throw new Error('Only Fadi can change billing companies for export.');
-                if (changed('soundSettings')) throw new Error('Only Fadi can choose or mute dashboard sounds.');
-                if (changed('ringSettings')) throw new Error('Only Fadi can change dashboard ring effects.');
-                if (changed('managerAlertSettings')) throw new Error('Only Fadi can change Manager Alerts.');
-                if (changed('teamChatClear')) throw new Error('Only Fadi can clear Team Chat.');
-                if (changed('deletedDashboardUsers')) throw new Error('Only Fadi can delete or restore dashboard users.');
+                if (changed('nameOverrides')) throw new Error('Only Master Admin can rename dashboard users.');
+                if (changed('managerNoteAcknowledgementUids')) throw new Error('Only Master Admin can choose the Manager Note acknowledgement team.');
+                if (changed('overviewHalloweenEnabled')) throw new Error('Only Master Admin can change the Halloween decorations.');
+                if (changed('billingCompaniesForExport')) throw new Error('Only Master Admin can change billing companies for export.');
+                if (changed('soundSettings')) throw new Error('Only Master Admin can choose or mute dashboard sounds.');
+                if (changed('ringSettings')) throw new Error('Only Master Admin can change dashboard ring effects.');
+                if (changed('managerAlertSettings')) throw new Error('Only Master Admin can change Manager Alerts.');
+                if (changed('teamChatClear')) throw new Error('Only Master Admin can clear Team Chat.');
+                if (changed('deletedDashboardUsers')) throw new Error('Only Master Admin can change shared deleted-user history.');
+                if(changed('delegatedAdministrationVersion'))throw new Error('Only Master Admin can activate Admin user management.');
                 if (fields.some(key => changed(key)) || (changed('contractors') && !accountHasPermission(auth.currentUser, 'masterLists'))) {
                     if (changed('drivers') || changed('helpers')) requirePermission('masterLists');
                     if (changed('contractors')) {
@@ -3929,6 +4120,10 @@
                     validateBusinessWrite(kind, before, after, operation, kind === 'dailyRecaps' && preloadHistoryDays.has(id));
                     business.push({ ...entry, kind, id, changes, operation, beforeRecord: before, afterRecord: after });
                 }
+                const managementWrites=await prepareUserManagementWrites(database,native,business,snapshots,queued);
+                const recoveryWrites=await prepareOwnerBusinessWrites(database,native,business,snapshots,options,eventIds);
+                for(const entry of managementWrites)native.set(entry.ref,entry.data);
+                for(const recovery of recoveryWrites)native.set(recovery.ref,recovery.data);
                 for (const entry of queued) {
                     const tracked = business.find(item => item === entry || item.ref.path === entry.ref.path);
                     if (!tracked && BUSINESS_COLLECTIONS.includes(entry.ref.path.split('/').at(-2))) continue;
@@ -4018,14 +4213,15 @@
             return key;
         };
         const writeDashboardUserRemoval = async (uid, removing, actorName, restoredProfile = null) => {
-            if (!isOwnerAccount(auth.currentUser)) throw new Error('Only Fadi can delete or restore dashboard users.');
-            if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid) || uid === OWNER_UID) throw new Error('Your administrator account is protected.');
+            if (!isOwnerAccount(auth.currentUser)) return writeDelegatedUserRemoval(uid,removing,actorName,restoredProfile);
+            if (!/^[A-Za-z0-9_-]{1,128}$/.test(uid) || isProtectedMasterAdminProfile({uid,...accessProfilesCache.get(uid)})) throw new Error('Master Admin accounts are protected.');
             const accountRef = doc(db, 'artifacts', appId, 'public', 'data', 'accessProfiles', uid);
             const masterRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
             return runTransaction(db, async transaction => {
                 const accountSnapshot = await transaction.get(accountRef);
                 const masterSnapshot = await transaction.get(masterRef);
                 const before = normalizeAccessProfile(uid, accountSnapshot.exists() ? accountSnapshot.data() : null);
+                if(isProtectedMasterAdminProfile(before))throw new Error('Master Admin accounts cannot be removed or reassigned.');
                 const master = masterSnapshot.exists() ? masterSnapshot.data() : DEFAULT_MASTER_LISTS;
                 const removed = { ...(master.deletedDashboardUsers || {}) };
                 if (!removing && !removed[uid]) throw new Error('This user is no longer in Deleted users. Close this form and use Manage.');
@@ -4033,12 +4229,13 @@
                 const timestamp = new Date().toISOString();
                 const profile = normalizeAccessProfile(uid, { name:String(source.name || '').trim(), email:String(source.email || '').trim(),
                     enabled:removing ? false : source.enabled === true,
-                    permissions:Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, source.permissions?.[key] === true])),
+                    permissions:Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, source.permissions?.[key] === true])), sectionActions:normalizeSectionActions(source.sectionActions,source.permissions),
                     lastUpdatedBy:actorName, lastUpdatedAt:timestamp });
                 if (removing) removed[uid] = timestamp;
                 else delete removed[uid];
                 const updatedMaster = { ...master, deletedDashboardUsers:removed,
                     ...(master.chatDirectory?.[uid] ? {chatDirectory:{...master.chatDirectory, [uid]:{name:profile.name, enabled:profile.enabled}}} : {}) };
+                if(!ownerControlPolicyEnabled){delete profile.sectionActions;delete profile.permissions.history;}
                 transaction.set(accountRef, profile);
                 transaction.set(masterRef, updatedMaster);
                 return { profile, master:updatedMaster };
@@ -4230,8 +4427,8 @@
             const beforeNotes = baseline?.shiftNotes || [];
             const notes = draft.shiftNotes || [];
             validateManagerNoteChanges(beforeNotes, notes);
-            if (!owner && beforeNotes.some(note => !notes.some(next => next.id === note.id))) {
-                throw new Error('Only Fadi can delete Shift Notes.');
+            if (!owner && !accountCanAction(auth.currentUser,'shiftNotes','delete') && beforeNotes.some(note => !notes.some(next => next.id === note.id))) {
+                throw new Error('Only Master Admin can delete Shift Notes.');
             }
             await runTransaction(db, async transaction => {
                 const snapshot = await transaction.get(ref);
@@ -4270,6 +4467,7 @@
                 transaction.set(ref, initial);
             });
             if (owner) return;
+            for(const removed of beforeNotes.filter(item=>!notes.some(note=>note.id===item.id))){await runTransaction(db,async transaction=>{const snapshot=await transaction.get(ref),saved=snapshot.data()||{},current=(saved.shiftNotes||[]).find(note=>note.id===removed.id);if(!current)return;if(!sameSavedValue(current,removed))throw new Error('This note changed after you opened it. Refresh before deleting.');validateManagerNoteChanges(saved.shiftNotes,saved.shiftNotes.filter(note=>note.id!==removed.id));transaction.set(ref,{shiftNotes:saved.shiftNotes.filter(note=>note.id!==removed.id),lastUpdatedBy:draft.lastUpdatedBy,lastUpdatedAt:draft.lastUpdatedAt},{merge:true});});}
             for (const note of notes) {
                 const before = beforeNotes.find(item => item.id === note.id);
                 if (sameSavedValue(before, note)) continue;
@@ -4319,9 +4517,9 @@
                     const snapshot = await transaction.get(ref);
                     const employees = [...(snapshot.data()?.employees || [])];
                     const index = employees.findIndex(item => item.id === employee.id);
-                    if (index < 0) throw new Error('Only Fadi can change the office roster.');
+                    if (index < 0) throw new Error('Only Master Admin can change the office roster.');
                     const current = employees[index];
-                    if (current.name !== employee.name) throw new Error('Only Fadi can rename office employees.');
+                    if (current.name !== employee.name) throw new Error('Only Master Admin can rename office employees.');
                     employees[index] = { ...current, shifts: before
                         ? mergeConcurrentEdits(before.shifts, employee.shifts, current.shifts) : employee.shifts };
                     transaction.set(ref, { employees }, { merge: true });
@@ -5248,7 +5446,7 @@
             const exportResults = () => {
                 if (!account?.uid || !loaded || !report.matches.length || (filters.start && filters.end && filters.start > filters.end)) return;
                 setDownloadError('');setMessage('');
-                try{downloadDataReport(issueDataReport(report.matches,filters),exportFormat);setMessage(exportFormat==='csv'?'Filtered results downloaded as CSV.':'Formatted Excel report downloaded.');}
+                try{requireSectionAction('shiftNotes','export');downloadDataReport(issueDataReport(report.matches,filters),exportFormat);setMessage(exportFormat==='csv'?'Filtered results downloaded as CSV.':'Formatted Excel report downloaded.');}
                 catch(error){setDownloadError(error.message || 'This report could not be downloaded. Please try again.');}
             };
             const fieldClass='w-full min-w-0 rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-400';
@@ -5473,6 +5671,7 @@
         const privateChatPath = id => `artifacts/${appId}/public/data/privateChats/${id}`;
         const privateFilePath = (id, fileId) => `${privateChatPath(id)}/files/${fileId}`;
         const sendPrivateChatRecord = async (database, current, recipient, text, file = null) => {
+            requireSectionAction('chat','add');
             const id = privateConversationId(current.uid, recipient.uid), trimmed = String(text || '').trim();
             if ((!trimmed && !file) || trimmed.length > 5000) throw new Error('Write a message up to 5,000 characters.');
             const message = {id:crypto.randomUUID(), text:trimmed, author:current.name, authorUid:current.uid, timestamp:new Date().toISOString()};
@@ -5786,6 +5985,7 @@
                 catch(failure){setError(failure.code==='permission-denied'?'Message did not send. Check both users’ chat access.':failure.message||'Message did not send. It is ready to retry.');return false;}finally{setBusy(false);}
             };
             const saveEdit=async()=>{
+                if(!accountCanAction(auth.currentUser,'chat','edit')){setError('You do not have permission to edit chat messages.');return;}
                 if(busy||!editing||!canSend)return;setBusy(true);setError('');
                 try{const ref=doc(db,...privateChatPath(cid).split('/'),'messages',editing);await firebaseRunTransaction(db,async transaction=>{
                     if(auth.currentUser?.uid!==uid)throw new Error('Sign in again.');const snapshot=await transaction.get(ref),saved=snapshot.exists()?snapshot.data():null;
@@ -7414,7 +7614,7 @@ const WeeklyBilling = (() => {
 })();
 
         const saveBillingCompanyCatalog = async ({uid,catalog,baseline,name}) => {
-            if(!isOwnerAccount(auth.currentUser) || auth.currentUser.uid!==uid)throw new Error('Only Fadi can change billing companies for export.');
+            if(!isOwnerAccount(auth.currentUser) || auth.currentUser.uid!==uid)throw new Error('Only Master Admin can change billing companies for export.');
             const next=WeeklyBilling.normalizeCompanyCatalog(catalog),previous=WeeklyBilling.normalizeCompanyCatalog(baseline),ref=doc(db,'artifacts',appId,'public','data','config','masterLists');
             await runTransaction(db,async transaction=>{
                 const snapshot=await transaction.get(ref);
@@ -7491,7 +7691,7 @@ const WeeklyBilling = (() => {
             const [error,setError]=useState('');
             const [loading,setLoading]=useState(false);
             const [sourceReport,setSourceReport]=useState(null),[reportReady,setReportReady]=useState(false);
-            const downloadReport=()=>{setError('');setReportReady(false);try{const bytes=WeeklyBilling.reconciliationWorkbook(draft,sourceReport,RECONCILIATION_TEMPLATE),url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),a=document.createElement('a');a.href=url;a.download=`Route-Reconciliation-${draft.week.mondayStr}-to-${draft.week.sundayStr}.xlsx`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);setReportReady(true);}catch(problem){setError(problem.message || 'The reconciliation report could not be prepared.');}};
+            const downloadReport=()=>{setError('');setReportReady(false);try{requireSectionAction('bonus','export');const bytes=WeeklyBilling.reconciliationWorkbook(draft,sourceReport,RECONCILIATION_TEMPLATE),url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),a=document.createElement('a');a.href=url;a.download=`Route-Reconciliation-${draft.week.mondayStr}-to-${draft.week.sundayStr}.xlsx`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);setReportReady(true);}catch(problem){setError(problem.message || 'The reconciliation report could not be prepared.');}};
             const entries=draft.deductions || [],included=entries.filter(d=>d.include),total=WeeklyBilling.deductionTotal(included);
             const edit=(id,key,value)=>mutate(next=>{next.deductions.find(d=>d.id===id)[key]=value;});
             const importFile=async event=>{
@@ -7519,7 +7719,7 @@ const WeeklyBilling = (() => {
             </section>;
         };
 
-        const WeeklyBillingPreview = ({initialDraft,onClose,billingCompanyCatalog=null,canEditCompanies=false,saveCompanyCatalog}) => {
+        const WeeklyBillingPreview = ({initialDraft,onClose,billingCompanyCatalog=null,canEditCompanies=false,saveCompanyCatalog,weekLocked=false}) => {
             const [draft,setDraft]=useState(()=>{try{return WeeklyBilling.restoreNameLinks({...initialDraft,billingCompanyCatalog},window.localStorage);}catch(error){return {...JSON.parse(JSON.stringify(initialDraft)),billingNameLinks:{},billingNameStorageError:'Saved billing-name links could not be loaded. '+(error.message || 'Check browser storage and reopen billing.')};}});
             const [view,setView]=useState('routes');
             const [windowMode,setWindowMode]=useState('normal');
@@ -7533,7 +7733,7 @@ const WeeklyBilling = (() => {
             const included=draft.rows.filter(r=>r.include);
             const people=Object.values(draft.people);
             const surveyPeople=people.filter(p=>p.surveyBonus>0);
-            const mutate=fn=>{setDraft(prev=>{const next=JSON.parse(JSON.stringify(prev));fn(next);return next;});setDownloaded(false);setDownloadError('');};
+            const mutate=fn=>{if(weekLocked){setDownloadError('This billing week is locked. Unlock it before making adjustments.');return;}setDraft(prev=>{const next=JSON.parse(JSON.stringify(prev));fn(next);return next;});setDownloaded(false);setDownloadError('');};
             useEffect(()=>{try{const catalog=WeeklyBilling.normalizeCompanyCatalog(billingCompanyCatalog);setDraft(previous=>{if(JSON.stringify(previous.billingCompanyCatalog)===JSON.stringify(catalog))return previous;const next=JSON.parse(JSON.stringify(previous));WeeklyBilling.applyCompanyCatalog(next,catalog);return next;});}catch(error){setDraft(previous=>({...previous,billingCompanyCatalogError:error.message}));}},[JSON.stringify(billingCompanyCatalog)]);
             const edit=(id,key,value)=>mutate(next=>{next.rows.find(r=>r.id===id)[key]=value;});
             const assign=(next,id,key)=>{
@@ -7551,8 +7751,9 @@ const WeeklyBilling = (() => {
             const shown=draft.rows.filter(r=>[r.date,r.routeNumber,r.routeLabel,r.originalContractor,r.billingContractor,...r.crew.map(k=>draft.people[k]?.name || '')].join(' ').toLowerCase().includes(filter.toLowerCase()));
             const format=value=>value==null?'':value;
             const download=async()=>{
+                if(weekLocked){setDownloadError('This billing week is locked. Unlock it before preparing a changed export.');return;}
                 setBusy(true);setDownloadError('');
-                try {await new Promise(resolve=>setTimeout(resolve,20));const bytes=WeeklyBilling.workbook(draft,BILLING_TEMPLATE),url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),a=document.createElement('a');a.href=url;a.download=`Weekly-Billing-${draft.week.mondayStr}-to-${draft.week.sundayStr}.xlsx`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);setDownloaded(true);}
+                try {requireSectionAction('bonus','export');if(ownerControlPolicyEnabled){const lock=await getDoc(ownerRef('weekLocks',draft.week.mondayStr));if(lock.exists()&&(lock.data().billing||lock.data().bonus))throw new Error('This billing week was locked. Reopen it after Fadi unlocks the week.');}await new Promise(resolve=>setTimeout(resolve,20));const bytes=WeeklyBilling.workbook(draft,BILLING_TEMPLATE),url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})),a=document.createElement('a');a.href=url;a.download=`Weekly-Billing-${draft.week.mondayStr}-to-${draft.week.sundayStr}.xlsx`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);setDownloaded(true);}
                 catch(error){setDownloadError(error.message || 'The workbook could not be downloaded.');}
                 finally {setBusy(false);}
             };
@@ -7611,7 +7812,7 @@ const WeeklyBilling = (() => {
         };
 
         const saveOverviewHalloween = async ({uid,enabled,baseline}) => {
-            if (!isOwnerAccount(auth.currentUser) || auth.currentUser.uid !== uid) throw new Error('Only Fadi can change the Halloween decorations.');
+            if (!isOwnerAccount(auth.currentUser) || auth.currentUser.uid !== uid) throw new Error('Only Master Admin can change the Halloween decorations.');
             if (typeof enabled !== 'boolean' || typeof baseline !== 'boolean') throw new Error('Choose a valid Halloween setting.');
             const ref=doc(db,'artifacts',appId,'public','data','config','masterLists');
             await runTransaction(db,async transaction=>{
@@ -7813,11 +8014,54 @@ const WeeklyBilling = (() => {
             </>;
         };
 
+        const OwnerPermissionsGrid = ({draft,change,disabled}) => {
+            const actions=normalizeSectionActions(draft.sectionActions,draft.permissions);
+            const update=(key,action,value)=>{const next={...actions,[key]:{...actions[key],[action]:value}};if(action==='view'&&!value)for(const permission of OWNER_ACTIONS)next[key][permission]=false;change({...draft,sectionActions:next,permissions:Object.fromEntries(PERMISSION_OPTIONS.map(([id])=>[id,next[id].view&&['add','edit','delete'].some(op=>next[id][op])]))});};
+            return <fieldset disabled={disabled} className="disabled:opacity-50"><legend className="mb-3 text-xs font-bold text-slate-300">Section permissions</legend><div className="overflow-x-auto rounded-xl border border-slate-700"><table className="w-full text-xs"><thead><tr className="bg-slate-950/60 text-slate-300"><th className="p-3 text-left">Section</th>{OWNER_ACTIONS.map(action=><th key={action} className="p-3 text-center capitalize">{action}</th>)}</tr></thead><tbody>{PERMISSION_OPTIONS.map(([key,label])=><tr key={key} className="border-t border-slate-700"><th className="p-3 text-left font-semibold text-slate-200">{label}</th>{OWNER_ACTIONS.map(action=><td key={action} className="p-3 text-center"><input aria-label={label+' '+action} type="checkbox" checked={actions[key][action]} title={key==='history'&&!['view','export'].includes(action)?'Activity-history management is owner-only':undefined} disabled={disabled||action==='delete'||(action!=='view'&&!actions[key].view)||(key==='history'&&!['view','export'].includes(action))} onChange={event=>update(key,action,event.target.checked)} className="h-4 w-4 accent-indigo-400"/></td>)}</tr>)}</tbody></table></div><p className="mt-2 text-xs text-slate-400">View controls visible sections. Add, Edit and Delete control saved changes; Export controls dashboard download buttons. Delete is reserved for Master Admin. A team member’s name or Admin label never grants owner controls.</p></fieldset>;
+        };
+        const OwnerDataManagement = ({account,activeDate,policyEnabled,unsaved=false}) => {
+            const [mode,setMode]=useState('history'),[ready,setReady]=useState(false),[setupError,setSetupError]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+            const [history,setHistory]=useState([]),[recovery,setRecovery]=useState([]),[selected,setSelected]=useState([]),[pending,setPending]=useState(null),[confirmation,setConfirmation]=useState('');
+            const [filters,setFilters]=useState({search:'',user:'',section:'',from:'',to:''}),[showCount,setShowCount]=useState(100),[recoveryView,setRecoveryView]=useState('trash');
+            const [weekDate,setWeekDate]=useState(activeDate),[lock,setLock]=useState({bonus:false,billing:false,metrics:false}),[lockBaseline,setLockBaseline]=useState(null),[lockLoaded,setLockLoaded]=useState(false);
+            const [cleanupKind,setCleanupKind]=useState('resolved'),[cutoff,setCutoff]=useState(ownerShiftDay(ownerToday(),-30)),[cleanupRows,setCleanupRows]=useState([]);
+            const enabled=ready&&policyEnabled,week=ownerWeekKey(weekDate),clear=()=>{setError('');setMessage('');setPending(null);setConfirmation('');};
+            const work=async fn=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await fn();}catch(e){setError(e.message||'The operation could not be completed.');}finally{setBusy(false);}};
+            useEffect(()=>{let live=true;ownerServicePreflight().then(()=>{if(live){setReady(true);setSetupError('');}}).catch(()=>{if(live)setSetupError('The new data controls need their matching database access rules before activation. Existing dashboard features are unchanged.');});return()=>{live=false;};},[account.uid]);
+            const loadHistory=async()=>{const rows=[];for(const kind of ['auditEvents','activityEvents']){const conditions=[];if(filters.from)conditions.push(where('timestamp','>=',new Date(Date.parse(filters.from+'T00:00:00Z')-43200000).toISOString()));if(filters.to)conditions.push(where('timestamp','<=',new Date(Date.parse(filters.to+'T00:00:00Z')+129600000).toISOString()));const snapshot=await getDocs(query(collection(db,'artifacts',appId,'public','data',kind),...conditions,orderBy('timestamp','desc'),limit(1000)));snapshot.forEach(doc=>{const payload=doc.data(),event=kind==='activityEvents'?{...payload,section:['sign-in','sign-out','session-opened'].includes(payload.type)?'Sign-in & Sign-out':'Alert actions',summary:payload.text,changes:[]}:payload;rows.push({id:doc.id,key:kind+'/'+doc.id,sourceCollection:kind,payload,...event,readable:readableAuditActivity(event)});});}setHistory(rows.sort((a,b)=>String(b.timestamp).localeCompare(String(a.timestamp))));setSelected([]);setShowCount(100);};
+            const loadRecovery=async()=>{const snapshot=await getDocs(query(collection(db,'artifacts',appId,'public','data','ownerRecovery'),limit(3000)));const rows=[];snapshot.forEach(doc=>rows.push({id:doc.id,...doc.data()}));setRecovery(rows.sort((a,b)=>String(b.deletedAt).localeCompare(String(a.deletedAt))));};
+            useEffect(()=>{if(ready&&mode==='history')work(loadHistory);if(ready&&mode==='recovery')work(loadRecovery);setSelected([]);setPending(null);setConfirmation('');},[ready,mode]);
+            useEffect(()=>{if(!ready||mode!=='locks')return;let live=true;setLockLoaded(false);getDoc(ownerRef('weekLocks',week)).then(snapshot=>{if(!live)return;const saved=snapshot.exists()?snapshot.data():null;setLockBaseline(saved);setLock({bonus:saved?.bonus===true,billing:saved?.billing===true,metrics:saved?.metrics===true});setLockLoaded(true);}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[ready,mode,week]);
+            const matches=history.filter(item=>{const day=Number.isFinite(Date.parse(item.timestamp))?new Date(item.timestamp).toLocaleDateString('en-CA',{timeZone:'America/Chicago'}):'',text=[item.actorName,item.summary,item.readable.context,...item.readable.lines].join(' ').toLowerCase();return (!filters.user||item.actorUid===filters.user)&&(!filters.section||item.section===filters.section)&&(!filters.from||day>=filters.from)&&(!filters.to||day<=filters.to)&&(!filters.search||text.includes(filters.search.toLowerCase()));});
+            const changeFilter=(key,value)=>{setFilters(old=>({...old,[key]:value}));setSelected([]);setPending(null);};
+            const toggle=id=>{setPending(null);setConfirmation('');setSelected(old=>old.includes(id)?old.filter(x=>x!==id):old.length<100?[...old,id]:old);};
+            const requested=mode==='history'?matches.filter(item=>selected.includes(item.key)):cleanupRows.filter(item=>selected.includes(item.key));
+            const preview=action=>{setPending({action,rows:requested});setConfirmation('');setError('');};
+            const commit=()=>work(async()=>{if(!pending||confirmation!==(pending.action==='trash'?'DELETE':'ARCHIVE'))throw new Error('Type the confirmation shown.');if(unsaved)throw new Error('Save or cancel open dashboard edits before cleanup.');if(mode==='history')await ownerHistoryChange(pending.rows,pending.action);else await ownerApplyCleanup(pending.rows);setPending(null);setConfirmation('');setSelected([]);if(mode==='history')await loadHistory();else setCleanupRows([]);setMessage(pending.rows.length+' items '+(pending.action==='trash'?'moved to Trash for 30 days.':'archived.'));});
+            const exportHistory=()=>{const rows=requested.length?requested:matches;if(!rows.length)return;downloadJsonFile({format:'geodis-activity-export',version:1,exportedAt:new Date().toISOString(),records:rows.map(item=>({collection:item.sourceCollection,id:item.id,data:item.payload}))},'Geodis-Activity-History-'+ownerToday()+'.json');setMessage(rows.length+' history entries exported.');};
+            const panel='rounded-xl border border-slate-700 bg-slate-800/30 p-4',button='rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700 disabled:opacity-40',input='rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-200';
+            if(!isOwnerAccount(account))return null;
+            return <section aria-label="Owner data management" className="space-y-4"><div><h3 className="font-bold text-white">Data Management</h3><p className="mt-1 text-xs text-slate-400">Owner controls for saved history, recovery, approved weeks and cleanup.</p></div>
+                {setupError&&<div role="alert" className="rounded-xl border border-amber-700/50 bg-amber-950/20 p-4 text-sm text-amber-200">{setupError}</div>}
+                {ready&&!policyEnabled&&<div className={panel}><p className="mb-3 text-sm text-slate-300">Activate the shared controls after the database access rules have been prepared. Activation starts recovery protection for future route and note deletions; it does not change existing records.</p><button type="button" className={button} disabled={busy||unsaved} onClick={()=>work(async()=>{await ownerActivateControls();setMessage('Owner controls activated.');})}>Activate owner controls</button></div>}
+                <nav aria-label="Data management sections" className="flex flex-wrap gap-2">{[['history','History cleanup'],['recovery','Trash & Archives'],['locks','Week locks'],['cleanup','Bulk cleanup']].map(([key,label])=><button type="button" key={key} disabled={busy} className={button+(mode===key?' bg-indigo-900/40 border-indigo-400':'')} onClick={()=>{setMode(key);clear();}}>{label}</button>)}</nav>
+                {error&&<div role="alert" className="rounded-xl border border-rose-600/40 p-3 text-sm text-rose-200">{error}</div>}{message&&<div role="status" className="rounded-xl border border-emerald-600/40 p-3 text-sm text-emerald-200">{message}</div>}
+                {mode==='history'&&<><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><label className="text-xs text-slate-300">Search<input aria-label="History cleanup search" className={'mt-1 w-full '+input} value={filters.search} onChange={e=>changeFilter('search',e.target.value)}/></label><label className="text-xs text-slate-300">User<select aria-label="History cleanup user" className={'mt-1 w-full '+input} value={filters.user} onChange={e=>changeFilter('user',e.target.value)}><option value="">All users</option>{[...new Map(history.map(item=>[item.actorUid,item.actorName])).entries()].map(([uid,name])=><option key={uid} value={uid}>{name}</option>)}</select></label><label className="text-xs text-slate-300">Section<select aria-label="History cleanup section" className={'mt-1 w-full '+input} value={filters.section} onChange={e=>changeFilter('section',e.target.value)}><option value="">All sections</option>{[...new Set(history.map(item=>item.section))].filter(Boolean).sort().map(section=><option key={section}>{section}</option>)}</select></label><label className="text-xs text-slate-300">From<input aria-label="History cleanup from" type="date" className={'mt-1 w-full '+input} value={filters.from} onChange={e=>changeFilter('from',e.target.value)}/></label><label className="text-xs text-slate-300">To<input aria-label="History cleanup to" type="date" className={'mt-1 w-full '+input} value={filters.to} onChange={e=>changeFilter('to',e.target.value)}/></label></div><div className="flex flex-wrap items-center gap-2"><button className={button} disabled={busy||!ready} onClick={()=>work(loadHistory)}>Search saved history</button><button className={button} disabled={!matches.length||busy} onClick={exportHistory}>Export history</button><button className={button} disabled={!matches.length||busy} onClick={()=>{setSelected(matches.slice(0,100).map(item=>item.key));setPending(null);}}>Select up to 100 matches</button><button className={button} disabled={busy} onClick={()=>{setSelected([]);setPending(null);}}>Clear selection</button></div><p className="text-xs text-slate-400">{matches.length} matching entries · {requested.length} selected. Loads up to 1,000 entries from each activity source; narrow the date range to find older history.</p><div className="flex flex-wrap gap-2"><button className={button} disabled={!enabled||busy||!requested.length} onClick={()=>preview('archive')}>Preview archive</button><button className={button+' text-rose-200'} disabled={!enabled||busy||!requested.length} onClick={()=>preview('trash')}>Preview delete</button></div><div className="space-y-2">{matches.slice(0,showCount).map(item=><label key={item.key} className={'flex gap-3 '+panel}><input aria-label={'Select history '+item.id} type="checkbox" checked={selected.includes(item.key)} onChange={()=>toggle(item.key)} disabled={busy} className="mt-1 h-4 w-4 shrink-0 accent-indigo-400"/><span className="min-w-0 text-sm text-slate-200"><strong>{item.actorName||'Team member'}</strong> {item.readable.lines[0]||item.summary}<span className="mt-1 block text-xs text-slate-400">{item.readable.context} · {new Date(item.timestamp).toLocaleString('en-US',{timeZone:'America/Chicago'})} Central</span></span></label>)}</div>{matches.length>showCount&&<button className={button} onClick={()=>setShowCount(n=>n+100)}>Show more history</button>}</>}
+                {mode==='recovery'&&<><div className="flex flex-wrap items-center gap-3"><label className="text-xs text-slate-300">Show<select className={'ml-2 '+input} value={recoveryView} onChange={e=>setRecoveryView(e.target.value)}><option value="trash">Trash</option><option value="archive">Archives</option><option value="restored">Restored</option></select></label><button className={button} disabled={busy||!ready} onClick={()=>work(loadRecovery)}>Refresh recovery items</button></div><p className="text-xs text-slate-400">Trash can be restored for 30 days. Archives stay available until you restore them. A restore never overwrites an existing route, note or changed record.</p>{recovery.filter(item=>item.state===recoveryView).map(item=>{const expired=item.state==='trash'&&Date.parse(item.expiresAt)<=Date.now();return <div key={item.id} className={'flex flex-wrap items-center justify-between gap-3 '+panel}><div className="min-w-0"><p className="break-words text-sm text-slate-200">{item.label}</p><p className="mt-1 text-xs text-slate-400">{item.deletedBy} · {new Date(item.deletedAt).toLocaleString('en-US',{timeZone:'America/Chicago'})} Central{item.expiresAt?' · '+(expired?'Restore period ended':'Restore until '+new Date(item.expiresAt).toLocaleDateString('en-US',{timeZone:'America/Chicago'})):''}</p></div><div className="flex gap-2"><button className={button} disabled={busy} onClick={()=>downloadJsonFile({format:'geodis-recovery-copy',version:1,record:item},'Geodis-Recovery-'+item.id+'.json')}>Export item</button>{item.state!=='restored'&&<button className={button} disabled={!enabled||busy||expired||unsaved} onClick={()=>work(async()=>{await ownerRestoreRecovery(item);await loadRecovery();setMessage('Item restored.');})}>Restore item</button>}</div></div>;})}{!recovery.some(item=>item.state===recoveryView)&&<p className={panel+' text-sm text-slate-400'}>No items in this view.</p>}</>}
+                {mode==='locks'&&<div className={panel+' space-y-4'}><label className="block text-xs text-slate-300">Choose a date in the week<input aria-label="Week lock date" className={'ml-3 '+input} type="date" value={weekDate} onChange={e=>{if(e.target.value)setWeekDate(e.target.value);}}/></label><p className="text-sm font-bold text-slate-200">Monday {week} – Sunday {ownerShiftDay(week,6)}</p><p className="text-xs text-slate-400">Locked bonus and billing weeks also protect the routes and score inputs used for those totals. Sunday’s scores entered Monday belong to the previous workweek. Only you can unlock a week.</p><div className="space-y-3">{[['bonus','Lock approved bonuses'],['billing','Lock billing preparation'],['metrics','Lock reported metrics']].map(([key,label])=><label key={key} className="flex gap-3 text-sm text-slate-200"><input type="checkbox" aria-label={label} checked={lock[key]} onChange={e=>setLock(old=>({...old,[key]:e.target.checked}))} disabled={!enabled||busy||!lockLoaded} className="h-4 w-4 accent-indigo-400"/>{label}</label>)}</div>{unsaved&&<p className="text-xs text-amber-200">Save or cancel open dashboard edits before changing locks.</p>}<button className={button} disabled={!enabled||busy||!lockLoaded||unsaved} onClick={()=>work(async()=>{await ownerSetWeekLock(week,lock,lockBaseline);const snap=await getDoc(ownerRef('weekLocks',week));setLockBaseline(snap.exists()?snap.data():null);setMessage('Week locks saved.');})}>Save week locks</button></div>}
+                {mode==='cleanup'&&<><div className={panel+' space-y-3'}><div className="flex flex-wrap gap-3"><label className="text-xs text-slate-300">Items<select aria-label="Cleanup items" className={'ml-2 '+input} value={cleanupKind} onChange={e=>{setCleanupKind(e.target.value);setCleanupRows([]);setSelected([]);setPending(null);}}><option value="resolved">Resolved route-issue notes</option><option value="notes">Old ordinary notes</option><option value="tasks">Completed tasks</option></select></label><label className="text-xs text-slate-300">Before<input aria-label="Cleanup cutoff" type="date" className={'ml-2 '+input} value={cutoff} onChange={e=>{setCutoff(e.target.value);setCleanupRows([]);setSelected([]);setPending(null);}}/></label></div><p className="text-xs text-slate-400">Ordinary-note cleanup excludes Manager Notes, urgent notes, reminders and active driver issues. Preview loads up to 1,500 saved day records or tasks. Nothing is archived until you confirm.</p><button className={button} disabled={!enabled||busy} onClick={()=>work(async()=>{setCleanupRows(await ownerCleanupPreview(cleanupKind,cutoff));setSelected([]);setPending(null);})}>Find cleanup items</button></div><div className="flex flex-wrap gap-2"><button className={button} disabled={!cleanupRows.length||busy} onClick={()=>{const sources=new Set();setSelected(cleanupRows.filter(item=>{const source=item.sourceCollection+'/'+(item.sourceId||item.id);if(!sources.has(source)&&sources.size>=8)return false;sources.add(source);return true;}).slice(0,100).map(item=>item.key));}}>Select up to 100 items from 8 records</button><button className={button} disabled={!requested.length||busy||!enabled} onClick={()=>preview('archive')}>Preview bulk archive</button></div>{cleanupRows.map(item=><label key={item.key} className={'flex gap-3 '+panel}><input type="checkbox" aria-label={'Select cleanup '+item.id} checked={selected.includes(item.key)} onChange={()=>toggle(item.key)} disabled={busy} className="h-4 w-4 accent-indigo-400"/><span className="break-words text-sm text-slate-200">{item.label}</span></label>)}</>}
+                {pending&&<div aria-label="Confirm data cleanup" className="space-y-3 rounded-xl border border-amber-600/50 bg-amber-950/10 p-4"><h4 className="font-bold text-white">Review {pending.action==='trash'?'deletion':'archive'} · {pending.rows.length} items</h4><ul className="max-h-36 list-disc space-y-1 overflow-y-auto pl-5 text-xs text-slate-300">{pending.rows.map(item=><li key={item.key}>{item.label||[item.actorName,item.readable?.lines?.[0],item.timestamp].filter(Boolean).join(' · ')}</li>)}</ul><p className="text-xs text-slate-400">{pending.action==='trash'?'These entries will move to Trash and can be restored for 30 days.':'These items will leave the active lists and remain in Archives for restoration.'}</p><label className="block text-xs text-slate-300">Type {pending.action==='trash'?'DELETE':'ARCHIVE'} to confirm<input aria-label="Cleanup confirmation" className={'mt-1 block '+input} value={confirmation} onChange={e=>setConfirmation(e.target.value)}/></label><div className="flex gap-2"><button className={button} disabled={busy||!enabled||unsaved||confirmation!==(pending.action==='trash'?'DELETE':'ARCHIVE')} onClick={commit}>Confirm {pending.action==='trash'?'delete':'archive'}</button><button className={button} disabled={busy} onClick={()=>{setPending(null);setConfirmation('');}}>Cancel cleanup</button></div></div>}
+                {busy&&<p role="status" className="text-xs text-slate-400">Saving or loading selected records…</p>}
+            </section>;
+        };
+
         const App = () => {
             const [user, setUser] = useState(null);
             const isAdminUser = isOwnerAccount(user);
             const CurrentUserNameLabel = isAdminUser ? 'button' : 'span';
             const [accessProfile, setAccessProfile] = useState(null);
+            const [adminGrant,setAdminGrant]=useState(null),[administratorRoles,setAdministratorRoles]=useState({}),[adminRolesAvailable,setAdminRolesAvailable]=useState(false),[adminFeatureEnabled,setAdminFeatureEnabled]=useState(false);
+            const canManageUserAccounts=isAdminUser||Boolean(user?.uid&&accessProfile?.enabled&&adminFeatureEnabled&&adminGrant?.enabled===true);
             const [settingsReady, setSettingsReady] = useState(false);
             const [isSettingsOpen, setIsSettingsOpen] = useState(false);
             const [settingsTab, setSettingsTab] = useState('users');
@@ -7918,15 +8162,17 @@ const WeeklyBilling = (() => {
                     const photos={},titles={};snapshot.forEach(item=>{const record=item.data();if(item.id===record.uid){const photo=profilePhotoSource(record.profilePhoto);if(photo)photos[record.uid]=photo;if(typeof record.jobTitle==='string')titles[record.uid]=record.jobTitle.trim().slice(0,80);}});setProfilePhotos(photos);setProfileTitles(titles);if(snapshot.metadata?.fromCache!==true)setProfilesReady(true);
                 },()=>{setProfilesReady(false);setProfileLoadError('Your profile could not load. Refresh to retry.');});
             },[user?.uid]);
+            const [ownerPolicyEnabled,setOwnerPolicyEnabled]=useState(false);
+            const [ownerLocksReady,setOwnerLocksReady]=useState(false),[ownerLockRevision,setOwnerLockRevision]=useState(0),[ownerActiveLock,setOwnerActiveLock]=useState(false);
             const [isEditMode, setIsEditing] = useState(false);
             const [activeTab, setActiveTab] = useState('overview');
             const [halloweenControlTarget,setHalloweenControlTarget]=useState(null);
             const [routesSubTab, setRoutesSubTab] = useState('table');
             const ringMotionActive = useMetricRingMotion({ ...savedDashboardRings, enabled: savedDashboardRings.enabled && !savedDashboardRings.showcase && ringSettingsLoaded && activeTab === 'overview' });
             const displayedDashboardRings = useMetricRingLighting(savedDashboardRings, ringSettingsLoaded && activeTab === 'overview');
-            const canEditSection = section => accountHasPermission(user, ({ notes: 'shiftNotes', driverHub: 'preload' })[section] || section, accessProfile);
+            const canEditSection = section => accountHasPermission(user,ownerPermissionKey(section),accessProfile) && (!ownerPolicyEnabled || (ownerLocksReady && !ownerIsSectionLocked(section,activeDate))); 
             const activeEditPermission = activeTab === 'routes' && ['morning-report','team-assignment'].includes(routesSubTab) ? 'overview' : (({ notes: 'shiftNotes', driverHub: 'preload' })[activeTab] || activeTab);
-            const isEditing = isEditMode && accountHasPermission(user, activeEditPermission, accessProfile);
+            const isEditing = isEditMode && accountHasPermission(user, activeEditPermission, accessProfile) && !ownerActiveLock;
             const [isCapturing, setIsCapturing] = useState(false);
             const [isLoading, setIsLoading] = useState(true);
             const [shiftNoteSeenAt, setShiftNoteSeenAt] = useState('');
@@ -8163,6 +8409,9 @@ const WeeklyBilling = (() => {
             };
 
             const [masterLists, setMasterLists] = useState(DEFAULT_MASTER_LISTS);
+            useEffect(()=>{ownerLocksCache.clear();setOwnerLocksReady(!ownerPolicyEnabled);if(!user||!ownerPolicyEnabled)return;return onSnapshot(collection(db,'artifacts',appId,'public','data','weekLocks'),snapshot=>{ownerLocksCache.clear();snapshot.forEach(item=>ownerLocksCache.set(item.id,item.data()));setOwnerLocksReady(true);setOwnerLockRevision(value=>value+1);},()=>{setOwnerLocksReady(false);setOwnerActiveLock(true);});},[user?.uid,ownerPolicyEnabled]);
+            useEffect(()=>{const section=ownerPermissionKey(activeTab);setOwnerActiveLock(ownerPolicyEnabled&&['routes','metrics','bonus'].includes(section)&&(!ownerLocksReady||ownerIsSectionLocked(section,activeDate)));},[activeTab,activeDate,ownerPolicyEnabled,ownerLocksReady,ownerLockRevision]);
+
             const [managerNoteTeamLoaded, setManagerNoteTeamLoaded] = useState(false);
             useEffect(() => setManagerNoteTeamLoaded(false), [user?.uid]);
             const playedAlerts = useRef({ 12: false, 1230: false, 1730: false, 17: false, 19: false });
@@ -8629,7 +8878,7 @@ const WeeklyBilling = (() => {
                     const currentGeneration = ++generation;
                     window.geodisNativeNotifications?.bind(null).catch(()=>{});
                     bindDesktopNotifications(null);
-                    settingsServiceAvailable = false;
+                    settingsServiceAvailable = false;userAdministratorGrants.clear();delegatedAdministrationEnabled=false;setAdminFeatureEnabled(false);setAdminGrant(null);setAdministratorRoles({});setAdminRolesAvailable(false);ownerControlPolicyEnabled=false;ownerLocksCache.clear();setOwnerPolicyEnabled(false);setOwnerLocksReady(false);
                     stopDashboardSounds(); applyDashboardSoundSettings(null);
                     setSoundSettingsLoaded(false); setSavedDashboardSounds(defaultDashboardSoundSettings());
                     soundDraftDirtyRef.current = false; setSoundDraftDirty(false);
@@ -8642,6 +8891,11 @@ const WeeklyBilling = (() => {
                     setAccountDraft(null); setPasswordResetDraft(null); setShowEnteredPasswords(false); setUserToDelete(null); setShowDeletedUsers(false); setAuditEvents([]); setImportedBackup(null); setRestorePreview(null);
                     setIsTeamTasksOpen(false); setTaskDraft(null); setTeamTasks([]); setTaskReadIds([]);
                     if (firebaseUser) {
+                        if(isMasterAdminEmail(firebaseUser.email)&&!isOwnerAccount(firebaseUser)){
+                            setUser(null);setAuthReady(true);setIsLoading(false);
+                            setAuthError('This Master Admin email is reserved for your two approved Firebase sign-in accounts. Sign in with the existing approved account; this account ID does not match.');
+                            signOut(auth).catch(console.error);return;
+                        }
                         let profile = null;
                         try {
                             const snapshot = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accessProfiles', firebaseUser.uid));
@@ -8812,6 +9066,8 @@ const WeeklyBilling = (() => {
                     const masterRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
                     const unsubscribeMaster = onSnapshot(masterRef, (docSnap) => {
                         setManagerNoteTeamLoaded(true);
+                        ownerControlPolicyEnabled=docSnap.exists()&&docSnap.data().ownerControlVersion===1;setOwnerPolicyEnabled(ownerControlPolicyEnabled);
+                        delegatedAdministrationEnabled=docSnap.exists()&&docSnap.data().delegatedAdministrationVersion===1;setAdminFeatureEnabled(delegatedAdministrationEnabled);
                         const sounds = normalizeDashboardSoundSettings(docSnap.exists() ? docSnap.data().soundSettings : null);
                         applyDashboardSoundSettings(sounds); setSavedDashboardSounds(sounds); setSoundSettingsLoaded(true);
                         if (!soundDraftDirtyRef.current) setSoundDraft(sounds);
@@ -9053,7 +9309,7 @@ const WeeklyBilling = (() => {
                 };
             }, [user, userName, masterLists.nameOverrides]);
 
-            const canSendTeamChat = canEditSection('chat');
+            const canSendTeamChat = accountCanAction(user,'chat','add',accessProfile);
             const publishTeamChatTyping = useCallback(typing => {
                 if (!db || !user || !presenceSessionIdRef.current) return;
                 const state = teamChatTypingStateRef.current, now = Date.now();
@@ -9589,7 +9845,7 @@ const WeeklyBilling = (() => {
 
             const performDataExport = report => {
                 setDataExportError('');
-                try{if(!downloadDataReport(report,dataExportFormat))setDataExportError('No saved rows are available for this report and date range.');}
+                try{requireSectionAction(ownerPermissionKey(activeTab),'export');if(!downloadDataReport(report,dataExportFormat))setDataExportError('No saved rows are available for this report and date range.');}
                 catch(error){setDataExportError(error.message || 'This report could not be downloaded. Please try again.');}
             };
             const exportToCSV = () => { if(filteredHistoryData.length)performDataExport(summaryDataReport(filteredHistoryData,historyDateFrom,historyDateTo,calculateKPIs,toFixedSafe)); };
@@ -9598,6 +9854,7 @@ const WeeklyBilling = (() => {
             const exportCurrentRoutesToCSV = () => { if(data.routeTable?.length)performDataExport(routeDataReport([{date:activeDate,routeTable:data.routeTable}],{current:true,date:activeDate})); };
 
             const handleDownloadScreenshot = async () => {
+                if(!accountCanAction(user,ownerPermissionKey(activeTab),'export',accessProfile)){setSaveError('You do not have export permission for this section.');return;}
                 if (!window.html2canvas || !dashboardRef.current || isCapturing) return;
                 const scrollPos = window.scrollY;
                 setIsCapturing(true);
@@ -9640,6 +9897,8 @@ const WeeklyBilling = (() => {
             };
 
             const downloadPanelScreenshot = async (element, fileName, output = 'download') => {
+                const permission=element?.matches('[data-master-screenshot-panel="true"]')?'masterLists':ownerPermissionKey(activeTab);
+                if(!accountCanAction(user,permission,'export',accessProfile)){const error=new Error('You do not have export permission for this section.');if(output==='blob')throw error;setSaveError(error.message);return;}
                 if (!window.html2canvas || !element || isCapturing) {
                     if (output === 'blob') throw new Error('Screenshot is not ready.');
                     return;
@@ -9772,6 +10031,8 @@ const WeeklyBilling = (() => {
             const handleDownloadMetricsScreenshot = () => downloadPanelScreenshot(metricsScreenshotRef.current, `Geodis-Metrics-${metricsSubTab.toUpperCase()}-${activeDate}.png`);
             const openWeeklyBillingPreview = async () => {
                 if (billingLoading) return;
+                if(!accountCanAction(user,'bonus','export',accessProfile)){setBillingError('You do not have billing export permission.');return;}
+                if(ownerPolicyEnabled&&(!ownerLocksReady||ownerIsSectionLocked('bonus',activeDate))){setBillingError('This billing week is locked. Unlock it in Settings → Data Management before preparing a changed export.');return;}
                 if (hasUnsavedDashboardChanges || dashboardPendingWrites || saveActivity.pending) {
                     setBillingError('Save your dashboard changes before opening billing so it uses the saved routes and bonuses.');
                     return;
@@ -9841,8 +10102,17 @@ const WeeklyBilling = (() => {
             const canOpenMasterLists = Boolean(user);
             const canEditMasterItem = canEditSection('masterLists') || (masterActiveTab === 'contractors' && canEditSection('contractorPlan'));
             const getSavedDisplayName = (currentUser) => cleanFirstName((masterLists.nameOverrides || {})[currentUser?.uid] || userName || getDefaultUserName(currentUser));
+            useEffect(()=>{
+                if(!user?.uid||!settingsReady)return;const owner=isOwnerAccount(user);
+                const ref=owner?collection(db,'artifacts',appId,'public','data','userAdministrators'):ownerRef('userAdministrators',user.uid);
+                return onSnapshot(ref,snapshot=>{
+                    if(auth.currentUser?.uid!==user.uid)return;
+                    if(owner){userAdministratorGrants.clear();const roles={};snapshot.forEach(item=>{roles[item.id]={...item.data(),uid:item.id};userAdministratorGrants.set(item.id,roles[item.id]);});setAdministratorRoles(roles);setAdminRolesAvailable(true);}
+                    else{const grant=snapshot.exists()?snapshot.data():null;userAdministratorGrants.set(user.uid,grant||{enabled:false});setAdminGrant(grant);setAdminRolesAvailable(true);if(!grant?.enabled){setIsSettingsOpen(false);setAccountDraft(null);setUserToDelete(null);}}
+                },()=>{userAdministratorGrants.delete(user.uid);setAdminGrant(null);setAdminRolesAvailable(false);if(!owner)setIsSettingsOpen(false);});
+            },[user?.uid,settingsReady,isAdminUser]);
             const openSettings = () => {
-                if (!isAdminUser) return;
+                if (!canManageUserAccounts) return;
                 soundDraftDirtyRef.current = false; setSoundDraftDirty(false); setSoundDraft(savedDashboardSounds);
                 managerAlertDirtyRef.current=false;managerAlertBaselineRef.current=null;setManagerAlertDirty(false);setManagerAlertDraft(savedManagerAlerts);
                 ringDraftDirtyRef.current = false; ringDraftBaselineRef.current = null; setRingDraftDirty(false); setRingDraft(savedDashboardRings);
@@ -9976,10 +10246,10 @@ const WeeklyBilling = (() => {
                     await runTransaction(db, async transaction => {
                         const snapshot = await transaction.get(ref), previous = snapshot.exists() ? snapshot.data() : null;
                         if (action === 'create') {
-                            if (!isAdminUser || previous) throw new Error('Only Fadi can create tasks.');
+                            if (!isAdminUser || previous) throw new Error('Only Master Admin can create tasks.');
                         } else if (!previous) throw new Error('This task was removed.');
                         if (!isAdminUser && !isTaskAssignedTo(previous, user.uid)) throw new Error('Only an assigned person or Fadi can update this task.');
-                        if (['create', 'edit', 'request', 'delete'].includes(action) && !isAdminUser) throw new Error('Only Fadi can manage assignments and request updates.');
+                        if (['create', 'edit', 'request', 'delete'].includes(action) && !isAdminUser) throw new Error('Only Master Admin can manage assignments and request updates.');
                         if (action === 'delete') { transaction.delete(ref); return; }
                         let next = previous ? { ...previous } : { id, status: 'open', createdByUid: user.uid, createdBy: getSavedDisplayName(user), createdAt: timestamp, events: [] };
                         let type, text = String(details.text || '').trim();
@@ -10036,14 +10306,15 @@ const WeeklyBilling = (() => {
                 }, error => { console.error('Account access could not be refreshed:', error); });
             }, [user?.uid, settingsReady]);
             useEffect(() => {
-                if (!isAdminUser || !settingsReady) return;
-                const ref = collection(db, 'artifacts', appId, 'public', 'data', 'accessProfiles');
-                return onSnapshot(ref, snapshot => {
-                    const profiles = new Map([...TEAM_UIDS].map(uid => [uid, normalizeAccessProfile(uid, null)]));
-                    snapshot.forEach(item => profiles.set(item.id, normalizeAccessProfile(item.id, item.data())));
-                    setManagedAccounts([...profiles.values()].sort((a, b) => a.uid === OWNER_UID ? -1 : b.uid === OWNER_UID ? 1 : a.name.localeCompare(b.name))); setManagerRecipientsLoaded(true);
-                }, error => setSettingsError('Could not load account permissions. ' + error.message));
-            }, [user?.uid, isAdminUser, settingsReady]);
+                if(!canManageUserAccounts||!settingsReady)return;
+                const ref=collection(db,'artifacts',appId,'public','data',isAdminUser?'accessProfiles':'userManagementDirectory');
+                return onSnapshot(ref,snapshot=>{
+                    const profiles=isAdminUser?new Map([...TEAM_UIDS].map(uid=>[uid,normalizeAccessProfile(uid,null)])):new Map();
+                    snapshot.forEach(item=>{if(!isAdminUser&&isMasterAdminUid(item.id))return;const profile=normalizeAccessProfile(item.id,item.data());profiles.set(item.id,profile);if(!isMasterAdminUid(item.id))accessProfilesCache.set(item.id,profile);});
+                    if(isOwnerAccount(auth.currentUser))profiles.set(auth.currentUser.uid,normalizeAccessProfile(auth.currentUser.uid,profiles.get(auth.currentUser.uid)));
+                    setManagedAccounts([...profiles.values()].sort((a,b)=>isProtectedMasterAdminProfile(a)?-1:isProtectedMasterAdminProfile(b)?1:a.name.localeCompare(b.name)));setManagerRecipientsLoaded(true);
+                },error=>{setManagedAccounts([]);setSettingsError('The user-management directory is unavailable. Matching database rules are required.');});
+            },[user?.uid,canManageUserAccounts,isAdminUser,settingsReady]);
             useEffect(() => {
                 if (!isSettingsOpen || settingsTab !== 'history' || !isAdminUser || !settingsReady) return;
                 setAuditLoading(true);
@@ -10138,10 +10409,11 @@ const WeeklyBilling = (() => {
                 } finally { passwordResetPendingRef.current = false; setSettingsBusy(false); }
             };
             const saveAccountPermissions = async () => {
-                if (!isAdminUser || !accountDraft || settingsBusy || !settingsReady) return;
+                if (!canManageUserAccounts || !accountDraft || settingsBusy || !settingsReady) return;
                 const creatingLogin = accountDraft.isNew && accountDraft.mode === 'create' && !accountDraft.createdLogin;
                 let uid = String(accountDraft.uid || '').trim(), loginCreated = accountDraft.createdLogin === true;
-                if (uid === OWNER_UID) { setSettingsError('Your administrator access is protected.'); return; }
+                if(isMasterAdminUid(uid)||isMasterAdminEmail(accountDraft.email)){setSettingsError('This account is protected.');return;}
+                if(!isAdminUser&&!creatingLogin){try{userAdministrationTarget(uid);}catch(error){setSettingsError(error.message);return;}}
                 if (creatingLogin) {
                     try { validateNewLogin(accountDraft); }
                     catch (error) { setSettingsError(error.message); return; }
@@ -10154,18 +10426,23 @@ const WeeklyBilling = (() => {
                         const login = await createDashboardLogin(accountDraft);
                         uid = login.uid; loginCreated = true;
                         setAccountDraft({uid, name:login.name, email:login.email, enabled:accountDraft.enabled,
-                            permissions:{...accountDraft.permissions}, isNew:true, mode:'existing', createdLogin:true});
+                            permissions:{...accountDraft.permissions}, administrator:accountDraft.administrator===true, sectionActions:normalizeSectionActions(accountDraft.sectionActions,accountDraft.permissions), isNew:true, mode:'existing', createdLogin:true});
                     }
                     const accountRef = doc(db, 'artifacts', appId, 'public', 'data', 'accessProfiles', uid);
                     if (accountDraft.isNew && (TEAM_UIDS.has(uid) || (await getDoc(accountRef)).exists())) throw new Error('This account already exists. Use its Manage button.');
                     const profile = normalizeAccessProfile(uid, { enabled: accountDraft.enabled === true,
                         name: accountDraft.name.trim(), email: accountDraft.email.trim(),
-                        permissions:Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, accountDraft.permissions?.[key] === true])),
+                        permissions:Object.fromEntries(PERMISSION_OPTIONS.map(([key]) => [key, accountDraft.permissions?.[key] === true])), sectionActions:normalizeSectionActions(accountDraft.sectionActions,accountDraft.permissions),
                         lastUpdatedBy: getSavedDisplayName(user), lastUpdatedAt: new Date().toISOString() });
+                    if(!ownerControlPolicyEnabled){delete profile.sectionActions;delete profile.permissions.history;}
+                    const roleChanged=isAdminUser&&!accountDraft.restoringDashboardAccess&&Boolean(accountDraft.administrator)!==Boolean(administratorRoles[uid]?.enabled);
+                    if(roleChanged&&accountDraft.administrator){if(!adminRolesAvailable)throw new Error('Admin role setup needs matching database rules.');await prepareUserAdministrationDirectory([...managedAccounts.filter(account=>account.uid!==uid),profile]);}
                     if (accountDraft.restoringDashboardAccess) {
                         const restored = await writeDashboardUserRemoval(uid, false, getSavedDisplayName(user), profile);
                         masterSnapshotRef.current = { ...DEFAULT_MASTER_LISTS, ...restored.master };
                         setMasterLists(masterSnapshotRef.current);
+                    } else if(!isAdminUser){
+                        userAdministrationTarget(uid);await runTransaction(db,async transaction=>{await transaction.get(accountRef);transaction.set(accountRef,profile);});
                     } else {
                         const directory = await runTransaction(db, async transaction => {
                             const masterRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'masterLists');
@@ -10173,6 +10450,7 @@ const WeeklyBilling = (() => {
                             const master = snapshot.exists() ? snapshot.data() : {};
                             const chatDirectory = {...master.chatDirectory, [uid]:{name:profile.name, enabled:profile.enabled}};
                             transaction.set(accountRef, profile);
+                            if(roleChanged)transaction.set(ownerRef('userAdministrators',uid),{uid,enabled:accountDraft.administrator===true,updatedByUid:user.uid,updatedAt:new Date().toISOString()});
                             transaction.set(masterRef, {chatDirectory}, {merge:true});
                             return chatDirectory;
                         });
@@ -10188,7 +10466,7 @@ const WeeklyBilling = (() => {
                 finally { setSettingsBusy(false); }
             };
             const confirmUserDeletion = async () => {
-                if (!isAdminUser || !userToDelete || settingsBusy || !settingsReady || userDeletionPendingRef.current) return;
+                if (!canManageUserAccounts || !userToDelete || settingsBusy || !settingsReady || userDeletionPendingRef.current) return;
                 userDeletionPendingRef.current = true;
                 setSettingsBusy(true); setSettingsError(''); setSettingsMessage('');
                 try {
@@ -10202,8 +10480,8 @@ const WeeklyBilling = (() => {
                 } catch (error) { setSettingsError('The user was not deleted. ' + (error.message || 'Please try again.')); }
                 finally { userDeletionPendingRef.current = false; setSettingsBusy(false); }
             };
-            const deletedDashboardAccounts = managedAccounts.filter(account => isRemovedDashboardUser(account, masterLists.deletedDashboardUsers));
-            const currentDashboardAccounts = managedAccounts.filter(account => !isRemovedDashboardUser(account, masterLists.deletedDashboardUsers));
+            const deletedDashboardAccounts = managedAccounts.filter(account => (isAdminUser||!isProtectedMasterAdminProfile(account))&&isRemovedDashboardUser(account, masterLists.deletedDashboardUsers));
+            const currentDashboardAccounts = managedAccounts.filter(account => (isAdminUser||!isProtectedMasterAdminProfile(account))&&!isRemovedDashboardUser(account, masterLists.deletedDashboardUsers));
             const editManagerAlertDraft = next => {
                 if(!isAdminUser || !managerAlertSettingsLoaded) return;
                 const normalized=normalizeManagerAlertSettings(next), dirty=!sameSavedValue(normalized,savedManagerAlerts);
@@ -11805,19 +12083,19 @@ const WeeklyBilling = (() => {
                     <header data-html2canvas-ignore="true" className={`dashboard-header relative z-30 ${isCapturing ? 'hidden' : 'sticky top-0'}`}>
                         <div className="dashboard-header-grid w-full px-4 h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                             <div className="dashboard-header-brand flex items-center gap-3 min-w-0 justify-start">
-                                <LayoutDashboard className="w-7 h-7 shrink-0 text-slate-100 drop-shadow-lg" />
+                                <Route aria-hidden="true" strokeWidth={1.75} className="w-7 h-7 shrink-0" style={{color:'#c9d9ef',filter:'drop-shadow(0 2px 4px #b5d8ff22)'}} />
                                 <h1 className="text-lg font-bold text-white tracking-tight shrink-0 whitespace-nowrap">Final Mile Operations</h1>
                             </div>
                             <div className="dashboard-nav-wrap min-w-0 flex justify-center">
                                 <nav aria-label="Dashboard sections" className="dashboard-top-nav max-w-full min-w-0 flex items-center overflow-x-auto whitespace-nowrap [&>button]:shrink-0 bg-slate-900/50 p-1 rounded-xl border border-slate-700">
-                                    <button onClick={() => setActiveTab('overview')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'overview' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><span className="dashboard-nav-label">OVERVIEW</span></button>
-                                    <button onClick={() => setActiveTab('routes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'routes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Route className="w-3 h-3" /> <span className="dashboard-nav-label">ROUTES</span></button>
-                                    <button onClick={() => setActiveTab('driver-hub')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'driver-hub' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Truck className="w-3 h-3" /> <span className="dashboard-nav-label">DRIVER HUB</span></button>
-                                    <button onClick={() => setActiveTab('metrics')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'metrics' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Activity className="w-3 h-3" /> <span className="dashboard-nav-label">METRICS</span></button>
-                                    <button onClick={() => setActiveTab('history')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'history' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><History className="w-3 h-3" /> <span className="dashboard-nav-label">HISTORY</span></button>
-                                    <button onClick={() => setActiveTab('bonus')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'bonus' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Award className="w-3 h-3" /> <span className="dashboard-nav-label">BONUS</span></button>
-                                    <button onClick={() => setActiveTab('notes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'notes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><MessageSquare className="w-3 h-3" /> <span className="dashboard-nav-label">SHIFT NOTES</span></button>
-                                    <button onClick={() => setActiveTab('office')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'office' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Users className="w-3 h-3" /> <span className="dashboard-nav-label">OFFICE</span></button>
+                                    {accountCanAction(user,ownerPermissionKey('overview'),'view',accessProfile)&&<button onClick={() => setActiveTab('overview')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'overview' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><span className="dashboard-nav-label">OVERVIEW</span></button>}
+                                    {accountCanAction(user,ownerPermissionKey('routes'),'view',accessProfile)&&<button onClick={() => setActiveTab('routes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'routes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Route className="w-3 h-3" /> <span className="dashboard-nav-label">ROUTES</span></button>}
+                                    {accountCanAction(user,ownerPermissionKey('driver-hub'),'view',accessProfile)&&<button onClick={() => setActiveTab('driver-hub')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'driver-hub' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Truck className="w-3 h-3" /> <span className="dashboard-nav-label">DRIVER HUB</span></button>}
+                                    {accountCanAction(user,ownerPermissionKey('metrics'),'view',accessProfile)&&<button onClick={() => setActiveTab('metrics')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'metrics' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Activity className="w-3 h-3" /> <span className="dashboard-nav-label">METRICS</span></button>}
+                                    {accountCanAction(user,ownerPermissionKey('history'),'view',accessProfile)&&<button onClick={() => setActiveTab('history')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'history' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><History className="w-3 h-3" /> <span className="dashboard-nav-label">HISTORY</span></button>}
+                                    {accountCanAction(user,ownerPermissionKey('bonus'),'view',accessProfile)&&<button onClick={() => setActiveTab('bonus')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'bonus' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Award className="w-3 h-3" /> <span className="dashboard-nav-label">BONUS</span></button>}
+                                    {accountCanAction(user,ownerPermissionKey('notes'),'view',accessProfile)&&<button onClick={() => setActiveTab('notes')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'notes' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><MessageSquare className="w-3 h-3" /> <span className="dashboard-nav-label">SHIFT NOTES</span></button>}
+                                    {accountCanAction(user,ownerPermissionKey('office'),'view',accessProfile)&&<button onClick={() => setActiveTab('office')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'office' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white cursor-pointer'}`}><Users className="w-3 h-3" /> <span className="dashboard-nav-label">OFFICE</span></button>}
                                 </nav>
                             </div>
                             <div className="dashboard-header-actions flex items-center justify-end gap-2 shrink-0">
@@ -12014,10 +12292,11 @@ const WeeklyBilling = (() => {
                             </div>
                         </section>}
 
+                        {ownerActiveLock&&<div role="status" className="mb-4 rounded-xl border border-amber-700/50 bg-amber-950/20 p-4 text-sm text-amber-200">{ownerLocksReady?'This week is locked. Fadi can unlock it in Settings → Data Management → Week locks.':'Week locks are loading or unavailable. Editing is paused until they can be checked.'}</div>}
                         {saveError && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-700 bg-slate-900 p-4 text-sm text-rose-200">
                             <span>{saveError}</span><div className="flex shrink-0 items-center gap-3">{saveErrorNoteId!=null && <button type="button" onClick={()=>{const note=(data.shiftNotes || []).find(item=>String(item.id)===String(saveErrorNoteId));if(note){setActiveTab('notes');openShiftNoteSearchResult({note,dateKey:activeDate});}}} className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-semibold hover:bg-slate-800">Open note to fix</button>}<button type="button" onClick={() => {setSaveError('');setSaveErrorNoteId(null);}} aria-label="Dismiss save error"><X className="h-4 w-4" /></button></div>
                         </div>}
-                        {isLoading ? <div className="h-[50vh] flex flex-col items-center justify-center text-slate-500"><Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-500" /><p className="font-bold uppercase text-[10px]">Syncing Logistics Database...</p></div> : activeTab === 'overview' ? (
+                        {isLoading ? <div className="h-[50vh] flex flex-col items-center justify-center text-slate-500"><Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-500" /><p className="font-bold uppercase text-[10px]">Syncing Logistics Database...</p></div> : !accountCanAction(user,ownerPermissionKey(activeTab),'view',accessProfile) ? <div className="rounded-xl border border-slate-700 p-6 text-sm text-slate-300">This section is not included in your account permissions. Choose another section or contact Fadi.</div> : activeTab === 'overview' ? (
                             
                             <div className="animate-in fade-in duration-500">
                                 {/* Time Alerts */}
@@ -12543,7 +12822,7 @@ const WeeklyBilling = (() => {
                                                             {isEditing && (
                                                                 <td data-panel-screenshot-ignore="true" className="px-2 py-1 text-center sticky right-0 bg-slate-800 border-l border-slate-700">
                                                                     {canEditSection('preload') && canEditSection('preloadAssignments') && <button type="button" onClick={() => setPreloadRouteMenuId(row.id)} aria-label={`Preload options for ${row.serviceUnit || row.route || 'route'}`} title="Preload team options" className="p-1 text-slate-400 hover:text-emerald-300"><MoreHorizontal className="w-4 h-4" /></button>}
-                                                                    <button disabled={Boolean(row.preloadArrival) && !canEditSection('preloadAssignments')} onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.routeTable = nd.routeTable.filter(r => r.id !== row.id); applyLocalRouteTableChange(nd.routeTable); }} className="p-1 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"><Trash2 className="w-4 h-4" /></button>
+                                                                    <button disabled={!isAdminUser || (Boolean(row.preloadArrival) && !canEditSection('preloadAssignments'))} title={isAdminUser?'Delete route':'Only Master Admin can delete routes'} onClick={() => { if(!isAdminUser)return; const nd = JSON.parse(JSON.stringify(data)); nd.routeTable = nd.routeTable.filter(r => r.id !== row.id); applyLocalRouteTableChange(nd.routeTable); }} className="p-1 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"><Trash2 className="w-4 h-4" /></button>
                                                                 </td>
                                                             )}
                                                         </tr>
@@ -13060,9 +13339,9 @@ const WeeklyBilling = (() => {
                                                             </div>
                                                         )}
                                                     </div>
-                                                    {isEditing && isAdminUser && <button onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.filter(n => n.id !== note.id); setData(nd); }} className="text-slate-600 hover:text-rose-400 p-1 transition-colors cursor-pointer"><X className="w-5 h-5" /></button>}
+                                                    {isEditing && accountCanAction(user,'shiftNotes','delete',accessProfile) && (isAdminUser||!isManagerNote(note)) && <button aria-label={'Delete note '+note.id} onClick={() => { const nd = JSON.parse(JSON.stringify(data)); nd.shiftNotes = nd.shiftNotes.filter(n => n.id !== note.id); setData(nd); }} className="text-slate-600 hover:text-rose-400 p-1 transition-colors cursor-pointer"><X className="w-5 h-5" /></button>}
                                                 </div>
-                                                {isEditing && isAdminUser && isManagerNote(note) && <ManagerNoteTeamOverride note={note} defaults={masterLists.managerNoteAcknowledgementUids} people={taskAssignees.filter(person=>person.uid!==OWNER_UID && !masterLists.deletedDashboardUsers?.[person.uid])} onChange={selected=>setData(previous=>({...previous,shiftNotes:(previous.shiftNotes || []).map(item=>{if(item.id!==note.id)return item;const updated={...item};if(selected===null)delete updated.managerNoteAcknowledgementUids;else updated.managerNoteAcknowledgementUids=normalizeManagerNoteAcknowledgementUids(selected);return updated;})}))}/>}
+                                                {isEditing && isAdminUser && isManagerNote(note) && <ManagerNoteTeamOverride note={note} defaults={masterLists.managerNoteAcknowledgementUids} people={taskAssignees.filter(person=>!isProtectedMasterAdminProfile({uid:person.uid,...accessProfilesCache.get(person.uid)}) && !masterLists.deletedDashboardUsers?.[person.uid])} onChange={selected=>setData(previous=>({...previous,shiftNotes:(previous.shiftNotes || []).map(item=>{if(item.id!==note.id)return item;const updated={...item};if(selected===null)delete updated.managerNoteAcknowledgementUids;else updated.managerNoteAcknowledgementUids=normalizeManagerNoteAcknowledgementUids(selected);return updated;})}))}/>}
                                                 {isEditing && saveErrorNoteId!=null && String(note.id)===String(saveErrorNoteId) && validateDriverCallIssue(note.driverCall) && <p role="alert" className="mb-3 text-sm text-rose-200">{validateDriverCallIssue(note.driverCall)}</p>}
                                                 {isEditing && (isAdminUser || !isManagerNote(note)) ? (
                                                     note.noteType === 'driver-call' && note.driverCall ? (
@@ -13221,7 +13500,7 @@ const WeeklyBilling = (() => {
                                 </div>
 
                                 {billingError && <div role="alert" className="mb-4 px-4 py-3 rounded-lg border border-amber-700 bg-amber-950/30 text-amber-200 text-xs flex items-center justify-between gap-3"><span>{billingError}</span><button className="px-2 py-1" onClick={() => setBillingError('')} aria-label="Dismiss billing message">×</button></div>}
-                                {billingDraft && <WeeklyBillingPreview initialDraft={billingDraft} billingCompanyCatalog={masterLists.billingCompaniesForExport} canEditCompanies={isAdminUser && settingsReady} saveCompanyCatalog={async (catalog,baseline)=>{const saved=await saveBillingCompanyCatalog({uid:user.uid,catalog,baseline,name:getSavedDisplayName(user)});if(auth.currentUser?.uid!==user.uid)throw new Error('Your account changed. Reopen billing.');setMasterLists(previous=>({...previous,billingCompaniesForExport:saved}));return saved;}} onClose={() => setBillingDraft(null)} />}
+                                {billingDraft && <WeeklyBillingPreview initialDraft={billingDraft} weekLocked={ownerPolicyEnabled&&(!ownerLocksReady||ownerIsSectionLocked('bonus',activeDate))} billingCompanyCatalog={masterLists.billingCompaniesForExport} canEditCompanies={isAdminUser && settingsReady} saveCompanyCatalog={async (catalog,baseline)=>{const saved=await saveBillingCompanyCatalog({uid:user.uid,catalog,baseline,name:getSavedDisplayName(user)});if(auth.currentUser?.uid!==user.uid)throw new Error('Your account changed. Reopen billing.');setMasterLists(previous=>({...previous,billingCompaniesForExport:saved}));return saved;}} onClose={() => setBillingDraft(null)} />}
                                 <div ref={bonusScreenshotRef} className={isBonusFullscreen ? 'flex-1 flex flex-col gap-4 overflow-hidden' : ''}>
                                     <div data-panel-screenshot-only="true" className="hidden items-center justify-between gap-4 px-5 py-4 bg-slate-900 border border-slate-700 rounded-xl mb-4">
                                         <div className="flex items-center gap-3">
@@ -13687,7 +13966,7 @@ const WeeklyBilling = (() => {
                     {}
                     <footer data-html2canvas-ignore="true" className={`dashboard-footer fixed bottom-0 left-0 right-0 backdrop-blur-md px-4 py-1 z-50 flex flex-col md:flex-row justify-between items-center gap-1.5 md:gap-3 ${isCapturing ? 'hidden' : ''}`}>
                         <div className="footer-online-area flex w-full min-w-0 max-w-full items-center gap-1.5 md:w-auto md:flex-1">
-                            {isAdminUser && <button type="button" onClick={openSettings} title="Settings" aria-label="Open Settings" className="dashboard-settings-button shrink-0 inline-flex items-center justify-center p-1.5 bg-transparent border-0 text-slate-300 hover:text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300"><Settings className="w-4 h-4" /></button>}
+                            {canManageUserAccounts && <button type="button" onClick={openSettings} title="Settings" aria-label="Open Settings" className="dashboard-settings-button shrink-0 inline-flex items-center justify-center p-1.5 bg-transparent border-0 text-slate-300 hover:text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-300"><Settings className="w-4 h-4" /></button>}
                             <div className="footer-online-users flex min-w-0 items-center gap-1.5 overflow-x-auto max-w-full no-scrollbar">
                             <Users aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-500" />
                             <span className="text-[11px] font-medium text-slate-500 shrink-0">Online users</span>
@@ -13750,7 +14029,7 @@ const WeeklyBilling = (() => {
                         notifications={taskNotifications} readAlert={markTaskAlertsRead} filter={taskFilter} setFilter={setTaskFilter} person={taskAssigneeFilter} setPerson={setTaskAssigneeFilter}
                         selectedId={selectedTaskId} selectTask={setSelectedTaskId} draft={taskDraft} setDraft={setTaskDraft} startDraft={startTaskDraft} commit={commitTeamTaskAction}
                         updates={taskUpdateDrafts} setUpdates={setTaskUpdateDrafts} requests={taskRequestDrafts} setRequests={setTaskRequestDrafts} />}
-                    {isAdminUser && isSettingsOpen && (
+                    {canManageUserAccounts && isSettingsOpen && (
                         <div className="dashboard-modal settings-modal fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4" data-dashboard-edit-ignore="true" data-html2canvas-ignore="true">
                             <div ref={settingsDialogRef} role="dialog" aria-modal="true" aria-labelledby="settings-title" className="settings-window flex flex-col min-h-0 w-full max-w-5xl max-h-[90dvh] rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden">
                                 <div className="dashboard-mobile-toolbar flex items-center justify-between gap-3 border-b border-slate-700 bg-slate-800 px-5 py-4 shrink-0">
@@ -13758,7 +14037,7 @@ const WeeklyBilling = (() => {
                                     <button type="button" data-settings-close aria-label="Close Settings" disabled={settingsBusy} onClick={() => setIsSettingsOpen(false)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-40"><X className="w-5 h-5" /></button>
                                 </div>
                                 <nav aria-label="Settings sections" className="dashboard-modal-tabs flex gap-1 px-3 border-b border-slate-700 bg-slate-800/40 shrink-0 overflow-x-auto">
-                                    {[['users', 'Users & Permissions'], ['history', 'Activity History'], ['backup', 'Backup & Restore'], ['sounds', 'Sounds & Alerts'], ['managerAlerts', 'Manager Alerts'], ['rings', 'Rings']].map(([key, label]) => (
+                                    {[['users', 'Users & Permissions'], ['history', 'Activity History'], ['dataManagement', 'Data Management'], ['backup', 'Backup & Restore'], ['sounds', 'Sounds & Alerts'], ['managerAlerts', 'Manager Alerts'], ['rings', 'Rings']].filter(([key])=>isAdminUser||key==='users').map(([key, label]) => (
                                         <button key={key} type="button" aria-current={settingsTab === key ? 'page' : undefined} onClick={() => { setSettingsTab(key); setSettingsError(''); setSettingsMessage(''); }} className={`shrink-0 px-3 py-3 text-xs font-bold border-b-2 transition-colors ${settingsTab === key ? 'border-indigo-400 text-indigo-200' : 'border-transparent text-slate-400 hover:text-white'}`}>{label}</button>
                                     ))}
                                 </nav>
@@ -13766,12 +14045,12 @@ const WeeklyBilling = (() => {
                                     {!settingsReady && isAdminUser && settingsTab !== 'sounds' && <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-sm text-amber-200">The administrator controls are ready in this page and are waiting for the updated access rules to be activated. Your existing dashboard and sound preferences are available.</div>}
                                     {settingsError && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-950/20 p-3 text-sm text-rose-200 break-words">{settingsError}</div>}
                                     {settingsMessage && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 text-sm text-emerald-200 break-words">{settingsMessage}</div>}
-                                    {isAdminUser && settingsTab === 'users' && (
+                                    {canManageUserAccounts && settingsTab === 'users' && (
                                         <div className="space-y-4">
-                                            <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-bold text-white">Users & Permissions</h3><p className="text-xs text-slate-400 mt-1">Create team logins and choose which sections each person can edit.</p></div><button type="button" disabled={settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setShowEnteredPasswords(false); setUserToDelete(null); setAccountDraft({ uid:'', name:'', email:'', password:'', confirmPassword:'', mode:'create', enabled:true, permissions:{...DEFAULT_STAFF_PERMISSIONS}, isNew:true }); setSettingsError(''); setSettingsMessage(''); }} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><PlusCircle className="w-4 h-4" />Add user</button></div>
-                                            <p className="text-xs text-slate-400">Users with access can view the dashboard. Editing permissions control saved changes. Removing access signs that account out. Your administrator account stays protected.</p>
-                                            <ManagerNoteTeamSettings key={user.uid} uid={user.uid} name={getSavedDisplayName(user)} people={taskAssignees.filter(person=>person.uid!==OWNER_UID && !masterLists.deletedDashboardUsers?.[person.uid])} savedUids={masterLists.managerNoteAcknowledgementUids} loaded={settingsReady && managerNoteTeamLoaded && managerRecipientsLoaded && !settingsBusy} onBusy={setSettingsBusy} onSaved={selected=>setMasterLists(previous=>({...previous,managerNoteAcknowledgementUids:selected}))}/>
-                                            {passwordResetDraft && <form onSubmit={passwordResetDraft.mode === 'direct' ? changeUserPasswordDirectly : sendUserPasswordReset} aria-label="Change password" className="rounded-xl border border-slate-500/50 bg-slate-800/50 p-4 space-y-3">
+                                            <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-bold text-white">Users & Permissions</h3><p className="text-xs text-slate-400 mt-1">{isAdminUser?'Manage team access and choose who may become an Admin.':'Add, remove and manage permissions for ordinary users.'}</p></div><button type="button" disabled={settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setShowEnteredPasswords(false); setUserToDelete(null); setAccountDraft({ uid:'', name:'', email:'', password:'', confirmPassword:'', mode:'create', enabled:true, permissions:{...DEFAULT_STAFF_PERMISSIONS}, isNew:true }); setSettingsError(''); setSettingsMessage(''); }} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><PlusCircle className="w-4 h-4" />Add user</button></div>
+                                            <p className="text-xs text-slate-400">{isAdminUser?'Only you can assign or remove the Admin role. Admins manage ordinary users; app-wide controls stay with Master Admin.':'You can manage ordinary users. Protected owner accounts and app-wide controls are unavailable here.'}</p>
+                                            {isAdminUser&&<ManagerNoteTeamSettings key={user.uid} uid={user.uid} name={getSavedDisplayName(user)} people={taskAssignees.filter(person=>!isProtectedMasterAdminProfile({uid:person.uid,...accessProfilesCache.get(person.uid)}) && !masterLists.deletedDashboardUsers?.[person.uid])} savedUids={masterLists.managerNoteAcknowledgementUids} loaded={settingsReady && managerNoteTeamLoaded && managerRecipientsLoaded && !settingsBusy} onBusy={setSettingsBusy} onSaved={selected=>setMasterLists(previous=>({...previous,managerNoteAcknowledgementUids:selected}))}/>}
+                                            {isAdminUser && passwordResetDraft && <form onSubmit={passwordResetDraft.mode === 'direct' ? changeUserPasswordDirectly : sendUserPasswordReset} aria-label="Change password" className="rounded-xl border border-slate-500/50 bg-slate-800/50 p-4 space-y-3">
                                                 <h4 className="font-bold text-white">Change password for {passwordResetDraft.name}</h4>
                                                 <fieldset disabled={settingsBusy} className="flex flex-wrap gap-3 text-xs text-slate-300"><legend className="mb-2 font-bold">Choose an option</legend>{[['direct','Change here'],['link','Send reset link']].map(([mode,label]) => <label key={mode} className="flex items-center gap-2 rounded-lg border border-slate-600 px-3 py-2"><input type="radio" name="password-change-mode" checked={passwordResetDraft.mode === mode} onChange={() => { setPasswordResetDraft({...passwordResetDraft,mode,currentPassword:'',password:'',confirmPassword:'',showPasswords:false,requested:false,changed:false}); setSettingsError(''); setSettingsMessage(''); }} className="accent-indigo-400" />{label}</label>)}</fieldset>
                                                 <p className="text-sm text-slate-300">{passwordResetDraft.mode === 'direct' ? 'Enter the current password and choose a new one here, without an email link.' : 'Send a reset link so this person can choose a new password from their email.'}</p>
@@ -13793,9 +14072,9 @@ const WeeklyBilling = (() => {
                                                 <div className="flex flex-wrap gap-3"><button ref={userDeletionConfirmRef} type="button" onClick={confirmUserDeletion} disabled={settingsBusy || !settingsReady} className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{settingsBusy ? 'Deleting…' : 'Delete user'}</button><button type="button" onClick={() => setUserToDelete(null)} disabled={settingsBusy} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">Cancel deletion</button></div>
                                             </div>}
                                             <div className="grid gap-3 sm:grid-cols-2">
-                                                {currentDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-100 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="text-xs text-slate-400 mt-1 break-all">{account.email || (account.uid === OWNER_UID ? 'Administrator' : 'Team account')}</div><div className={`text-xs mt-2 ${account.enabled ? 'text-emerald-300' : 'text-rose-300'}`}>{account.uid === OWNER_UID ? 'Full administrator access' : account.enabled ? 'Dashboard access enabled' : 'Access removed'}</div></div><div className="flex min-w-0 max-w-full flex-wrap gap-2"><button type="button" disabled={account.uid === OWNER_UID || settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setUserToDelete(null); setAccountDraft({ ...account, permissions: { ...account.permissions }, isNew: false }); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-30">{account.uid === OWNER_UID ? 'Protected' : 'Manage'}</button><button type="button" aria-label={'Change password for ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => openPasswordReset(account)} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-40">Change password</button>{account.uid !== OWNER_UID && <button type="button" aria-label={'Delete ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setAccountDraft(null); setUserToDelete(account); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-950/30 disabled:opacity-40">Delete</button>}</div></div>)}
+                                                {currentDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-100 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="text-xs text-slate-400 mt-1 break-all">{account.email || (isProtectedMasterAdminProfile(account) ? 'Master Admin' : 'Team account')}</div><div className={`text-xs mt-2 ${account.enabled ? 'text-emerald-300' : 'text-rose-300'}`}>{isProtectedMasterAdminProfile(account) ? 'Master Admin · protected owner access' : account.enabled ? (administratorRoles[account.uid]?.enabled||account.isUserAdmin?'Admin · user management':'Team user · assigned permissions only') : 'Access removed'}</div></div><div className="flex min-w-0 max-w-full flex-wrap gap-2"><button type="button" disabled={(isProtectedMasterAdminProfile(account)||(!isAdminUser&&(account.uid===user.uid||account.isUserAdmin))) || settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setUserToDelete(null); setAccountDraft({ ...account, permissions: { ...account.permissions }, administrator:administratorRoles[account.uid]?.enabled===true, isNew: false }); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-30">{isProtectedMasterAdminProfile(account) ? 'Protected' : 'Manage'}</button>{isAdminUser&&<button type="button" aria-label={'Change password for ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => openPasswordReset(account)} className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-40">Change password</button>}{!isProtectedMasterAdminProfile(account) && (isAdminUser||(!account.isUserAdmin&&account.uid!==user.uid)) && <button type="button" aria-label={'Delete ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setAccountDraft(null); setUserToDelete(account); setSettingsError(''); setSettingsMessage(''); }} className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-950/30 disabled:opacity-40">Delete</button>}</div></div>)}
                                             </div>
-                                            {deletedDashboardAccounts.length > 0 && <div className="space-y-3 border-t border-slate-700 pt-4"><button type="button" aria-expanded={showDeletedUsers} onClick={() => setShowDeletedUsers(value => !value)} className="text-xs font-bold text-slate-300 hover:text-white">{showDeletedUsers ? 'Hide' : 'Show'} deleted users ({deletedDashboardAccounts.length})</button>{showDeletedUsers && <><p className="text-xs text-slate-400">These users have no dashboard access. Restore opens their permissions for review before you save.</p><div className="grid gap-3 sm:grid-cols-2">{deletedDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-300 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="mt-1 text-xs text-slate-400 break-all">{account.email || 'Team account'}</div><div className="mt-2 text-xs text-rose-300">Deleted from dashboard · access blocked</div></div><button type="button" aria-label={'Restore ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setUserToDelete(null); setAccountDraft({ ...account, enabled:true, permissions:{...account.permissions}, isNew:false, restoringDashboardAccess:true }); setSettingsError(''); setSettingsMessage(''); }} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-40">Restore</button></div>)}</div></>}</div>}
+                                            {deletedDashboardAccounts.length > 0 && <div className="space-y-3 border-t border-slate-700 pt-4"><button type="button" aria-expanded={showDeletedUsers} onClick={() => setShowDeletedUsers(value => !value)} className="text-xs font-bold text-slate-300 hover:text-white">{showDeletedUsers ? 'Hide' : 'Show'} deleted users ({deletedDashboardAccounts.length})</button>{showDeletedUsers && <><p className="text-xs text-slate-400">These users have no dashboard access. Restore opens their permissions for review before you save.</p><div className="grid gap-3 sm:grid-cols-2">{deletedDashboardAccounts.map(account => <div key={account.uid} className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 p-4"><div className="min-w-0 flex-1"><div className="text-sm font-bold text-slate-300 break-words">{masterLists.nameOverrides?.[account.uid] || account.name || 'Team member'}</div><div className="mt-1 text-xs text-slate-400 break-all">{account.email || 'Team account'}</div><div className="mt-2 text-xs text-rose-300">Deleted from dashboard · access blocked</div></div><button type="button" aria-label={'Restore ' + (masterLists.nameOverrides?.[account.uid] || account.name || 'user')} disabled={settingsBusy || !settingsReady} onClick={() => { setPasswordResetDraft(null); setUserToDelete(null); setAccountDraft({ ...account, enabled:true, permissions:{...account.permissions}, administrator:administratorRoles[account.uid]?.enabled===true, isNew:false, restoringDashboardAccess:true }); setSettingsError(''); setSettingsMessage(''); }} className="shrink-0 rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white disabled:opacity-40">Restore</button></div>)}</div></>}</div>}
                                             {accountDraft && <div className="rounded-xl border border-indigo-400/40 bg-slate-800/50 p-4 space-y-4">
                                                 <h4 className="font-bold text-white">{accountDraft.restoringDashboardAccess ? 'Restore ' + accountDraft.name : accountDraft.createdLogin ? 'Finish dashboard access' : accountDraft.isNew ? 'Add user' : 'Permissions for ' + accountDraft.name}</h4>
                                                 {accountDraft.isNew && !accountDraft.createdLogin && <fieldset disabled={settingsBusy} className="flex flex-wrap gap-4 text-xs text-slate-300"><legend className="mb-2 font-bold">Login</legend><label className="flex items-center gap-2"><input type="radio" name="new-account-mode" checked={accountDraft.mode === 'create'} onChange={() => setAccountDraft({...accountDraft,mode:'create',uid:'',password:'',confirmPassword:''})} className="accent-indigo-400" />Create a new login</label><label className="flex items-center gap-2"><input type="radio" name="new-account-mode" checked={accountDraft.mode !== 'create'} onChange={() => setAccountDraft({...accountDraft,mode:'existing',password:'',confirmPassword:''})} className="accent-indigo-400" />Link an existing login</label></fieldset>}
@@ -13810,15 +14089,17 @@ const WeeklyBilling = (() => {
                                                     <p className="text-xs text-slate-400">At least 6 characters; your Firebase password policy also applies. Your admin login stays signed in. The password is sent only to Firebase Authentication, never saved in dashboard records.</p>
                                                 </>}
                                                 {!accountDraft.isNew && <p className="text-xs text-slate-400">The email label is for reference. Changing it does not change this person’s login email or password.</p>}
+                                                {isAdminUser&&<div className="rounded-lg border border-slate-600 p-3 text-xs text-slate-300"><label className="flex items-center gap-3 font-bold"><input aria-label="Admin user-management access" type="checkbox" checked={accountDraft.administrator===true} disabled={settingsBusy||!adminRolesAvailable||accountDraft.restoringDashboardAccess} onChange={event=>setAccountDraft({...accountDraft,administrator:event.target.checked})} className="h-4 w-4 accent-indigo-400"/>Admin · manage ordinary users and permissions</label><p className="mt-2 text-slate-400">Admin cannot manage Master Admin accounts, promote other Admins, delete business records, or change protected app settings.</p>{!adminRolesAvailable&&<p className="mt-2 text-amber-200">Admin role setup needs its matching database rules. Nobody is assigned automatically.</p>}</div>}
                                                 <label className="flex gap-3 items-center text-sm font-bold text-slate-200"><input type="checkbox" checked={accountDraft.enabled} disabled={settingsBusy} onChange={event => setAccountDraft({ ...accountDraft, enabled: event.target.checked })} className="h-4 w-4 accent-emerald-500" />Dashboard access enabled</label>
-                                                <fieldset disabled={!accountDraft.enabled || settingsBusy} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 disabled:opacity-50"><legend className="text-xs font-bold text-slate-300 mb-3">Allow editing</legend>{PERMISSION_OPTIONS.map(([key, label]) => <label key={key} className="flex gap-3 items-center rounded-lg border border-slate-700 p-3 text-xs text-slate-200"><input type="checkbox" checked={accountDraft.permissions[key] === true} onChange={event => setAccountDraft({ ...accountDraft, permissions: { ...accountDraft.permissions, [key]: event.target.checked } })} className="h-4 w-4 accent-indigo-400" />{label}</label>)}</fieldset>
+                                                {ownerPolicyEnabled?<OwnerPermissionsGrid draft={accountDraft} change={setAccountDraft} disabled={!accountDraft.enabled||settingsBusy}/>:<><p className="text-xs text-amber-200">Detailed action permissions are available after activating Data Management. Your existing editing controls remain available below.</p><fieldset disabled={!accountDraft.enabled || settingsBusy} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 disabled:opacity-50"><legend className="text-xs font-bold text-slate-300 mb-3">Allow editing</legend>{PERMISSION_OPTIONS.filter(([key])=>key!=='history').map(([key, label]) => <label key={key} className="flex gap-3 items-center rounded-lg border border-slate-700 p-3 text-xs text-slate-200"><input type="checkbox" checked={accountDraft.permissions[key] === true} onChange={event => setAccountDraft({ ...accountDraft, permissions: { ...accountDraft.permissions, [key]: event.target.checked } })} className="h-4 w-4 accent-indigo-400" />{label}</label>)}</fieldset></>}
                                                 <div className="flex flex-wrap gap-3"><button type="button" onClick={saveAccountPermissions} disabled={settingsBusy || !settingsReady} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{settingsBusy ? accountDraft.mode === 'create' ? 'Creating user…' : 'Saving…' : accountDraft.createdLogin ? 'Retry permissions' : accountDraft.isNew && accountDraft.mode === 'create' ? 'Create user' : 'Save permissions'}</button><button type="button" onClick={() => setAccountDraft(null)} disabled={settingsBusy} className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-bold text-slate-300">{accountDraft.createdLogin ? 'Close' : 'Cancel'}</button></div>
                                             </div>}
                                         </div>
                                     )}
+                                    {isAdminUser && settingsTab === 'dataManagement' && <OwnerDataManagement account={user} activeDate={activeDate} policyEnabled={ownerPolicyEnabled} unsaved={hasUnsavedDashboardChanges||dashboardPendingWrites||saveActivity.pending}/>}
                                     {isAdminUser && settingsTab === 'history' && (
                                         <div className="space-y-4">
-                                            <div><h3 className="font-bold text-white">Activity History</h3><p className="text-sm text-slate-400 mt-1">See who did what, when it happened, and what changed. Open an entry for all its actions.</p></div>
+                                            <div><h3 className="font-bold text-white">Activity History</h3><p className="text-sm text-slate-400 mt-1">See who did what, when it happened, and what changed. Open an entry for all its actions.</p><button type="button" onClick={()=>setSettingsTab('dataManagement')} className="mt-3 rounded-lg border border-slate-600 px-3 py-2 text-xs font-bold text-slate-200">Manage history cleanup</button></div>
                                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                                                 <label className="text-xs font-bold text-slate-300">Search<input type="search" value={auditFilters.search} onChange={event => setAuditFilters({ ...auditFilters, search: event.target.value })} placeholder="Name, route, message, or action" className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-sm font-normal" /></label>
                                                 <label className="text-xs font-bold text-slate-300">User<select value={auditFilters.user} onChange={event => setAuditFilters({ ...auditFilters, user: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-sm font-normal"><option value="">All users</option>{[...new Map(auditEvents.map(item => [item.actorUid, item.actorName])).entries()].map(([uid, name]) => <option key={uid} value={uid}>{name}</option>)}</select></label>
