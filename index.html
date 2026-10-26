@@ -1798,6 +1798,22 @@
             });
         };
 
+        const normalizeParkingSpotInput = value => String(value ?? '').trim().replace(/^spot\s+/i, '').replace(/\s+/g, ' ').trim();
+        const parkingSpotKey = value => normalizeParkingSpotInput(value).normalize('NFKC').toLowerCase();
+        const prepareParkingAssignments = (assignments, contractors = []) => {
+            if (!Array.isArray(assignments)) throw new Error('Parking spots could not load. Close and reopen Parking Assignments.');
+            const spots = new Set(), ids = new Set();
+            const cleaned = assignments.map(item => {
+                const spot = String(item.spot ?? '').trim(), key = parkingSpotKey(spot), id = String(item.id ?? '').trim();
+                if (!key) throw new Error('Each parking spot needs a number or name.');
+                if (spots.has(key)) throw new Error('Spot ' + spot + ' is already listed. Use a different spot.');
+                if (!id || ids.has(id)) throw new Error('A parking spot could not be identified. Close and reopen Parking Assignments.');
+                spots.add(key); ids.add(id);
+                return { ...item, spot, assignee: String(item.assignee || 'Available').trim() || 'Available' };
+            });
+            return resolveParkingAssigneeNames(cleaned, contractors);
+        };
+
         const ROUTE_COLUMNS = [
             { key: 'cnt', label: 'Cnt', type: 'text', width: 'w-10', noWrap: true },
             { key: 'door', label: 'Door', type: 'text', width: 'w-12', noWrap: true },
@@ -3075,6 +3091,13 @@
         const ownerPayload = value => Array.isArray(value)?value.map(ownerPayload):value&&typeof value==='object'&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null)?Object.fromEntries(Object.entries(value).map(([key,item])=>[key,ownerPayload(item)])):value;
         const ownerRecordLabel = (kind,id,field,item) => ['auditEvents','activityEvents'].includes(kind)?'Activity: '+String(item.actorName||'Team member')+' '+String(item.summary||item.text||'').slice(0,120):field ? (field==='routeTable'?'Route ':'Note ')+(item.serviceUnit||item.route||item.driverCall?.route||String(item.text||'').slice(0,80)||item.id)+' · '+id : sectionNameForRecord(kind,id)+' · '+id;
         const ownerArrayActions = (left=[],right=[]) => {const byId=new Map(left.map((item,i)=>[String(item?.id??i),item])),next=new Map(right.map((item,i)=>[String(item?.id??i),item])),actions=new Set();for(const [id,item]of next){if(!byId.has(id))actions.add('add');else if(!sameSavedValue(byId.get(id),item))actions.add('edit');}for(const id of byId.keys())if(!next.has(id))actions.add('delete');return [...actions];};
+        const ownerTeamChatActions = (before=[],after=[]) => {
+            const retained = before.length >= 150 ? before.slice(1) : before;
+            const last = after.at(-1);
+            const append = !!last?.id && !before.some(item => item?.id === last.id) &&
+                after.length === retained.length + 1 && retained.every((item,index) => sameSavedValue(item,after[index]));
+            return append ? ['add'] : ownerArrayActions(before,after);
+        };
         const ownerRequiredActions = (kind,before,after,operation) => {
             const requirements=[],add=(section,actions)=>actions.forEach(action=>requirements.push([section,action])),changed=key=>!sameSavedValue(before?.[key],after?.[key]);
             if(kind==='dailyRecaps'){
@@ -3082,10 +3105,10 @@
                 for(const [field,key]of[['routeTable','routes'],['shiftNotes','shiftNotes']])if(changed(field))add(key,ownerArrayActions(before?.[field]||[],after?.[field]||[]));
                 if(changed('metricsTracker'))for(const field of new Set([...Object.keys(before?.metricsTracker||{}),...Object.keys(after?.metricsTracker||{})])){const a=before?.metricsTracker?.[field],b=after?.metricsTracker?.[field];if(!sameSavedValue(a,b))add('metrics',Array.isArray(a)||Array.isArray(b)?ownerArrayActions(a||[],b||[]):['edit']);}
                 if(changed('loadout')||changed('midDay')||changed('endOfDay')){const a=before?.loadout||{},b=after?.loadout||{};const {metrics:am,...ar}=a,{metrics:bm,...br}=b;if(!sameSavedValue(ar,br)||changed('midDay')||changed('endOfDay'))add('overview',['edit']);else if(!sameSavedValue(am,bm)&&!changed('routeTable'))add('overview',['edit']);}
-            }else if(kind==='teamChat'){add('chat',ownerArrayActions(before?.messages||[],after?.messages||[]));
+            }else if(kind==='teamChat'){add('chat',ownerTeamChatActions(before?.messages||[],after?.messages||[]));
             }else if(kind==='config'){
                 for(const [field,key]of[['drivers','masterLists'],['helpers','masterLists'],['contractors','masterLists']])if(changed(field)){if(field==='contractors'&&accountHasPermission(auth.currentUser,'contractorPlan')&&!accountHasPermission(auth.currentUser,'masterLists'))add('contractorPlan',['edit']);else add(key,ownerArrayActions(before?.[field]||[],after?.[field]||[]));}
-                if(changed('parkingAssignments'))add('parking',['edit']);
+                if(changed('parkingAssignments'))add('parking',ownerArrayActions(before?.parkingAssignments || DEFAULT_MASTER_LISTS.parkingAssignments,after?.parkingAssignments || []));
                 if(changed('ownerControlVersion'))throw new Error('Only Master Admin can activate owner controls.');
             }else if(kind==='officeSchedules'&&Array.isArray(before?.employees)&&Array.isArray(after?.employees)){add('office',ownerArrayActions(before.employees,after.employees));if(!sameSavedValue(before.afterHours,after.afterHours))add('office',['edit']);}
             else {const key={weeklyBonuses:'bonus',officeSchedules:'office',preloadSchedules:'preload',teamChat:'chat'}[kind];if(key)add(key,[operation==='create'?'add':operation==='delete'?'delete':'edit']);}
@@ -8303,6 +8326,9 @@ const WeeklyBilling = (() => {
             const [isParkingModalOpen, setIsParkingModalOpen] = useState(false);
             const [isParkingEditing, setIsParkingEditing] = useState(false);
             const [parkingDraft, setParkingDraft] = useState([]);
+            const [newParkingSpot, setNewParkingSpot] = useState(''), [parkingError, setParkingError] = useState('');
+            const [parkingSaveBusy, setParkingSaveBusy] = useState(false), [parkingSpotToRemove, setParkingSpotToRemove] = useState(null);
+            const parkingBaselineRef = useRef([]), parkingRemovalConfirmRef = useRef(null);
             const [isParkingFullscreen, setIsParkingFullscreen] = useState(false);
 
             const [officeActiveDate, setOfficeActiveDate] = useState(openDates[0]);
@@ -10692,27 +10718,70 @@ const WeeklyBilling = (() => {
             };
 
             const getParkingAssignments = () => resolveParkingAssigneeNames(masterLists.parkingAssignments || DEFAULT_MASTER_LISTS.parkingAssignments, masterLists.contractors || DEFAULT_MASTER_LISTS.contractors);
-
+            const canManageParkingAction = action => canEditSection('parking') && accountCanAction(user, 'parking', action, accessProfile);
+            const resetParkingDraft = () => {
+                const saved = JSON.parse(JSON.stringify(getParkingAssignments()));
+                parkingBaselineRef.current = saved;
+                setParkingDraft(saved);
+                setNewParkingSpot(''); setParkingError(''); setParkingSpotToRemove(null);
+            };
+            useEffect(() => {
+                if (!isParkingModalOpen || isParkingEditing) return;
+                setParkingDraft(resolveParkingAssigneeNames(masterLists.parkingAssignments || DEFAULT_MASTER_LISTS.parkingAssignments, masterLists.contractors || DEFAULT_MASTER_LISTS.contractors));
+            }, [isParkingModalOpen, isParkingEditing, masterLists.parkingAssignments, masterLists.contractors]);
+            useEffect(() => {
+                if (!parkingSpotToRemove) return;
+                const panel = parkingRemovalConfirmRef.current;
+                panel?.scrollIntoView({block:'nearest'});
+                panel?.querySelector('button')?.focus({preventScroll:true});
+            }, [parkingSpotToRemove]);
             const openParkingAssignments = () => {
-                setParkingDraft(JSON.parse(JSON.stringify(getParkingAssignments())));
+                resetParkingDraft();
                 setIsParkingEditing(false);
                 setIsParkingModalOpen(true);
             };
-
-            const updateParkingAssignment = (id, assignee) => {
-                setParkingDraft(prev => prev.map(item => item.id === id ? { ...item, assignee } : item));
+            const startParkingEditing = () => {
+                if (!canEditSection('parking') || parkingSaveBusy) return;
+                resetParkingDraft(); setIsParkingEditing(true);
             };
-
+            const canEditParkingAssignee = id => canManageParkingAction('edit') || (canManageParkingAction('add') && !parkingBaselineRef.current.some(item => String(item.id) === String(id)));
+            const updateParkingAssignment = (id, assignee) => {
+                if (!isParkingEditing || parkingSaveBusy || !canEditParkingAssignee(id)) return;
+                setParkingDraft(previous => previous.map(item => item.id === id ? { ...item, assignee } : item));
+                setParkingError('');
+            };
+            const addParkingSpot = () => {
+                if (!isParkingEditing || parkingSaveBusy || !canManageParkingAction('add')) return;
+                const spot = normalizeParkingSpotInput(newParkingSpot);
+                if (!spot) { setParkingError('Enter a parking spot number or name.'); return; }
+                if (parkingDraft.some(item => parkingSpotKey(item.spot) === parkingSpotKey(spot))) { setParkingError('Spot ' + spot + ' is already listed. Use a different spot.'); return; }
+                const id = 'parking-' + (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
+                setParkingDraft(previous => [...previous, { id, spot, assignee: 'Available' }]);
+                setNewParkingSpot(''); setParkingError('');
+            };
+            const removeParkingSpot = () => {
+                if (!isParkingEditing || parkingSaveBusy || !parkingSpotToRemove || !canManageParkingAction('delete')) return;
+                setParkingDraft(previous => previous.filter(item => item.id !== parkingSpotToRemove.id));
+                setParkingSpotToRemove(null); setParkingError('');
+            };
             const saveParkingAssignments = async () => {
-                if (!canEditSection('parking')) return;
-                const cleanedAssignments = resolveParkingAssigneeNames(parkingDraft.map(item => ({
-                    ...item,
-                    spot: String(item.spot || '').trim(),
-                    assignee: String(item.assignee || 'Available').trim() || 'Available'
-                })), masterLists.contractors || DEFAULT_MASTER_LISTS.contractors);
-                const newLists = { ...masterLists, parkingAssignments: cleanedAssignments };
-                setMasterLists(newLists);
-                if (await saveMasterLists(newLists)) setIsParkingEditing(false);
+                if (!canEditSection('parking') || parkingSaveBusy) return;
+                if (parkingSpotToRemove) { setParkingError('Confirm or cancel the parking spot removal before saving.'); return; }
+                try {
+                    const contractors = masterLists.contractors || DEFAULT_MASTER_LISTS.contractors;
+                    const cleaned = prepareParkingAssignments(parkingDraft, contractors);
+                    for (const action of ownerArrayActions(parkingBaselineRef.current, cleaned)) {
+                        if (!canManageParkingAction(action)) throw new Error('You do not have permission to ' + action + ' parking spots.');
+                    }
+                    const assignments = prepareParkingAssignments(mergeConcurrentEdits(parkingBaselineRef.current, cleaned, getParkingAssignments()), contractors);
+                    const newLists = { ...masterLists, parkingAssignments: assignments };
+                    setParkingSaveBusy(true); setParkingError('');
+                    if (await saveMasterLists(newLists)) {
+                        setParkingDraft(assignments); parkingBaselineRef.current = assignments;
+                        setNewParkingSpot(''); setParkingSpotToRemove(null); setIsParkingEditing(false);
+                    } else setParkingError('Parking changes could not be saved. Your draft is still here. Try again.');
+                } catch (error) { setParkingError(error.message || 'Parking changes could not be saved. Your draft is still here.'); }
+                finally { setParkingSaveBusy(false); }
             };
 
             const addMasterListItem = async () => {
@@ -14166,15 +14235,15 @@ const WeeklyBilling = (() => {
                                         {canEditSection('parking') && (
                                             isParkingEditing ? (
                                                 <>
-                                                    <button onClick={saveParkingAssignments} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-2">
-                                                        <Save className="w-4 h-4" /> Save
+                                                    <button onClick={saveParkingAssignments} disabled={parkingSaveBusy || Boolean(parkingSpotToRemove)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-2">
+                                                        {parkingSaveBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}{parkingSaveBusy ? 'Saving…' : 'Save'}
                                                     </button>
-                                                    <button onClick={() => { setParkingDraft(JSON.parse(JSON.stringify(getParkingAssignments()))); setIsParkingEditing(false); }} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg border border-slate-600 transition-colors cursor-pointer">
+                                                    <button disabled={parkingSaveBusy} onClick={() => { resetParkingDraft(); setIsParkingEditing(false); }} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg border border-slate-600 transition-colors cursor-pointer">
                                                         Cancel
                                                     </button>
                                                 </>
                                             ) : (
-                                                <button onClick={() => setIsParkingEditing(true)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg border border-slate-600 transition-colors cursor-pointer flex items-center gap-2">
+                                                <button onClick={startParkingEditing} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg border border-slate-600 transition-colors cursor-pointer flex items-center gap-2">
                                                     <Edit3 className="w-4 h-4" /> Edit
                                                 </button>
                                             )
@@ -14185,7 +14254,7 @@ const WeeklyBilling = (() => {
                                         <button onClick={() => setIsParkingFullscreen(!isParkingFullscreen)} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer" title={isParkingFullscreen ? "Restore Size" : "Maximize"}>
                                             {isParkingFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
                                         </button>
-                                        <button onClick={() => { setIsParkingModalOpen(false); setIsParkingFullscreen(false); }} className="text-slate-400 hover:text-white cursor-pointer p-2"><X className="w-5 h-5" /></button>
+                                        <button aria-label="Close Parking Assignments" disabled={parkingSaveBusy} onClick={() => { setIsParkingModalOpen(false); setIsParkingFullscreen(false); }} className="text-slate-400 hover:text-white cursor-pointer p-2"><X className="w-5 h-5" /></button>
                                     </div>
                                 </div>
 
@@ -14200,6 +14269,18 @@ const WeeklyBilling = (() => {
                                             Parking assignments are view-only for team users.
                                         </div>
                                     )}
+                                    {parkingError && <div role="alert" className="mb-4 rounded-xl border border-rose-500/40 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">{parkingError}</div>}
+                                    {isParkingEditing && canManageParkingAction('add') && <form onSubmit={event => { event.preventDefault(); addParkingSpot(); }} className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-700 bg-slate-800/50 p-4">
+                                        <label className="min-w-[10rem] flex-1"><span className="mb-1.5 block text-xs font-bold text-slate-300">New parking spot</span><input aria-label="New parking spot" value={newParkingSpot} onChange={event => { setNewParkingSpot(event.target.value); setParkingError(''); }} disabled={parkingSaveBusy} maxLength={50} placeholder="e.g. 44 or Overflow A" className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-slate-400 disabled:opacity-50" /></label>
+                                        <button type="submit" disabled={parkingSaveBusy} className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-xs font-bold text-white hover:bg-slate-600 disabled:opacity-50"><PlusCircle className="h-4 w-4" />Add spot</button>
+                                        <p className="w-full text-xs text-slate-400">New spots start as Available. Choose an assigned contractor below, then Save.</p>
+                                    </form>}
+                                    {isParkingEditing && parkingSpotToRemove && <div ref={parkingRemovalConfirmRef} role="alert" aria-label="Remove parking spot confirmation" className="mb-4 rounded-xl border border-rose-500/40 bg-rose-950/20 p-4">
+                                        <p className="text-sm font-bold text-slate-100">Remove Spot {parkingSpotToRemove.spot}?</p>
+                                        <p className="mt-1 text-xs text-slate-300">{parkingSpotToRemove.assignee && parkingSpotToRemove.assignee !== 'Available' ? 'Assigned to ' + parkingSpotToRemove.assignee + '. ' : ''}It will be removed when you click Save.</p>
+                                        <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={removeParkingSpot} disabled={parkingSaveBusy} className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white hover:bg-rose-600 disabled:opacity-50">Confirm removal</button><button type="button" onClick={() => setParkingSpotToRemove(null)} disabled={parkingSaveBusy} className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700 disabled:opacity-50">Keep spot</button></div>
+                                    </div>}
+
                                     <div ref={parkingScreenshotRef} className="bg-slate-900 rounded-2xl border border-slate-700 overflow-hidden shadow-2xl p-4">
                                         <div className="flex items-center justify-between gap-4 mb-4">
                                             <div className="flex items-center gap-3">
@@ -14218,18 +14299,22 @@ const WeeklyBilling = (() => {
                                             <div className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Status</div>
                                         </div>
                                         <div className="divide-y divide-slate-700/60">
+                                            {parkingDraft.length === 0 && <div className="px-4 py-8 text-center text-sm text-slate-400">No parking spots have been added.</div>}
                                             {parkingDraft.map((assignment) => {
                                                 const isAvailable = !assignment.assignee || String(assignment.assignee).toLowerCase() === 'available';
                                                 return (
-                                                    <div key={assignment.id} className="grid grid-cols-[120px_1fr_120px] gap-0 items-center hover:bg-slate-700/25 transition-colors">
+                                                    <div key={assignment.id} data-parking-spot={assignment.spot} className="grid grid-cols-[120px_1fr_120px] gap-0 items-center hover:bg-slate-700/25 transition-colors">
                                                         <div className="px-4 py-3">
                                                             <div className="text-sm font-black text-slate-100">Spot {assignment.spot}</div>
                                                         </div>
                                                         <div className="px-4 py-3">
-                                                            {isParkingEditing && canEditSection('parking') ? (
+                                                            {isParkingEditing && canEditParkingAssignee(assignment.id) ? (
                                                                 <input
                                                                     type="text"
                                                                     list="parking-assignment-options"
+                                                                    aria-label={'Assigned contractor for Spot ' + assignment.spot}
+                                                                    disabled={parkingSaveBusy}
+                                                                    autoFocus={!parkingBaselineRef.current.some(item => String(item.id) === String(assignment.id))}
                                                                     className="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-slate-400 shadow-inner"
                                                                     value={assignment.assignee}
                                                                     onChange={(e) => updateParkingAssignment(assignment.id, e.target.value)}
@@ -14245,6 +14330,7 @@ const WeeklyBilling = (() => {
                                                             <span className={`inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${isAvailable ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/20' : 'bg-slate-900 text-slate-400 border-slate-700'}`}>
                                                                 {isAvailable ? 'Available' : 'Assigned'}
                                                             </span>
+                                                            {isParkingEditing && !isCapturing && canManageParkingAction('delete') && <button type="button" data-html2canvas-ignore="true" aria-label={'Remove Spot ' + assignment.spot} disabled={parkingSaveBusy} onClick={() => { setParkingSpotToRemove(assignment); setParkingError(''); }} className="mx-auto mt-2 flex items-center justify-center gap-1 text-xs font-semibold text-rose-300 hover:text-rose-200 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" />Remove</button>}
                                                         </div>
                                                     </div>
                                                 );
