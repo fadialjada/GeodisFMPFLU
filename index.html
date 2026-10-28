@@ -7403,19 +7403,49 @@ const WeeklyBilling = (() => {
         if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return '';
         const d=new Date(date+'T12:00:00Z');return Number.isFinite(d.getTime()) && d.toISOString().slice(0,10)===date?date:'';
     };
-    const shortDeductionReason = (notes,type) => {
-        let reason=String(notes || '').replace(/\b(?:SO|RMA)[ -]?\d+(?:_\d+)?\b/gi,'').replace(/^[\s,;./-]+|[\s,;./-]+$/g,'').replace(/\s+/g,' ').trim();
-        if(/missing legs.*sofa|missing.*sofa.*legs/i.test(reason))return 'Missing sofa legs';
-        if(/missing hardware/i.test(type) && (!reason || /missing (?:parts|hardware)/i.test(reason)))return 'Missing hardware';
-        if(/damag.*(?:packaging|in (?:a )?box|in box)/i.test(reason))return /packaging/i.test(reason)?'Damaged in packaging':'Damaged in box';
-        if(/military base/i.test(reason) && /not completed|incomplete/i.test(reason))return 'Military base / incomplete';
-        if(/(?:r\/s|reschedul).*late/i.test(reason))return 'Rescheduled / running late';
-        if(/(?:unable to complete|incomplete).*no notes.*(?:ls|3pl)/i.test(reason))return 'Incomplete / no LS or 3PL notes';
-        if(/^nd\s+\d+\s+stops/i.test(reason))return reason.replace(/^nd\s+(\d+)\s+stops.*/i,'ND / $1 stops');
-        if(/refused.*damag/i.test(reason))return 'Refused / damaged';
-        reason=reason || String(type || '').trim() || 'Deduction';
-        return reason.charAt(0).toUpperCase()+reason.slice(1);
+    const cleanDeductionText = value => String(value ?? '').normalize('NFKC').replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g,'').replace(/\s+/g,' ').trim();
+    const uniqueDeductionText = values => {
+        const seen=new Set();return values.map(cleanDeductionText).filter(value=>{const key=identity(value).replace(/[.;,]+$/,'');if(!key||seen.has(key))return false;seen.add(key);return true;});
     };
+    const deductionSourceDates = (...texts) => {
+        const dates=[];for(const text of texts)for(const match of cleanDeductionText(text).matchAll(/\b(?:\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\b/g)){const date=reportDate(match[0])||match[0];if(!dates.includes(date))dates.push(date);}return dates;
+    };
+    const shortDeductionReason = (notes,type) => {
+        const original=cleanDeductionText(notes),marker=/(?:\(\d+\)\s*)?\bFGO\s*-\s*/i;
+        const structured=marker.test(original),parts=structured?original.split(new RegExp(marker.source,'gi')).slice(1):[original];
+        const damage=/\b(?:(?:top|back|front|left|right|paint|frame|leg|drawer|corner|cover|wood|fabric|seat|arm|surface)\s+(?:scratched|scuffed|chipped|damaged|broken)|(?:\d+\s+)?missing|chipped|scratch(?:ed|es)?|scuff(?:ed|s)?|crushed|ripped|broken|damag(?:ed|e)|dented|torn|cracked|peeling|stained|wrong|refused|rescheduled|incomplete|no\s+(?:notes|photos|pictures)|not\s+(?:completed|delivered)|unable|late|missed|delayed|top\s+scratched)\b/i;
+        const fragments=[];
+        for(let part of parts){
+            if(structured){const payment=/\bFGO\s+\$\s*-?\d[\d,]*(?:\.\d+)?\s*/i.exec(part);if(payment)part=part.slice(payment.index+payment[0].length);const reasonStart=part.search(damage);if(reasonStart>=0)part=part.slice(reasonStart);
+                part=part.replace(/\s+Fadi\s+Aljada\s*\.?$/i,'');
+                part=part.replace(/\s+([A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+){1,2})\s*\.?$/u,(full,name)=>/\b(?:leg|legs|drawer|frame|corner|cover|sofa|bed|table|chair|pillow|pillows|paint|top|left|right|back|front|hardware|parts|delivery|notes)\b/i.test(name)?full:'');
+            }
+            part=part.replace(/\b(?:SO|RMA)[ -]?\d+(?:_\d+)?\b/gi,'').replace(/\b(?:\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\b/g,'');
+            if(structured)part=part.replace(/\bPFL\d{2}-\d{2,3}\b/gi,'').replace(/\$\s*-?\d[\d,]*(?:\.\d+)?/g,'').replace(/\b0\d{5,}\b/g,'');
+            part=part.replace(/^[\s,;·./-]+|[\s,;·./-]+$/g,'').replace(/\s+/g,' ').trim();
+            for(let fragment of part.split(/\s*(?:[;,|·]|\.(?=\s|$)|\s+-\s+)\s*/)){
+                fragment=fragment.trim();if(!fragment)continue;
+                if(/^missing (?:legs (?:for|on|from) (?:the )?sofa|sofa legs)\.?$/i.test(fragment))fragment='Missing sofa legs';
+                else if(/^missing (?:parts|hardware)\.?$/i.test(fragment) && /missing hardware/i.test(type))fragment='Missing hardware';
+                if(fragment===fragment.toUpperCase()&&/[A-Z]/.test(fragment))fragment=fragment.toLowerCase();
+                fragment=fragment.replace(/\btop left\b/ig,'top-left');fragments.push(fragment);
+            }
+        }
+        const reasons=uniqueDeductionText(fragments);if(!reasons.length)reasons.push(cleanDeductionText(type)||'Deduction');
+        return reasons.map((reason,index)=>index&&!/^[A-Z0-9]{2,}\b/.test(reason)?reason.charAt(0).toLowerCase()+reason.slice(1):index?reason:reason.charAt(0).toUpperCase()+reason.slice(1)).join('; ');
+    };
+    const deductionNote = entry => {
+        const firstName=cleanDeductionText(entry.firstName || cleanDeductionText(entry.driver).split(/\s+/)[0]);
+        const rawOrder=cleanDeductionText(entry.order || entry.orderNumber).split('_',1)[0],orderMatch=rawOrder.match(/^(SO|RMA)[ -]?(\d+)$/i);
+        const order=orderMatch?orderMatch[1].toUpperCase()+' '+orderMatch[2]:cleanDeductionText(entry.orderNumber || rawOrder);
+        const rawNote=cleanDeductionText(entry.note || entry.reason || entry.originalReason),parts=rawNote.split(/\s*·\s*/);
+        if(parts.length>1 && [identity(firstName),identity(entry.driver)].includes(identity(parts[0])))parts.shift();
+        if(parts.length>1 && [identity(order),identity(rawOrder),identity(entry.orderNumber)].includes(identity(parts[0])))parts.shift();
+        const dates=deductionSourceDates(entry.originalReason,rawNote);if(!dates.length&&reportDate(entry.date))dates.push(reportDate(entry.date));
+        const reason=shortDeductionReason(parts.join(' · '),entry.type);
+        return [firstName,order,dates.map(date=>reportDate(date)?dateText(date):date).join(', '),reason].filter(Boolean).join(' · ');
+    };
+
     const parseDeductions = (draft,text,filename='Living Spaces CSV') => {
         const table=csvRows(text);if(table.length<2)throw new Error('The report has no detail rows.');
         const headers=table[0].map(h=>identity(h)),required=['Date','Service Unit','Driver','Order','Adjusted Payout'];
@@ -7436,6 +7466,7 @@ const WeeklyBilling = (() => {
             const withinWeek=Boolean(date && date>=draft.week.mondayStr && date<=draft.week.sundayStr),matches=draft.rows.filter(r=>r.date===date && r.routeNumber===routeNumber),old=previous.get(id);
             const entry={id,date,rawDate:get(row,'Date'),routeNumber,order,orderNumber,driver,firstName,amount:rounded,sourceAmount:rounded,originalReason,type,reason,note:[firstName,orderNumber,reason].filter(Boolean).join(' · '),routeId:matches.length===1?matches[0].id:'',include:withinWeek,sourceRecord:i+1,validOrder:Boolean(orderMatch),withinWeek};
             if(old){entry.include=old.include;entry.note=old.note;entry.amount=old.amount;if(draft.rows.some(r=>r.id===old.routeId))entry.routeId=old.routeId;}
+            entry.note=deductionNote(entry);
             entries.push(entry);
         }
         return {entries,info:{filename:String(filename),records:table.length-1,negativeEntries:entries.length,ignoredNonnegative:nonnegative,ignoredDuplicates:duplicates,outsideWeek:entries.filter(d=>!d.withinWeek).length}};
@@ -7449,7 +7480,7 @@ const WeeklyBilling = (() => {
         v[15]=deductions.length || number(row.rateAdjustment)!=null ? Math.round(((number(row.rateAdjustment)||0)+deduct)*100)/100 : null;
         if(row.payee){v[16]=number(row.survey);v[17]=number(row.onTime);v[18]=number(row.completion);}
         v[20]=number(row.mileage);
-        const withNote=s=>[String(s || '').trim(),extra?String(draft.surveyNote || '').trim():'',...deductions.map(d=>String(d.note || '').trim())].filter(Boolean).filter((x,i,a)=>!a.slice(0,i).some(previous=>previous===x || previous.includes(x))).join('; ') || null;
+        const withNote=s=>[String(s || '').trim(),extra?String(draft.surveyNote || '').trim():'',...deductions.map(deductionNote)].filter(Boolean).filter((x,i,a)=>!a.slice(0,i).some(previous=>previous===x || previous.includes(x))).join('; ') || null;
         v[26]=withNote(row.internalNotes);v[27]=withNote(row.notes);
         return v;
     };
@@ -7591,7 +7622,7 @@ const WeeklyBilling = (() => {
         files[meta.part]=writeSheet(files[meta.part],meta,rows);
         return zip(files);
     };
-    return {reconciliationSource,reconciliationData,reconciliationWorkbook,normalizeCompanyCatalog,companyNames,resolveBillingCompany,changeCompanyCatalog,applyCompanyCatalog,companyUsage,companies,types,identity,number,move,dateText,serial,rate,billingName,nameLinkStorageKey,readNameLinks,saveNameLink,applyNameLinks,restoreNameLinks,nameLinkChoices,typeFor,build,assign,allocationFor,csvRows,shortDeductionReason,parseDeductions,deductionsFor,deductionTotal,values,validate,workbook};
+    return {reconciliationSource,reconciliationData,reconciliationWorkbook,normalizeCompanyCatalog,companyNames,resolveBillingCompany,changeCompanyCatalog,applyCompanyCatalog,companyUsage,companies,types,identity,number,move,dateText,serial,rate,billingName,nameLinkStorageKey,readNameLinks,saveNameLink,applyNameLinks,restoreNameLinks,nameLinkChoices,typeFor,build,assign,allocationFor,csvRows,shortDeductionReason,deductionNote,parseDeductions,deductionsFor,deductionTotal,values,validate,workbook};
 })();
 
         const saveBillingCompanyCatalog = async ({uid,catalog,baseline,name}) => {
