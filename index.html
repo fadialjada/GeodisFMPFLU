@@ -2691,6 +2691,7 @@
                     routes: normalRows.length,
                     sameDayRoutes: sameDayRows.length,
                     completedRoutes: normalRows.filter(hasRouteCompletionEta).length,
+                    uniformCount: normalRows.filter(route => Boolean(route.uniform)).length,
                     orders: normalRows.reduce((sum, route) => sum + (Number(String(route?.stops || '').replace(/,/g, '')) || 0), 0)
                 };
             };
@@ -2712,6 +2713,7 @@
                 const autoCounts = getAutoRouteCounts(cloned);
                 cloned.loadout.metrics[0] = { ...(cloned.loadout.metrics[0] || {}), label:"Total Routes", value: String(autoCounts.routes) };
                 cloned.loadout.metrics[1] = { ...(cloned.loadout.metrics[1] || {}), label:"Number of Same Day Routes", value: String(autoCounts.sameDayRoutes) };
+                if (autoCounts.hasRows) cloned.loadout.uniformCount = String(autoCounts.uniformCount);
                 return cloned;
             };
 
@@ -10018,7 +10020,7 @@ const WeeklyBillingFinalReconciliation = ({draft,sourceReport,restoreSource,expo
                 const basicCount = Number(d.loadout?.basicDeliveryCount) || 0;
                 const thresholdCount = Number(d.loadout?.thresholdCount) || 0;
                 const whiteGloveCount = Number(d.loadout?.whiteGloveCount) || 0;
-                const uniform = Math.min(Number(d.loadout?.uniformCount) || 0, routes);
+                const uniform = autoRouteCounts.hasRows ? autoRouteCounts.uniformCount : Math.min(Number(d.loadout?.uniformCount) || 0, routes);
                 const offDock = Math.min(Number(d.loadout?.offDockCount) || 0, routes);
                 const eta = Math.min(Number(d.loadout?.etaCount) || 0, routes);
                 const comp = autoRouteCounts.completedRoutes;
@@ -10049,7 +10051,8 @@ const WeeklyBillingFinalReconciliation = ({draft,sourceReport,restoreSource,expo
                 const checkedInPerc = routes > 0 ? (checkedInCount / routes) * 100 : 0;
 
                 return { 
-                    otd, executionScore, damageRate, offDockPerc, etaPerc, compPerc, uniformPerc, 
+                    otd, executionScore, damageRate, offDockPerc, etaPerc, compPerc, uniformPerc,
+                    uniformCount: uniform, uniformFromRoutes: autoRouteCounts.hasRows, 
                     routes, sameDayRoutes, orders, pickups, basicCount, thresholdCount, whiteGloveCount, missedDeliv, earlyViolations, escPerc, podPerc, notHomePerc, claimsPerc, checkedInCount, checkedInPerc, completedRoutesCount: comp 
                 };
             };
@@ -12706,7 +12709,13 @@ const WeeklyBillingFinalReconciliation = ({draft,sourceReport,restoreSource,expo
                                 
                                 <section className="mb-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                        <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md relative overflow-hidden group">
+                                        <button
+                                            type="button"
+                                            disabled={!accountCanAction(user,ownerPermissionKey('routes'),'view',accessProfile)}
+                                            onClick={() => { setActiveTab('routes'); setRoutesSubTab('table'); }}
+                                            aria-label={`Number of Routes: ${String(currentKPI.routes || 0)}. Open route table`}
+                                            className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md relative overflow-hidden group w-full text-left enabled:cursor-pointer disabled:cursor-default focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300"
+                                        >
                                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none"><Truck className="w-24 h-24 text-slate-100" /></div>
                                             <span className="text-slate-400 text-[11px] font-bold uppercase tracking-widest block mb-1 relative z-10">Number of Routes</span>
                                             <div className="flex items-baseline gap-3 relative z-10">
@@ -12714,7 +12723,7 @@ const WeeklyBillingFinalReconciliation = ({draft,sourceReport,restoreSource,expo
                                                 <TrendIndicator current={Number(currentKPI.routes || 0)} previous={trends.yesterday.routes} isPercent={false} />
                                             </div>
                                             {isEditing && <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-slate-500 relative z-10">Auto from Routes tab</div>}
-                                        </div>
+                                        </button>
 
                                         <div className="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-md relative overflow-hidden group transition-all">
                                             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none text-slate-100"><Package className="w-24 h-24" /></div>
@@ -12731,7 +12740,7 @@ const WeeklyBillingFinalReconciliation = ({draft,sourceReport,restoreSource,expo
 
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                         {[
-                                            { label:"Teams in Uniform", count: String(data.loadout?.uniformCount ||"0"), total: currentKPI.routes, perc: currentKPI.uniformPerc, key: 'uniformCount', section: 'loadout', target: '100%', prev: trends.yesterday.uniformPerc },
+                                            { label:"Teams in Uniform", count: String(currentKPI.uniformCount || 0), total: currentKPI.routes, perc: currentKPI.uniformPerc, key: 'uniformCount', section: 'loadout', target: '100%', prev: trends.yesterday.uniformPerc, autoFromRoutes: currentKPI.uniformFromRoutes },
                                             { label:"Routes Dispatched by 7 AM", count: String(data.loadout?.offDockCount ||"0"), total: currentKPI.routes, perc: currentKPI.offDockPerc, key: 'offDockCount', section: 'loadout', target: '100%', prev: trends.yesterday.offDockPerc },
                                             { label:"Early Delivery Violation", count: String(data.midDay?.earlyCount ||"0"), total: currentKPI.orders, perc: currentKPI.earlyViolations, key: 'earlyCount', section: 'midDay', isException: true, target: '0', prev: trends.yesterday.earlyViolations, inverse: true }
                                         ].map((item, idx) => {
@@ -12757,16 +12766,17 @@ const WeeklyBillingFinalReconciliation = ({draft,sourceReport,restoreSource,expo
                                                         </div>
                                                     </div>
                                                     <div className="flex justify-between items-center mb-2">
-                                                        {!item.isException && <div className="text-[13px] text-slate-400 font-medium">{String(item.count)} of {String(item.total)}{item.section === 'loadout' ? ' routes' : ''}</div>}
+                                                        {!item.isException && <div className="text-[13px] text-slate-400 font-medium">{String(item.count)} of {String(item.total)}{item.key === 'uniformCount' ? ' teams' : item.section === 'loadout' ? ' routes' : ''}</div>}
                                                         <TrendIndicator current={item.perc} previous={item.prev} inverse={item.inverse} isPercent={!item.isException} />
                                                     </div>
-                                                    {isEditing ? (
+                                                    {isEditing && !item.autoFromRoutes ? (
                                                         <input className="w-full bg-slate-900 text-xl font-bold p-1 rounded focus:ring-1 focus:ring-indigo-500 outline-none border border-slate-600 text-white placeholder-slate-500" inputMode="numeric" pattern="[0-9]*" placeholder="0" value={String(item.count) === '0' ? '' : String(item.count)} onChange={(e) => { const nd = JSON.parse(JSON.stringify(data)); const digits = String(e.target.value).replace(/\D/g, ''); const rawVal = digits === '' ? 0 : Math.max(0, Number(digits) || 0); nd[item.section][item.key] = item.isException ? String(rawVal) : String(Math.min(rawVal, Number(item.total || 0))); setData(nd); }} />
                                                     ) : (
                                                         <div className="w-full bg-slate-900 rounded-full h-1.5">
                                                             <div className={`h-1.5 rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Number(item.perc || 0)}%` }}></div>
                                                         </div>
                                                     )}
+                                                    {isEditing && item.autoFromRoutes && <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-slate-500">Auto from Route Table</div>}
                                                 </div>
                                             )
                                         })}
